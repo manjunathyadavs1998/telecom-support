@@ -1,3 +1,6 @@
+import { canOpen, landingFor, NAV_ITEMS } from '@/permissions/navConfig'
+import type { Me } from '@/types/api'
+
 /** Control (C0, DEL, C1) or whitespace characters (frontend.md §7.1). */
 // oxlint-disable-next-line no-control-regex -- matching control characters is the point of this check
 const UNSAFE_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\s]/
@@ -23,4 +26,16 @@ export function safeReturnTo(
   if (url.origin !== new URL(origin).origin) return fallback
   if (url.pathname === '/login') return fallback
   return url.pathname + url.search + url.hash
+}
+
+/**
+ * Where to go after login (frontend.md §7 After login): the safe `returnTo` if the new user may open it, else their landing
+ * route (`/` when they have none → `NoAccessPage`). A path outside the nav registry (`/`, an unknown path → 404) is allowed.
+ */
+export function afterLoginTarget(raw: string | null | undefined, me: Me, origin: string = window.location.origin): string {
+  const landing = landingFor(me) ?? '/'
+  const target = safeReturnTo(raw, landing, origin)
+  const { pathname } = new URL(target, origin)
+  const item = NAV_ITEMS.find((candidate) => candidate.path === pathname)
+  return item && !canOpen(me, item) ? landing : target
 }

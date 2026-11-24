@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -160,6 +161,17 @@ describe('re-validation on navigation (§7, XC-02)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
     expect(queryClient.getQueryData(ME_QUERY_KEY) ?? null).toBeNull() // no user left (a re-bootstrap may store null)
     expect(calls.slice(0, 3)).toEqual(['csrf', 'me', 'me'])
+    expect(screen.getByRole('status')).toHaveTextContent('Your session expired. Sign in again.')
+
+    // Re-login returns to the page that was being opened.
+    vi.useRealTimers()
+    server.use(http.post('*/api/v1/auth/login', () => HttpResponse.json(meCustomer)))
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Mobile number or employee ID'), meCustomer.username)
+    await user.type(screen.getByLabelText('Password'), 'pw')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Profile' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/customer/profile')
   })
 
   it('(c) stale /me + 401 on window focus → /login?reason=expired&returnTo=<current page>, exactly once', async () => {
