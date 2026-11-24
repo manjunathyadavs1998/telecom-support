@@ -47,10 +47,19 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    /**
+     * {@code XSRF-TOKEN} cookie: SameSite=Lax, readable by the SPA. Secure always when {@code app.security.cookie-secure}
+     * is true (the {@code prod} profile); otherwise Secure only for an HTTPS request (§4.3).
+     */
     @Bean
-    CsrfTokenRepository csrfTokenRepository() {
+    CsrfTokenRepository csrfTokenRepository(@Value("${app.security.cookie-secure:false}") boolean cookieSecure) {
         CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
+        repository.setCookieCustomizer(cookie -> {
+            cookie.sameSite("Lax");
+            if (cookieSecure) {
+                cookie.secure(true);
+            }
+        });
         return repository;
     }
 

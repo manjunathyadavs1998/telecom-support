@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.telecom.support.common.error.ApiExceptions.BadRequestException;
 import com.telecom.support.common.error.ApiExceptions.ConflictException;
 import com.telecom.support.common.error.ApiExceptions.IdempotencyMismatchException;
 import com.telecom.support.common.idempotency.IdempotencyRepository.StoredKey;
@@ -16,6 +17,9 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.ResponseEntity;
@@ -33,8 +37,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       duplicate fails at once with 409 {@code conflict}. For an existing row: a different request hash: 422
  *       {@code idempotency-mismatch}; COMPLETED: the stored status and body are replayed; IN_PROGRESS older than
  *       {@code app.idempotency.stale-after}: deleted and claimed again, otherwise 409.</li>
+ *   <li>The key is validated first (1-100 printable ASCII characters); otherwise 400 {@code bad-request}.</li>
  *   <li>The supplier runs. A 2xx response is stored (COMPLETED, {@code REQUIRES_NEW}); an exception or a non-2xx
- *       response deletes the key so the client can retry, and is passed on unchanged.</li>
+ *       response deletes the key so the client can retry, and is passed on unchanged. If storing the 2xx response
+ *       fails, the IN_PROGRESS row is deleted (best effort, logged) before the failure is rethrown, so it does not
+ *       block retries until {@code stale-after}.</li>
  *   <li>The request hash is the hex SHA-256 of the request serialised by the app {@link ObjectMapper} with sorted
  *       properties and map keys.</li>
  * </ol>
@@ -43,6 +50,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class IdempotencyService {
+
+    private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
+    /** 00-overview §7: 1-100 printable ASCII characters (space to tilde). */
+    private static final Pattern KEY = Pattern.compile("[\\x20-\\x7E]{1,100}");
+    static final String INVALID_KEY_DETAIL = "The Idempotency-Key header must be 1-100 printable ASCII characters.";
 
     private final IdempotencyRepository repository;
     private final ObjectMapper objectMapper;
@@ -72,12 +84,13 @@ public class IdempotencyService {
      *
      * @param userId    the caller's user id (from the principal)
      * @param operation stable operation name, e.g. {@code CASE_CREATE} (at most 64 chars)
-     * @param key       the {@code Idempotency-Key} header (1-100 chars; validated by the controller)
+     * @param key       the {@code Idempotency-Key} header (1-100 printable ASCII chars; else 400 bad-request)
      * @param request   the request DTO whose canonical JSON is hashed
      * @param supplier  the business call; owns its transaction
      */
     public ResponseEntity<?> execute(long userId, String operation, String key, Object request,
                                      Supplier<? extends ResponseEntity<?>> supplier) {
+        validateKey(key);
         String hash = hash(request);
         Claim claim = requiresNew.execute(status -> claim(userId, operation, key, hash));
         if (claim.replay() != null) {
@@ -94,10 +107,36 @@ public class IdempotencyService {
             release(claim.id());
             return response;
         }
+        try {
+            store(claim.id(), response);
+        } catch (RuntimeException | Error e) {
+            releaseAfterStoreFailure(claim.id(), e);
+            throw e;
+        }
+        return response;
+    }
+
+    /** Stores the 2xx status and body on the claimed row (COMPLETED). Package-private as a fault-injection seam. */
+    void store(long id, ResponseEntity<?> response) {
         String body = toJson(response.getBody());
         int status = response.getStatusCode().value();
-        requiresNew.executeWithoutResult(tx -> repository.complete(claim.id(), status, body));
-        return response;
+        requiresNew.executeWithoutResult(tx -> repository.complete(id, status, body));
+    }
+
+    private void releaseAfterStoreFailure(long id, Throwable cause) {
+        log.error("Storing the idempotent response failed; releasing key row {}", id, cause);
+        try {
+            release(id);
+        } catch (RuntimeException releaseFailure) {
+            log.error("Releasing key row {} failed; it blocks retries until stale-after", id, releaseFailure);
+            cause.addSuppressed(releaseFailure);
+        }
+    }
+
+    private static void validateKey(String key) {
+        if (key == null || !KEY.matcher(key).matches()) {
+            throw new BadRequestException("Invalid Idempotency-Key", INVALID_KEY_DETAIL);
+        }
     }
 
     /** Either a fresh claim ({@code id}) or a stored response to replay. */

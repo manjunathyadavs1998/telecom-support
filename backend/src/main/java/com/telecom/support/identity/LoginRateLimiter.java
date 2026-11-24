@@ -16,6 +16,9 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,6 +32,10 @@ import org.springframework.stereotype.Component;
  *   <li>L3 — normalised username, all IPs: over 50 failures in a rolling hour reports an anomaly once per window;
  *       nothing is blocked.</li>
  * </ul>
+ *
+ * <p>Each map holds at most {@code maxKeys} keys. When a new key arrives at capacity, idle entries are swept (at most
+ * once per {@link #SWEEP_INTERVAL}); if the map is still full, the new key is not added and the attempt is throttled
+ * (429, limit {@code capacity}, logged at WARN). Existing keys keep their counters, so the limits are never weakened.
  */
 @Component
 public class LoginRateLimiter {
@@ -39,20 +46,33 @@ public class LoginRateLimiter {
     static final Duration PAIR_BLOCK = Duration.ofMinutes(15);
     static final int USER_ANOMALY_FAILURES = 50;
     static final Duration USER_WINDOW = Duration.ofHours(1);
-    /** Upper bound per map; above it, idle entries are swept before a new key is added. */
+    /** Upper bound per map; at it, idle entries are swept, and a new key that still does not fit is throttled. */
     static final int MAX_KEYS = 100_000;
+    static final String CAPACITY = "capacity";
+    static final Duration CAPACITY_RETRY_AFTER = Duration.ofMinutes(1);
+    static final Duration SWEEP_INTERVAL = Duration.ofSeconds(1);
+
+    private static final Logger log = LoggerFactory.getLogger(LoginRateLimiter.class);
 
     /** A 429 decision: whole seconds until the caller may retry (at least 1). */
     public record Throttled(String limit, long retryAfterSeconds) {}
 
     private final Clock clock;
     private final TimeMeter timeMeter;
-    private final Map<String, IpState> ips = new ConcurrentHashMap<>();
-    private final Map<String, PairState> pairs = new ConcurrentHashMap<>();
-    private final Map<String, UserState> usernames = new ConcurrentHashMap<>();
+    private final BoundedMap<IpState> ips;
+    private final BoundedMap<PairState> pairs;
+    private final BoundedMap<UserState> usernames;
 
+    @Autowired
     public LoginRateLimiter(Clock clock) {
+        this(clock, MAX_KEYS);
+    }
+
+    LoginRateLimiter(Clock clock, int maxKeys) {
         this.clock = clock;
+        this.ips = new BoundedMap<>("ips", maxKeys);
+        this.pairs = new BoundedMap<>("pairs", maxKeys);
+        this.usernames = new BoundedMap<>("usernames", maxKeys);
         this.timeMeter = new TimeMeter() {
             @Override
             public long currentTimeNanos() {
@@ -70,13 +90,21 @@ public class LoginRateLimiter {
     /** L1 then L2, before the credential check. Counts one attempt against the IP. Empty = allowed. */
     public Optional<Throttled> acquire(String clientIp, String username) {
         Instant now = clock.instant();
-        IpState ip = state(ips, clientIp, () -> new IpState(newIpBucket()), s -> s.idleSince(now));
+        IpState ip = ips.getOrCreate(clientIp, () -> new IpState(newIpBucket()), s -> s.idleSince(now), now);
+        if (ip == null) {
+            return Optional.of(capacityThrottle());
+        }
         ip.lastSeen = now;
         ConsumptionProbe probe = ip.bucket.tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             return Optional.of(new Throttled("L1", seconds(probe.getNanosToWaitForRefill())));
         }
         PairState pair = pairs.get(pairKey(clientIp, username));
+        // a failure would need new pair / username entries: refuse the attempt now if they could not be tracked
+        if ((pair == null && !pairs.hasRoom(s -> s.idle(now), now))
+                || (usernames.get(normalise(username)) == null && !usernames.hasRoom(s -> s.idle(now), now))) {
+            return Optional.of(capacityThrottle());
+        }
         if (pair != null) {
             synchronized (pair) {
                 if (pair.blockedUntil != null && now.isBefore(pair.blockedUntil)) {
@@ -94,16 +122,21 @@ public class LoginRateLimiter {
      */
     public OptionalInt recordFailure(String clientIp, String username) {
         Instant now = clock.instant();
-        PairState pair = state(pairs, pairKey(clientIp, username), PairState::new, s -> s.idle(now));
-        synchronized (pair) {
-            prune(pair.failures, now.minus(PAIR_WINDOW));
-            pair.failures.addLast(now);
-            if (pair.failures.size() >= PAIR_MAX_FAILURES) {
-                pair.blockedUntil = now.plus(PAIR_BLOCK);
-                pair.failures.clear();
+        PairState pair = pairs.getOrCreate(pairKey(clientIp, username), PairState::new, s -> s.idle(now), now);
+        if (pair != null) {
+            synchronized (pair) {
+                prune(pair.failures, now.minus(PAIR_WINDOW));
+                pair.failures.addLast(now);
+                if (pair.failures.size() >= PAIR_MAX_FAILURES) {
+                    pair.blockedUntil = now.plus(PAIR_BLOCK);
+                    pair.failures.clear();
+                }
             }
         }
-        UserState user = state(usernames, normalise(username), UserState::new, s -> s.idle(now));
+        UserState user = usernames.getOrCreate(normalise(username), UserState::new, s -> s.idle(now), now);
+        if (user == null) {
+            return OptionalInt.empty();
+        }
         synchronized (user) {
             prune(user.failures, now.minus(USER_WINDOW));
             user.failures.addLast(now);
@@ -137,17 +170,86 @@ public class LoginRateLimiter {
                 .build();
     }
 
-    /** Gets or creates a key; when the map is full, idle entries are swept first so the map stays bounded. */
-    private static <S> S state(Map<String, S> map, String key, Supplier<S> create,
-                               Predicate<S> idle) {
-        S existing = map.get(key);
-        if (existing != null) {
-            return existing;
+    /** Keys held per map: ips, pairs, usernames (each bounded by {@code maxKeys}); for tests. */
+    int[] trackedKeys() {
+        return new int[] {ips.size(), pairs.size(), usernames.size()};
+    }
+
+    private static Throttled capacityThrottle() {
+        return new Throttled(CAPACITY, CAPACITY_RETRY_AFTER.toSeconds());
+    }
+
+    /**
+     * A map that never holds more than {@code maxKeys} keys. Lookups of existing keys are lock-free; adding a key is
+     * serialised, sweeps idle entries at capacity (at most once per {@link #SWEEP_INTERVAL}) and refuses the key if the
+     * map is still full.
+     */
+    private static final class BoundedMap<S> {
+        private final String name;
+        private final int maxKeys;
+        private final Map<String, S> map = new ConcurrentHashMap<>();
+        private Instant nextSweep = Instant.MIN;
+        private Instant nextWarning = Instant.MIN;
+
+        BoundedMap(String name, int maxKeys) {
+            this.name = name;
+            this.maxKeys = maxKeys;
         }
-        if (map.size() >= MAX_KEYS) {
-            map.values().removeIf(idle);
+
+        S get(String key) {
+            return map.get(key);
         }
-        return map.computeIfAbsent(key, k -> create.get());
+
+        int size() {
+            return map.size();
+        }
+
+        void remove(String key) {
+            map.remove(key);
+        }
+
+        /** True when a new key could be added now (sweeping idle entries if the map is full). */
+        synchronized boolean hasRoom(Predicate<S> idle, Instant now) {
+            return makeRoom(idle, now);
+        }
+
+        /** The existing state, a new one, or null when the map is full of live entries. */
+        S getOrCreate(String key, Supplier<S> create, Predicate<S> idle, Instant now) {
+            S existing = map.get(key);
+            if (existing != null) {
+                return existing;
+            }
+            synchronized (this) {
+                existing = map.get(key);
+                if (existing != null) {
+                    return existing;
+                }
+                if (!makeRoom(idle, now)) {
+                    return null;
+                }
+                S created = create.get();
+                map.put(key, created);
+                return created;
+            }
+        }
+
+        private boolean makeRoom(Predicate<S> idle, Instant now) {
+            if (map.size() < maxKeys) {
+                return true;
+            }
+            if (!now.isBefore(nextSweep)) {
+                nextSweep = now.plus(SWEEP_INTERVAL);
+                map.values().removeIf(idle);
+            }
+            if (map.size() < maxKeys) {
+                return true;
+            }
+            if (!now.isBefore(nextWarning)) {
+                nextWarning = now.plus(Duration.ofMinutes(1));
+                log.warn("Login limiter map '{}' is full ({} live keys); new keys are throttled", name, maxKeys);
+            }
+            return false;
+        }
     }
 
     private static void prune(Deque<Instant> failures, Instant cutoff) {

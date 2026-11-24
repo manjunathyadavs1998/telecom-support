@@ -284,9 +284,25 @@ class PermissionMatrixIT extends AbstractMySqlIT {
         }
     }
 
+    /**
+     * The slice's openapi contract, found by walking up from the working directory (so the test runs from
+     * {@code backend/}, the repo root or an IDE run configuration).
+     */
+    static Path openapiFile() {
+        Path relative = Path.of("docs", "design", "01-foundation", "openapi.yaml");
+        Path start = Path.of("").toAbsolutePath();
+        for (Path dir = start; dir != null; dir = dir.getParent()) {
+            Path candidate = dir.resolve(relative);
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("Cannot find " + relative + " in " + start + " or any parent directory");
+    }
+
     /** Items of {@code components.schemas.Permission.enum} in the slice's openapi contract. */
     private static List<String> openapiPermissionEnum() throws IOException {
-        List<String> lines = Files.readAllLines(Path.of("..", "docs", "design", "01-foundation", "openapi.yaml"));
+        List<String> lines = Files.readAllLines(openapiFile());
         int start = lines.indexOf("    Permission:");
         assertThat(start).as("Permission schema in openapi.yaml").isNotNegative();
         return lines.subList(start + 1, lines.size()).stream()

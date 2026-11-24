@@ -1,0 +1,11 @@
+# prod profile (01 backend §4.3, §8): session and CSRF cookies are Secure whatever the request scheme, so a missing or
+# wrong X-Forwarded-Proto behind TLS termination can never send them in clear text.
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true    # SESSION (Spring Session's cookie serializer)
+
+app:
+  security:
+    cookie-secure: true # XSRF-TOKEN (SecurityConfig's CSRF cookie repository)

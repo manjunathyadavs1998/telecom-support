@@ -35,7 +35,9 @@ import org.springframework.stereotype.Component;
  * {@code AccessDeniedHandler} (URL-level and CSRF) and by {@code GlobalExceptionHandler} ({@code @PreAuthorize}).
  * The actor comes from the {@link ActorProvider} port, so this module does not depend on {@code identity}.
  *
- * <p>Sampled: at most one row per (user, or client IP when anonymous, + path) per minute. The sampling map is bounded:
+ * <p>Sampled: at most one row per (user + path) per minute for an authenticated caller, and one row per client IP per
+ * minute for an anonymous one, whatever the path, so varying the path cannot force writes. The stored path is
+ * truncated to {@value #MAX_PATH_LENGTH} characters. The sampling map is bounded:
  * when it is full, expired keys are dropped first, and if it is still full it is cleared, so overflow can only write
  * more rows, never fewer.
  */
@@ -45,6 +47,7 @@ public class DeniedAccessRecorder implements AccessDeniedListener {
     static final String ACTION = "ACCESS_DENIED";
     static final Duration WINDOW = Duration.ofMinutes(1);
     static final int DEFAULT_MAX_KEYS = 10_000;
+    static final int MAX_PATH_LENGTH = 255;
 
     private static final SpelExpressionParser PARSER = new SpelExpressionParser();
 
@@ -71,11 +74,11 @@ public class DeniedAccessRecorder implements AccessDeniedListener {
         record(request, denial);
     }
 
-    /** Records the denial of {@code request} unless the same user (or IP) + path was recorded within the window. */
+    /** Records the denial unless the same user + path (or, anonymous, the same client IP) was recorded in the window. */
     public void record(HttpServletRequest request, AccessDeniedException denial) {
         Actor user = actors.currentActor().orElse(null);
-        String path = request.getRequestURI();
-        String key = (user != null ? "u:" + user.id() : "ip:" + ClientIp.resolve(request)) + " " + path;
+        String path = truncate(request.getRequestURI());
+        String key = user != null ? "u:" + user.id() + " " + path : "ip:" + ClientIp.resolve(request);
         if (!sample(key, clock.instant())) {
             return;
         }
@@ -89,6 +92,11 @@ public class DeniedAccessRecorder implements AccessDeniedListener {
         }
         audit.recordIndependently(ACTION, Outcome.DENIED, user != null ? user.id() : null,
                 user != null ? user.username() : null, null, null, details);
+    }
+
+    /** The path as stored in {@code details} and in the sampling key: at most {@value #MAX_PATH_LENGTH} characters. */
+    static String truncate(String path) {
+        return path != null && path.length() > MAX_PATH_LENGTH ? path.substring(0, MAX_PATH_LENGTH) : path;
     }
 
     /** Number of keys held for sampling (bounded by {@code maxKeys}). */

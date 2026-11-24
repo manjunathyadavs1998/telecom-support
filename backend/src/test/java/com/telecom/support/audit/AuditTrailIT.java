@@ -263,11 +263,39 @@ class AuditTrailIT extends AbstractMySqlIT {
     }
 
     @Test
+    void anonymousDenialsOnDistinctPathsFromOneIpWriteOneRowPerMinute() throws Exception {
+        String ip = nextIp();
+        List<String> cids = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            MvcResult denied = mvc.perform(from(ip, post("/not-api/varying-" + i + "-" + UUID.randomUUID())))
+                    .andExpect(status().isForbidden()).andReturn();
+            cids.add(denied.getResponse().getHeader("X-Correlation-Id"));
+        }
+        assertThat(deniedRowsFor(cids)).isEqualTo(1);
+
+        CLOCK.set(CLOCK.instant().plus(Duration.ofMinutes(1)));
+        MvcResult nextMinute = mvc.perform(from(ip, post("/not-api/next-minute"))).andExpect(status().isForbidden())
+                .andReturn();
+        assertThat(rows(nextMinute, DeniedAccessRecorder.ACTION)).hasSize(1);
+    }
+
+    @Test
+    void deniedPathIsStoredTruncatedTo255Characters() throws Exception {
+        String ip = nextIp();
+        String longPath = "/not-api/" + "p".repeat(400);
+
+        MvcResult denied = mvc.perform(from(ip, post(longPath))).andExpect(status().isForbidden()).andReturn();
+
+        assertThat(rows(denied, DeniedAccessRecorder.ACTION)).singleElement().satisfies(row ->
+                assertThat(details(row)).containsEntry("path", longPath.substring(0, 255)));
+    }
+
+    @Test
     void samplingMapIsBoundedAndOverflowNeverDropsARow() {
         DeniedAccessRecorder recorder = new DeniedAccessRecorder(audit, actors, CLOCK, 3);
         for (int i = 0; i < 7; i++) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/bounded/" + i);
-            request.setRemoteAddr("203.0.113.7");
+            request.setRemoteAddr("203.0.113." + (100 + i)); // anonymous denials are sampled per client IP
             recorder.record(request, new AccessDeniedException("probe"));
             assertThat(recorder.trackedKeys()).isLessThanOrEqualTo(3);
         }
@@ -284,6 +312,12 @@ class AuditTrailIT extends AbstractMySqlIT {
                     .containsEntry("client_ip", ip);
             assertThat(details(row)).isEqualTo(expectedDetails);
         });
+    }
+
+    private int deniedRowsFor(List<String> correlationIds) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM audit_events WHERE action = :action AND correlation_id IN (:cids)
+                """, Map.of("action", DeniedAccessRecorder.ACTION, "cids", correlationIds), Integer.class);
     }
 
     /** Rows of {@code action} written under the response's correlation id. */

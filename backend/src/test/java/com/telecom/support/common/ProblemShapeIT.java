@@ -84,6 +84,14 @@ class ProblemShapeIT extends AbstractMySqlIT {
     }
 
     @Test
+    void businessRule422CarriesTheUserSafeDetailButNotTheLogMessage() throws Exception {
+        var body = assertProblem(mvc.perform(get(ERRORS + "/business-rule-detail").with(STAFF)).andReturn(), 422,
+                "business-rule", ERRORS + "/business-rule-detail");
+        assertThat(body).containsEntry("detail", ApiErrorProbeController.USER_SAFE_DETAIL);
+        assertThat(body.toString()).doesNotContain(ApiErrorProbeController.INTERNAL_TEXT);
+    }
+
+    @Test
     void businessRule422DoesNotLeakTheExceptionMessage() throws Exception {
         var body = assertProblem(mvc.perform(get(ERRORS + "/business-rule").with(STAFF)).andReturn(), 422,
                 "business-rule", ERRORS + "/business-rule");

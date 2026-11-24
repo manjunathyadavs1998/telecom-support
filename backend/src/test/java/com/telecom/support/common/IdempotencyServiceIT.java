@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.telecom.support.common.error.ApiExceptions.BadRequestException;
 import com.telecom.support.common.error.ApiExceptions.ConflictException;
 import com.telecom.support.common.idempotency.IdempotencyPurgeJob;
 import com.telecom.support.common.idempotency.IdempotencyService;
@@ -188,6 +189,57 @@ public class IdempotencyServiceIT extends AbstractMySqlIT {
     }
 
     @Test
+    void invalidKeyIs400BadRequestBeforeAnythingRuns() {
+        AtomicInteger calls = new AtomicInteger();
+        Supplier<ResponseEntity<?>> create = () -> {
+            calls.incrementAndGet();
+            return ResponseEntity.status(201).body(Map.of("id", 1));
+        };
+        ProbeRequest request = new ProbeRequest("invalid-key", null);
+
+        for (String key : new String[] {null, "", "k".repeat(101), "café-key", "tab\tkey", "line\nkey"}) {
+            assertThatThrownBy(() -> idempotency.execute(userId, OPERATION, key, request, create))
+                    .as("key %s", key)
+                    .isInstanceOfSatisfying(BadRequestException.class,
+                            e -> assertThat(e.problem().status().value()).isEqualTo(400));
+        }
+        assertThat(calls).hasValue(0);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_keys", Map.of(), Integer.class)).isZero();
+
+        String longest = "k".repeat(100);
+        assertThat(idempotency.execute(userId, OPERATION, longest, request, create).getStatusCode().value())
+                .isEqualTo(201);
+        assertThat(idempotency.execute(userId, OPERATION, "~ printable !", request, create).getStatusCode().value())
+                .isEqualTo(201);
+    }
+
+    @Test
+    void overlongKeyHeaderIs400BadRequestOverHttp() throws Exception {
+        problem(callProbe("k".repeat(101), "{\"name\":\"too-long\"}"), 400, "bad-request");
+    }
+
+    @Test
+    void failureToStoreTheResponseReleasesTheKeySoARetryRunsAtOnce() {
+        ProbeRequest request = new ProbeRequest("store-fails", null);
+        AtomicInteger calls = new AtomicInteger();
+
+        // fault: the 2xx body cannot be serialised, so storing it fails after the supplier succeeded
+        assertThatThrownBy(() -> idempotency.execute(userId, OPERATION, "key-store-fails", request, () -> {
+            calls.incrementAndGet();
+            return ResponseEntity.status(201).body(new Unserialisable());
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(count("key-store-fails")).isZero();
+
+        ResponseEntity<?> retry = idempotency.execute(userId, OPERATION, "key-store-fails", request, () -> {
+            calls.incrementAndGet();
+            return ResponseEntity.status(201).body(Map.of("id", 9));
+        });
+        assertThat(retry.getStatusCode().value()).isEqualTo(201);
+        assertThat(calls).hasValue(2);
+        assertThat(row("key-store-fails")).containsEntry("status", "COMPLETED");
+    }
+
+    @Test
     void staleInProgressKeyIsReclaimed() {
         ProbeRequest request = new ProbeRequest("stale", null);
         AtomicInteger reclaimedRuns = new AtomicInteger();
@@ -285,6 +337,13 @@ public class IdempotencyServiceIT extends AbstractMySqlIT {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
+        }
+    }
+
+    /** A 2xx body whose serialisation fails (fault injection for the store step). */
+    public static final class Unserialisable {
+        public String getBoom() {
+            throw new IllegalStateException("cannot serialise");
         }
     }
 

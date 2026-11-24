@@ -54,11 +54,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(problems.create(Problem.FORBIDDEN, request.getRequestURI()), HttpHeaders.EMPTY);
     }
 
-    /** {@link ApiExceptions} (409 conflict, 422 business-rule / idempotency-mismatch): the row's user-safe detail. */
+    /**
+     * {@link ApiExceptions} (400 bad-request, 409 conflict, 422 business-rule / idempotency-mismatch): the row's
+     * user-safe detail, or the exception's own user-safe detail when it carries one (never its log message).
+     */
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
         log.debug("{} on {}: {}", ex.problem(), request.getRequestURI(), ex.getMessage());
-        return respond(problems.create(ex.problem(), request.getRequestURI()), HttpHeaders.EMPTY);
+        ProblemDetail pd = problems.create(ex.problem(), request.getRequestURI());
+        ex.userDetail().ifPresent(pd::setDetail);
+        return respond(pd, HttpHeaders.EMPTY);
     }
 
     @ExceptionHandler(PayloadTooLargeException.class)

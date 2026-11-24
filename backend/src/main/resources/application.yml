@@ -55,3 +55,4 @@ app:
     purge-cron: "0 0 * * * *"    # hourly purge of keys older than 24 h
   security:
     trusted-proxies: []   # CIDR list; empty = ignore X-Forwarded-* and use the remote address
+    cookie-secure: false  # true (prod profile) = XSRF-TOKEN always Secure; false = Secure only over HTTPS

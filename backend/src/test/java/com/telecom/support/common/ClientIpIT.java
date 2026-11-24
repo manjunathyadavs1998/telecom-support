@@ -12,6 +12,8 @@ import com.telecom.support.common.web.TrustedProxyFilter;
 import com.telecom.support.support.AbstractMySqlIT;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,6 +32,7 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.filter.ForwardedHeaderFilter;
@@ -46,6 +49,16 @@ class ClientIpIT extends AbstractMySqlIT {
     private static final String TOKEN = "client-ip-token";
     private static final int IP_LIMIT = 20;
     private static final AtomicInteger USERS = new AtomicInteger();
+    /** Fixed time, so the L1 bucket cannot refill while the 21 attempts run (slow BCrypt hosts made this flaky). */
+    private static final IdempotencyServiceIT.MutableClock CLOCK =
+            new IdempotencyServiceIT.MutableClock(Instant.parse("2026-04-01T09:00:00Z"));
+
+    @TestBean(name = "clock", methodName = "fixedClock")
+    Clock clock;
+
+    static Clock fixedClock() {
+        return CLOCK;
+    }
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;

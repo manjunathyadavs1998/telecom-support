@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApiErrorProbeController {
 
     public static final String INTERNAL_TEXT = "internal-row-17 secret";
+    public static final String USER_SAFE_DETAIL = "This account is not eligible for reactivation.";
 
     @GetMapping("/conflict")
     String conflict() {
@@ -27,6 +28,11 @@ public class ApiErrorProbeController {
     @GetMapping("/business-rule")
     String businessRule() {
         throw new BusinessRuleException(INTERNAL_TEXT);
+    }
+
+    @GetMapping("/business-rule-detail")
+    String businessRuleWithDetail() {
+        throw new BusinessRuleException(INTERNAL_TEXT, USER_SAFE_DETAIL);
     }
 
     @GetMapping("/idempotency-mismatch")
