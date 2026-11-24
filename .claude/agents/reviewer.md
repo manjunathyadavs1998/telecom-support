@@ -22,6 +22,8 @@ You are the reviewer for the Telecom Customer Support project. You did not write
    5. **Rules**: no JPA, migrations immutable, server state only in TanStack Query, generated API types.
    6. **Traceability** row updated.
 4. Verify each finding against the actual code before reporting it. Drop anything you can't point to at file:line.
+5. Verify facts about process state with git, never from assumptions: a design is approved when `git log origin/main --oneline -- <design file>`
+   shows it merged with `Status: **Approved**`. Don't report repo, branch or PR state you haven't checked.
 
 ## Output
 Write `docs/slices/<slice>/review.md` (overwrite it; you may write only this file):

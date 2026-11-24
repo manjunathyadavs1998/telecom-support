@@ -47,5 +47,25 @@ Implementation stays in the main session: one task from `status.md` at a time.
 4. Each task is one row in `status.md`. If a task needs more than ~5 files, split it before starting.
 5. After a task completes, update `status.md` (the handoff note) before doing anything else.
 
-## 5. Dry-run results
-See §6, filled in after `ba-planner` and `reviewer` were run against slice 01.
+## 5. Dry-run results (slice 01, 2026-11-24)
+
+| Run | Result | Cost |
+|---|---|---|
+| `ba-planner` plan-tasks | `docs/slices/01-foundation/status.md`: 9 ordered backend tasks (B1–B9). Each maps to a named test in the design's test plan; all 10 BRD IDs are covered | ~64k tokens, 6 tool calls, 1.5 min. The main session read only a 15-line summary |
+| `reviewer` design review | `docs/slices/01-foundation/review.md`: 20 findings (2 High, 11 Medium, 7 Low) | ~82k tokens, 11 tool calls, 3 min |
+| Triage (main session) | 19 accepted. 1 rejected as a false positive: the reviewer claimed the design wasn't approved without checking git | — |
+| `ba-planner` revision | design revision 2 addresses #2–#20, goes back to **Proposed**, and needs the user's re-approval | — |
+
+What this showed:
+- **G5 is confirmed.** The author (the main session) missed a real High: per-account lockout let anyone lock out any customer
+  by guessing their mobile number. It also missed CSRF token rotation, an idempotency transaction race and a first-of-day race
+  in the reference generator. An independent read-only reviewer with a narrow brief caught all of them before any code existed,
+  which is the cheapest point to fix them.
+- **Reviewers can hallucinate process state.** Finding #1 asserted facts (the repo isn't a git repo; the design isn't merged)
+  without checking. Fix: `reviewer.md` rule 5 now makes it verify process state with git. The main session still triages
+  every finding; findings are input, not orders.
+- **Agents created mid-session aren't available straight away.** The first spawn failed with "agent type not found", so the dry run
+  used general-purpose agents that were told to follow `.claude/agents/<name>.md` (same prompt, but tool restrictions weren't enforced).
+  A few minutes later Claude Code picked the files up without a restart, and later tasks use the real subagents.
+- **Changing an approved design re-opens the gate.** The revision sets `Status: Proposed` and unticks "Approved" in
+  `status.md`. Building waits for the user to re-approve.
