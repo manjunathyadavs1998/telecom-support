@@ -1,5 +1,6 @@
 package com.telecom.support.common.error;
 
+import com.telecom.support.common.error.ApiExceptions.ApiException;
 import com.telecom.support.common.error.ProblemDetailFactory.FieldViolation;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
 import com.telecom.support.common.web.RequestSizeLimitAdvice.PayloadTooLargeException;
@@ -46,6 +47,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return respond(problems.create(Problem.FORBIDDEN, request.getRequestURI()), HttpHeaders.EMPTY);
+    }
+
+    /** {@link ApiExceptions} (409 conflict, 422 business-rule / idempotency-mismatch): the row's user-safe detail. */
+    @ExceptionHandler(ApiException.class)
+    ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
+        log.debug("{} on {}: {}", ex.problem(), request.getRequestURI(), ex.getMessage());
+        return respond(problems.create(ex.problem(), request.getRequestURI()), HttpHeaders.EMPTY);
     }
 
     @ExceptionHandler(PayloadTooLargeException.class)

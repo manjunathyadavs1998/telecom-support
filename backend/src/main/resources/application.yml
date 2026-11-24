@@ -45,5 +45,8 @@ app:
   display-time-zone: Asia/Kolkata
   session:
     absolute-timeout: 12h
+  idempotency:
+    stale-after: 2m              # IN_PROGRESS keys older than this are reclaimed (01 backend §6.1)
+    purge-cron: "0 0 * * * *"    # hourly purge of keys older than 24 h
   security:
     trusted-proxies: []   # CIDR list; empty = ignore X-Forwarded-* and use the remote address
