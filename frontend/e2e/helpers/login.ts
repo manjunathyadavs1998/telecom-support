@@ -9,6 +9,25 @@ export function e2ePassword(): string {
 
 const MAX_ATTEMPTS = 2
 
+/** The `POST /api/v1/auth/login` response the next form submit produces. */
+export function waitForLoginResponse(page: Page): Promise<Response> {
+  return page.waitForResponse(
+    (response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/auth/login',
+  )
+}
+
+/**
+ * Fills and submits the login form already on screen (keeps the current `?reason=`/`returnTo=`). One login attempt
+ * against the run's budget; no 429 handling (use `login()` for that).
+ */
+export async function submitLogin(page: Page, username: string, password: string = e2ePassword()): Promise<Response> {
+  await page.getByLabel('Mobile number or employee ID').fill(username)
+  await page.getByLabel('Password', { exact: true }).fill(password)
+  const responsePromise = waitForLoginResponse(page)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  return responsePromise
+}
+
 /**
  * Signs in through the login page. On 429 it waits `Retry-After` seconds and tries once more (frontend.md §10); every
  * attempt counts against the run's login budget. Returns the final `POST /api/v1/auth/login` response.
@@ -16,13 +35,7 @@ const MAX_ATTEMPTS = 2
 export async function login(page: Page, username: string, password: string = e2ePassword()): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     await page.goto('/login')
-    await page.getByLabel('Mobile number or employee ID').fill(username)
-    await page.getByLabel('Password', { exact: true }).fill(password)
-    const responsePromise = page.waitForResponse(
-      (response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/auth/login',
-    )
-    await page.getByRole('button', { name: 'Sign in' }).click()
-    const response = await responsePromise
+    const response = await submitLogin(page, username, password)
     if (response.status() !== 429 || attempt >= MAX_ATTEMPTS) return response
     const retryAfter = Number(response.headers()['retry-after'] ?? '60')
     await page.waitForTimeout((Number.isFinite(retryAfter) ? retryAfter : 60) * 1000 + 250)
