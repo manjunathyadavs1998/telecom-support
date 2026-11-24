@@ -2,8 +2,8 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/01-foundation/backend.md` | ☐ `docs/design/01-foundation/frontend.md` |
-| Approved by user | ☑ rev 2 (rev 1: PR #3) | ☐ |
+| Design | ☑ `docs/design/01-foundation/backend.md` | ☑ `docs/design/01-foundation/frontend.md` (rev 2) |
+| Approved by user | ☑ rev 2 (rev 1: PR #3) | ☑ rev 2 + backend erratum E2 |
 | Tasks planned | ☑ (rows revised for rev 2) | ☐ |
 | Built | ☑ branch `slice/01-foundation-be` | ☐ branch `slice/01-foundation-fe` |
 | Checks green | ☑ | ☐ |
@@ -38,6 +38,6 @@ Every task ends with `scripts/check-backend.sh` green (all earlier tests still p
 - C12 `--log-bin-trust-function-creators=1` is dev/test only. Production: DBA creates the audit triggers, or the migration runs as a privileged user.
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B9 + B8b built; test-engineer gap pass (test-coverage.md); code review C1–C16 triaged (13 fixed, 2 deferred above, C2 = erratum E1 awaiting user approval). 135 tests green.
-- Next: user approves E1 → merge-steward opens PR for slice/01-foundation-be → user merges. Then ba-planner writes frontend.md for slice 01.
-- Env: run check-backend with `-o` if Maven dependency resolution hangs.
+- Done: backend merged (PR #5). Frontend design rev 2 approved (reviewer F1–F16 addressed) together with backend erratum E2 (backend.md §12).
+- Next: ba-planner plan-tasks for frontend (F rows) incl. E2 backend tasks first; then build on slice/01-foundation-fe.
+- Env: run check-backend with `-o` if Maven dependency resolution hangs; frontend tooling runs in Docker (check-frontend.sh).
