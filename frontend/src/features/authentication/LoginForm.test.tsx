@@ -220,6 +220,50 @@ describe('password hygiene (NFR-SEC)', () => {
     expect(passwordInput()).toHaveValue('')
   })
 
+  it.each([
+    ['success', () => HttpResponse.json(meCustomer)],
+    ['400', () => problem(400, { errors: [{ field: 'username', message: 'Required' }] })],
+    ['500', () => problem(500)],
+  ])('the password never reaches the query or mutation cache (%s)', async (_name, respond) => {
+    loginResponds(respond)
+    const user = userEvent.setup()
+    renderLogin()
+    await fillAndSubmit(user)
+    await waitFor(() => expect(loginCalls).toBe(1))
+    await waitFor(() => expect(submitButton()).toBeEnabled())
+
+    const snapshot = JSON.stringify([
+      queryClient.getQueryCache().getAll().map((q) => [q.queryKey, q.state.data, q.state.error]),
+      queryClient.getMutationCache().getAll().map((m) => [m.state, m.options.mutationKey]),
+    ])
+    expect(snapshot).not.toContain(PASSWORD)
+  })
+
+  it('loading state: while the request is pending the form is busy and submit is disabled; no second request', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.post('*/api/v1/auth/login', async () => {
+        loginCalls += 1
+        await gate
+        return HttpResponse.json(meCustomer)
+      }),
+    )
+    const user = userEvent.setup()
+    renderLogin()
+    await fillAndSubmit(user)
+
+    const busy = await screen.findByRole('button', { name: 'Signing in…' })
+    expect(busy).toBeDisabled()
+    expect(busy.closest('form')).toHaveAttribute('aria-busy', 'true')
+    await user.click(busy)
+    release()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Signing in…' })).not.toBeInTheDocument())
+    expect(loginCalls).toBe(1)
+  })
+
   it('the password can be shown and hidden', async () => {
     const user = userEvent.setup()
     renderLogin()

@@ -84,6 +84,24 @@ describe('CSRF header', () => {
     expect(sent).toEqual(['token-1', 'token-2'])
   })
 
+  it('equals the CURRENT cookie on every POST, however often it rotates (also between POSTs outside login)', async () => {
+    const sent: (string | null)[] = []
+    server.use(
+      http.post('*/api/v1/auth/logout', ({ request }) => {
+        sent.push(request.headers.get('X-XSRF-TOKEN'))
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    await logout()
+    setXsrfCookie('token-2')
+    await logout()
+    setXsrfCookie('token with/special=chars')
+    await logout()
+
+    expect(sent).toEqual(['token-1', 'token-2', 'token with/special=chars'])
+  })
+
   it('is absent on GET', async () => {
     let header: string | null = 'unset'
     server.use(
@@ -274,6 +292,27 @@ describe('401 handler', () => {
     const target = new URL(navigate.mock.calls[0]![0], 'http://app')
     expect(target.searchParams.get('returnTo')).toBe('/customer/profile?tab=1#top')
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  it('several concurrent expired requests produce exactly one redirect', async () => {
+    at('/customer/profile')
+    signedIn()
+    server.use(http.get('*/api/v1/auth/me', unauthorized))
+
+    await Promise.all([caught(me()), caught(me()), caught(me())])
+
+    expect(navigate).toHaveBeenCalledTimes(1)
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  it('never redirects to /login from /login, whatever the query string or hash (no loop)', async () => {
+    at('/login', '?reason=expired&returnTo=%2Fcustomer%2Fprofile', '#x')
+    signedIn()
+    server.use(http.get('*/api/v1/auth/me', unauthorized))
+
+    await Promise.all([caught(me()), caught(me())])
+
+    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('ignores the bootstrap /me: no user cached means anonymous, no navigation', async () => {

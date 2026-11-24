@@ -101,6 +101,37 @@ describe('403 on an API call (frontend.md §7; XC-02, XC-07)', () => {
     expect(router.state.location.pathname).toBe('/page')
   })
 
+  it('the toast never leaks a stack trace or internal server text from the problem body', async () => {
+    const internal = 'java.lang.IllegalStateException: boom at com.telecom.secret.Service.run(Service.java:42)'
+    server.use(
+      http.post('*/api/v1/auth/logout', () =>
+        HttpResponse.json(
+          {
+            type: 'https://telecom.example/problems/forbidden',
+            title: 'Forbidden',
+            status: 403,
+            detail: internal,
+            correlationId: CORRELATION_ID,
+            stack: internal,
+            trace: internal,
+            exception: 'com.telecom.secret.Service',
+          },
+          { status: 403, headers: { 'Content-Type': 'application/problem+json' } },
+        ),
+      ),
+    )
+    const user = userEvent.setup()
+    renderApp(<ActionPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Do it' }))
+
+    expect(await screen.findByText(`Correlation id: ${CORRELATION_ID}`)).toBeInTheDocument()
+    const text = document.body.textContent ?? ''
+    for (const leak of ['IllegalStateException', 'com.telecom', 'Service.java', 'stack', 'boom']) {
+      expect(text).not.toContain(leak)
+    }
+  })
+
   it('a mutation that handles its own 403 (login) gets no toast', async () => {
     const user = userEvent.setup()
     renderApp(<ActionPage ownForbiddenHandling />)

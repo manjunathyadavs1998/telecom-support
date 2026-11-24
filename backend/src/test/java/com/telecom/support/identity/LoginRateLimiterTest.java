@@ -99,6 +99,42 @@ class LoginRateLimiterTest {
         assertThat(custom.acquire("192.0.2.50", "user-x")).get().extracting(Throttled::limit).isEqualTo("L1");
     }
 
+
+    @Test
+    void configuredPairLimitAndBlockDurationAreApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(null, 2, Duration.ofMinutes(1), null));
+        for (int i = 0; i < 2; i++) {
+            assertThat(custom.acquire("192.0.2.60", "victim")).as("attempt %d", i + 1).isEmpty();
+            custom.recordFailure("192.0.2.60", "victim");
+        }
+
+        assertThat(custom.acquire("192.0.2.60", "victim")).get().extracting(Throttled::limit).isEqualTo("L2");
+        assertThat(custom.acquire("192.0.2.60", "victim")).get().extracting(Throttled::retryAfterSeconds)
+                .isEqualTo(60L);
+
+        clock.set(clock.instant().plus(Duration.ofMinutes(1)));
+
+        assertThat(custom.acquire("192.0.2.60", "victim")).isEmpty();
+    }
+
+    @Test
+    void configuredUsernameAnomalyThresholdIsApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(null, null, null, 3));
+        for (int i = 0; i < 3; i++) {
+            assertThat(custom.recordFailure("192.0.2.7" + i, "target")).as("failure %d", i + 1).isEmpty();
+        }
+
+        assertThat(custom.recordFailure("192.0.2.74", "target")).hasValue(4);
+        assertThat(custom.recordFailure("192.0.2.75", "target")).as("reported once per window").isEmpty();
+    }
+
+    @Test
+    void nonPositiveLimitsAreRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new LoginLimitProperties(0, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new LoginLimitProperties(null, null, Duration.ZERO, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
     @Test
     void unsetPropertiesKeepTheApprovedDefaults() {
         assertThat(LoginLimitProperties.DEFAULTS).isEqualTo(
