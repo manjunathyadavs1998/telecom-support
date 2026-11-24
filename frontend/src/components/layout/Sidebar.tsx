@@ -1,7 +1,9 @@
 import { LogOut, RadioTower } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import type { NavGroup } from '@/permissions/navConfig'
-import { NavList } from './NavList'
+import { NavList, RailTooltip } from './NavList'
+import { sidebarItemClass } from './sidebarItem'
 
 type SidebarProps = {
   /** `visibleNav(me)`. */
@@ -24,19 +26,14 @@ export function Sidebar({ groups, collapsed, onNavigate, onLogout, className }: 
         <span className={collapsed ? 'sr-only' : 'text-lg font-semibold text-white'}>Telecom</span>
       </div>
       <NavList groups={groups} collapsed={collapsed} onNavigate={onNavigate} />
-      <div className="border-t border-white/10 p-2">
-        <button
-          type="button"
-          onClick={onLogout}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground hover:bg-white/10',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar',
-            collapsed && 'justify-center px-0',
-          )}
-        >
-          <LogOut aria-hidden="true" className="size-5 shrink-0" />
-          <span className={collapsed ? 'sr-only' : undefined}>Logout</span>
-        </button>
+      <Separator className="bg-white/10" />
+      <div className="p-2">
+        <RailTooltip label="Logout" collapsed={collapsed}>
+          <button type="button" onClick={onLogout} className={sidebarItemClass(false, collapsed)}>
+            <LogOut aria-hidden="true" className="size-5 shrink-0" />
+            <span className={collapsed ? 'sr-only' : undefined}>Logout</span>
+          </button>
+        </RailTooltip>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { ApiError, GENERIC_ERROR_MESSAGE } from '@/services/api/errors'
 
 type ErrorStateProps = {
@@ -35,25 +36,16 @@ export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
           <span>
             Correlation id: <code className="font-mono text-foreground">{correlationId}</code>
           </span>
-          <button
-            type="button"
-            onClick={() => void copyCorrelationId()}
-            aria-label="Copy correlation id"
-            className="rounded-md border border-muted-foreground/40 px-2 py-1 text-foreground hover:bg-muted-foreground/10"
-          >
+          <Button variant="outline" size="sm" onClick={() => void copyCorrelationId()} aria-label="Copy correlation id">
             Copy
-          </button>
+          </Button>
           <span aria-live="polite">{copied ? 'Copied' : ''}</span>
         </p>
       ) : null}
       {onRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
+        <Button onClick={onRetry} className="mt-2">
           Try again
-        </button>
+        </Button>
       ) : null}
     </div>
   )

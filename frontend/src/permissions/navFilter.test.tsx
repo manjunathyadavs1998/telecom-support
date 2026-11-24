@@ -86,13 +86,22 @@ describe('sidebar per role combination (frontend.md §2; XC-01)', () => {
 describe('useUiStore (frontend.md §5)', () => {
   beforeEach(() => {
     localStorage.clear()
-    useUiStore.setState({ sidebarCollapsed: false, mobileNavOpen: false })
+    useUiStore.setState({ sidebarCollapsed: null, mobileNavOpen: false })
   })
 
   it('persists only sidebarCollapsed under the tcs-ui key', () => {
-    useUiStore.getState().toggleSidebarCollapsed()
+    useUiStore.getState().setSidebarCollapsed(true)
     useUiStore.getState().setMobileNavOpen(true)
     const stored = JSON.parse(localStorage.getItem('tcs-ui') ?? '{}') as { state: Record<string, unknown> }
     expect(stored.state).toEqual({ sidebarCollapsed: true })
+  })
+
+  it('reads a v0 "never collapsed" (false) as no choice, so md–lg keeps its icon-rail default', async () => {
+    localStorage.setItem('tcs-ui', JSON.stringify({ state: { sidebarCollapsed: false }, version: 0 }))
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().sidebarCollapsed).toBeNull()
+    localStorage.setItem('tcs-ui', JSON.stringify({ state: { sidebarCollapsed: true }, version: 0 }))
+    await useUiStore.persist.rehydrate()
+    expect(useUiStore.getState().sidebarCollapsed).toBe(true)
   })
 })

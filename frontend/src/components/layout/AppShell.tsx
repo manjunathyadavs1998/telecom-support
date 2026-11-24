@@ -31,8 +31,7 @@ function skipToMain(event: MouseEvent<HTMLAnchorElement>) {
 function Shell({ me }: { me: Me }) {
   const groups = useMemo(() => visibleNav(me), [me])
   const rail = useSidebarRail()
-  const collapsed = useUiStore((state) => state.sidebarCollapsed)
-  const toggleSidebarCollapsed = useUiStore((state) => state.toggleSidebarCollapsed)
+  const setSidebarCollapsed = useUiStore((state) => state.setSidebarCollapsed)
   const mobileNavOpen = useUiStore((state) => state.mobileNavOpen)
   const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
@@ -93,8 +92,8 @@ function Shell({ me }: { me: Me }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <Header
           me={me}
-          collapsed={collapsed}
-          onToggleCollapsed={toggleSidebarCollapsed}
+          collapsed={rail}
+          onToggleCollapsed={() => setSidebarCollapsed(!rail)}
           mobileNavOpen={mobileNavOpen}
           onOpenMobileNav={() => setMobileNavOpen(true)}
           menuButtonRef={menuButtonRef}
@@ -128,7 +127,8 @@ export function AppShell() {
   }
   if (me === null) {
     // The router is already on its way to /login (logout, the 401 handler): that is the one redirect, add no second one.
-    if (currentLocation().pathname === LOGIN_PATH) return null
+    // Show the spinner meanwhile, never a blank screen (XC-03).
+    if (currentLocation().pathname === LOGIN_PATH) return <FullPageSpinner />
     return <Navigate to={loginUrl(pathname + search + hash)} replace />
   }
   return <Shell me={me} />

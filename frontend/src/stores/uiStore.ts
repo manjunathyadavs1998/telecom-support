@@ -3,11 +3,15 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 type UiState = {
-  /** Desktop (≥ lg) sidebar shown as an icon rail; persisted. */
-  sidebarCollapsed: boolean
+  /**
+   * The user's sidebar choice at ≥ md, persisted: `true` icon rail, `false` full sidebar, `null` no choice yet (the breakpoint
+   * default: full at ≥ lg, icon rail at md–lg).
+   */
+  sidebarCollapsed: boolean | null
   /** Mobile (< md) navigation drawer open; never persisted. */
   mobileNavOpen: boolean
-  toggleSidebarCollapsed: () => void
+  /** Records an explicit choice; the header toggle passes the opposite of what is shown now (`useSidebarRail`). */
+  setSidebarCollapsed: (collapsed: boolean) => void
   setMobileNavOpen: (open: boolean) => void
 }
 
@@ -18,12 +22,21 @@ type UiState = {
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
-      sidebarCollapsed: false,
+      sidebarCollapsed: null,
       mobileNavOpen: false,
-      toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
     }),
-    { name: 'tcs-ui', partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }) },
+    {
+      name: 'tcs-ui',
+      version: 1,
+      partialize: (state) => ({ sidebarCollapsed: state.sidebarCollapsed }),
+      // v0 stored `false` for "never collapsed", which would now force the full sidebar at md–lg: read it as "no choice".
+      migrate: (persisted, version) => {
+        const saved = (persisted ?? {}) as { sidebarCollapsed?: boolean | null }
+        return { sidebarCollapsed: version === 0 && saved.sidebarCollapsed !== true ? null : (saved.sidebarCollapsed ?? null) }
+      },
+    },
   ),
 )
 
@@ -41,11 +54,12 @@ function subscribeDesktop(onChange: () => void): () => void {
 const isDesktop = (): boolean => (typeof window.matchMedia === 'function' ? window.matchMedia(DESKTOP_QUERY).matches : true)
 
 /**
- * Whether the fixed sidebar shows as an icon rail (frontend.md §8): at ≥ lg when the user collapsed it, and always at
- * md–lg (tablet); below md the sidebar is hidden and the drawer shows it in full.
+ * Whether the fixed sidebar shows as an icon rail (frontend.md §8): the user's explicit choice when there is one, else the
+ * breakpoint default (full at ≥ lg, icon rail at md–lg, so a touch tablet can still expand it to read the labels). Below md
+ * the sidebar is hidden and the drawer shows it in full.
  */
 export function useSidebarRail(): boolean {
   const collapsed = useUiStore((state) => state.sidebarCollapsed)
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop)
-  return collapsed || !desktop
+  return collapsed ?? !desktop
 }

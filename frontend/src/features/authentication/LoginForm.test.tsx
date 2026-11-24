@@ -151,22 +151,36 @@ describe('server errors (frontend.md §6)', () => {
     expect(usernameInput()).toHaveValue('+919800000001')
   })
 
-  it('429 disables submit with a live countdown from Retry-After', async () => {
+  it('429 disables submit with a visible countdown from Retry-After; the alert is announced once (FC3)', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     loginResponds(() => problem(429, { headers: { 'Retry-After': '3' } }))
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderLogin()
     await fillAndSubmit(user)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts. Try again in 3 s.')
+    const alert = await screen.findByRole('alert')
+    const announced = 'Too many attempts. Try again in 3 s.'
+    expect(alert).toHaveTextContent(announced, { normalizeWhitespace: true })
+    await waitFor(() => expect(alert).toHaveFocus())
+    const countdown = screen.getByTestId('login-retry-countdown')
+    // The ticking text is not in a live region and not inside the alert, so it is not re-announced every second.
+    expect(countdown).toHaveAttribute('aria-live', 'off')
+    expect(alert).not.toContainElement(countdown)
+    expect(countdown.closest('[role="alert"], [role="status"], [aria-live="polite"], [aria-live="assertive"]')).toBeNull()
+    expect(countdown).toHaveTextContent('Try again in 3 s.')
     expect(submitButton()).toBeDisabled()
+
     act(() => vi.advanceTimersByTime(1000))
-    expect(screen.getByRole('alert')).toHaveTextContent('Try again in 2 s.')
+    expect(countdown).toHaveTextContent('Try again in 2 s.')
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(alert.textContent).toBe('Too many attempts. Try again in 3 s.')
     act(() => vi.advanceTimersByTime(1000))
-    expect(screen.getByRole('alert')).toHaveTextContent('Try again in 1 s.')
+    expect(countdown).toHaveTextContent('Try again in 1 s.')
+    expect(alert.textContent).toBe('Too many attempts. Try again in 3 s.')
     expect(submitButton()).toBeDisabled()
     act(() => vi.advanceTimersByTime(1000))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('login-retry-countdown')).not.toBeInTheDocument()
     expect(submitButton()).toBeEnabled()
   })
 
@@ -294,7 +308,7 @@ describe('after login (frontend.md §7)', () => {
     other.close()
   })
 
-  it.each(['//evil.example', 'https://evil.example/x', '/\\evil.example', '/login?x=1'])(
+  it.each(['//evil.example', 'https://evil.example/x', '/\\evil.example', '/login?x=1', '/login/', '/Login', '/LOGIN/', '/%6Cogin'])(
     'an unsafe returnTo %s falls back to the landing route',
     async (returnTo) => {
       loginResponds(() => HttpResponse.json(meCustomer))
@@ -349,6 +363,55 @@ describe('login page', () => {
   it('an already signed-in user is sent to their landing route', async () => {
     const { router } = renderLogin('/login?returnTo=%2Fcustomer%2Fplan', meInbound)
     await waitFor(() => expect(router.state.location.pathname).toBe('/inbound'))
+  })
+
+  it.each(['/login/', '/Login', '/LOGIN/', '/%6Cogin'])(
+    'a signed-in user on the login-route variant %s is sent to their landing route (FC1)',
+    async (path) => {
+      const { router } = renderLogin(path, meInbound)
+      await waitFor(() => expect(router.state.location.pathname).toBe('/inbound'))
+    },
+  )
+
+  it('after signing in, a later navigation to a login-route variant still redirects to the landing route (FC1)', async () => {
+    loginResponds(() => HttpResponse.json(meInbound))
+    const user = userEvent.setup()
+    const { router } = renderLogin()
+    await fillAndSubmit(user, 'IN001')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/inbound'))
+
+    await act(() => router.navigate('/LOGIN/'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/inbound'))
+  })
+
+  it.each(['__proto__', 'toString', 'constructor', 'hasOwnProperty'])(
+    '?reason=%s shows no banner and the sign-in form still renders (own keys only)',
+    (reason) => {
+      renderLogin(`/login?reason=${reason}`)
+      expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(submitButton()).toBeInTheDocument()
+    },
+  )
+
+  it('a render error on /login shows the safe route error screen, not the router default', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const loginRoute = appRoutes.find((route) => route.path === '/login')
+    expect(loginRoute?.errorElement).toBeTruthy()
+    function Boom(): never {
+      throw new Error('secret internal detail')
+    }
+    const router = createMemoryRouter([{ path: '/login', element: <Boom />, errorElement: loginRoute?.errorElement }], {
+      initialEntries: ['/login'],
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByRole('heading', { level: 1, name: 'Something went wrong' })).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('secret internal detail')
+    expect(errors).toHaveBeenCalled()
   })
 
   it('has no axe violations (with a banner and errors shown)', async () => {

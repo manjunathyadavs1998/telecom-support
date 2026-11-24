@@ -74,9 +74,23 @@ test.describe(`${SEED_USERS.outbound} shell`, () => {
   test('navigation layout per breakpoint; the drawer below md opens and closes', async ({ page }) => {
     const menuButton = page.getByRole('button', { name: 'Open navigation menu' })
     if (!isMobile(page)) {
-      // md and up: the sidebar (icon rail below lg) is always visible; no drawer button.
+      // md and up: the sidebar (icon rail by default below lg) is always visible; no drawer button.
       await expect(menuButton).toBeHidden()
-      await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+      const nav = page.getByRole('navigation', { name: 'Main' })
+      await expect(nav).toBeVisible()
+      // The collapse/expand toggle is available from md, so a touch tablet can reveal the labels (FC2).
+      const toggle = page.getByRole('button', { name: 'Collapse sidebar' })
+      await expect(toggle).toBeVisible()
+      const label = nav.getByText('Bookmarks', { exact: true })
+      if ((page.viewportSize()?.width ?? 0) < 1024) {
+        // md–lg: the icon rail by default (labels screen-reader only); one tap expands it.
+        await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+        await expect(label).toHaveClass(/\bsr-only\b/)
+        await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+        await expect(label).not.toHaveClass(/\bsr-only\b/)
+        await expect(label).toBeVisible()
+      }
       return
     }
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeHidden()

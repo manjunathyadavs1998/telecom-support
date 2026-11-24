@@ -1,5 +1,7 @@
 import { ChevronDown, LogOut } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,15 +36,14 @@ const roleLabel = (role: string) => {
 export function UserMenu({ me, onSignOut }: UserMenuProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-        <span
-          aria-hidden="true"
-          className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
-        >
-          {initials(me.displayName)}
-        </span>
-        <span className="sr-only sm:not-sr-only">{me.displayName}</span>
-        <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground" />
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm">
+          <Avatar aria-hidden="true">
+            <AvatarFallback>{initials(me.displayName)}</AvatarFallback>
+          </Avatar>
+          <span className="sr-only sm:not-sr-only">{me.displayName}</span>
+          <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel className="flex flex-col gap-1">

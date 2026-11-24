@@ -127,7 +127,7 @@ beforeEach(() => {
   logoutTokens = []
   logoutReplies = [noContent]
   localStorage.clear()
-  useUiStore.setState({ sidebarCollapsed: false, mobileNavOpen: false })
+  useUiStore.setState({ sidebarCollapsed: null, mobileNavOpen: false })
   resetCsrfBootstrap()
   toast.dismiss() // Sonner's queue is module state and outlives an unmounted Toaster
   recordAuthRequests()

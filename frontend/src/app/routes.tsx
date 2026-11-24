@@ -45,7 +45,8 @@ const navRoutes: RouteObject[] = NAV_ITEMS.map((item) => ({
 }))
 
 export const appRoutes: RouteObject[] = [
-  { path: LOGIN_PATH, element: <LoginPage /> },
+  // A render error on the public login page gets the same safe error screen as the protected area (XC-03).
+  { path: LOGIN_PATH, element: <LoginPage />, errorElement: <RouteErrorBoundary /> },
   {
     id: 'protected',
     path: '/',

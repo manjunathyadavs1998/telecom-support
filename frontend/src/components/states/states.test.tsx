@@ -92,6 +92,13 @@ describe('ErrorState (XC-03, NFR-OBS)', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it('its buttons carry the design focus ring (frontend.md §8 "focus ring on every interactive element", FC4)', () => {
+    render(<ErrorState title="Couldn't load cases" error={serverError()} onRetry={() => {}} />)
+    for (const name of ['Try again', 'Copy correlation id']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('focus-visible:ring-2', 'focus-visible:ring-ring', 'focus-visible:ring-offset-2')
+    }
+  })
+
   it('copies the correlation id', async () => {
     const user = userEvent.setup()
     render(<ErrorState title="Couldn't load cases" error={serverError()} />)

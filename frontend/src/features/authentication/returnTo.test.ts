@@ -35,6 +35,14 @@ describe('safeReturnTo (frontend.md §7.1, NFR-SEC)', () => {
     ['trailing space', '/x '],
     ['login with a hash', '/login#x'],
     ['bare login', '/login'],
+    // The router matches these to the login route too (trailing slash, case-insensitive, percent-decoded): FC1.
+    ['login with a trailing slash', '/login/'],
+    ['login with two trailing slashes', '/login//?x=1'],
+    ['capitalised login', '/Login'],
+    ['upper-case login with a trailing slash', '/LOGIN/'],
+    ['percent-encoded login', '/%6Cogin'],
+    ['percent-encoded upper-case login', '/%4C%4F%47%49%4E/'],
+    ['dot segment before login', '/x/../login'],
     ['data URL', 'data:text/html,<script>alert(1)</script>'],
     ['relative path', 'outbound'],
     ['double backslash', '\\\\evil.example'],
@@ -53,6 +61,9 @@ describe('safeReturnTo (frontend.md §7.1, NFR-SEC)', () => {
     ['/customer/plan?tab=1#top', '/customer/plan?tab=1#top'],
     // Stays a same-origin path (the router shows NotFound), never a protocol-relative redirect.
     ['/%2F%2Fevil.example', '/%2F%2Fevil.example'],
+    // Not the login route: a longer path, and an encoded slash (the router keeps it encoded).
+    ['/login-help', '/login-help'],
+    ['/%2Flogin', '/%2Flogin'],
   ])('accepts %j', (raw, expected) => {
     expect(safeReturnTo(raw, '/customer', ORIGIN)).toBe(expected)
   })

@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { axe } from 'vitest-axe'
+import { registerNavigator } from '@/app/navigation'
 import { ME_QUERY_KEY, queryClient } from '@/app/queryClient'
 import { registerRouter } from '@/app/router'
 import { appRoutes } from '@/app/routes'
@@ -38,7 +39,7 @@ const menuButton = () => screen.getByRole('button', { name: 'Open navigation men
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   localStorage.clear()
-  useUiStore.setState({ sidebarCollapsed: false, mobileNavOpen: false })
+  useUiStore.setState({ sidebarCollapsed: null, mobileNavOpen: false })
   resetCsrfBootstrap()
 })
 afterEach(() => {
@@ -158,12 +159,63 @@ describe('AppShell sidebar collapse (frontend.md §5, §8)', () => {
     // A new page load: fresh in-memory state (the setState also persists, so put the saved value back), then rehydrate.
     const saved = localStorage.getItem('tcs-ui') ?? ''
     cleanup()
-    useUiStore.setState({ sidebarCollapsed: false })
+    useUiStore.setState({ sidebarCollapsed: null })
     localStorage.setItem('tcs-ui', saved)
     await useUiStore.persist.rehydrate()
     renderShell(meFixtures.OUT001)
     await h1('Case queue')
     expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+describe('AppShell at md–lg (tablet; frontend.md §8, FC2)', () => {
+  const original = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+  beforeEach(() => {
+    // 768–1023 px: `(min-width: 1024px)` does not match.
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+  })
+  afterEach(() => {
+    if (original) Object.defineProperty(window, 'matchMedia', original)
+    else Reflect.deleteProperty(window, 'matchMedia')
+  })
+
+  const bookmarksLabel = () => within(screen.getByRole('navigation', { name: 'Main' })).getByText('Bookmarks')
+
+  it('starts as the icon rail, and the toggle (shown from md) expands it to show the labels; the choice persists', async () => {
+    const user = userEvent.setup()
+    renderShell(meFixtures.OUT001)
+    await h1('Case queue')
+    const toggle = screen.getByRole('button', { name: 'Collapse sidebar' })
+    expect(toggle).toHaveClass('md:inline-flex')
+    expect(toggle).not.toHaveClass('lg:inline-flex')
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(bookmarksLabel()).toHaveClass('sr-only')
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(bookmarksLabel()).not.toHaveClass('sr-only')
+    expect(JSON.parse(localStorage.getItem('tcs-ui') ?? '{}')).toMatchObject({ state: { sidebarCollapsed: false } })
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(bookmarksLabel()).toHaveClass('sr-only')
+  })
+
+  it('in the rail, Logout has the same tooltip as the nav items (FC13)', async () => {
+    const user = userEvent.setup()
+    renderShell(meFixtures.OUT001)
+    await h1('Case queue')
+    const logout = screen.getByRole('button', { name: 'Logout' })
+    await user.hover(logout)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Logout')
   })
 })
 
@@ -215,6 +267,22 @@ describe('AppShell bootstrap states (frontend.md §3 Application shell; XC-03)',
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Content' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
+    client.clear()
+  })
+
+  it('signed out while the router is already heading to /login: the spinner, never a blank screen (FC8)', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(ME_QUERY_KEY, null)
+    const router = createMemoryRouter([{ path: '/', element: <AppShell /> }], { initialEntries: ['/'] })
+    // The navigator reports the pending /login navigation (logout, the 401 handler), so the shell adds no second redirect.
+    unregister = registerNavigator({ navigate: () => {}, location: () => ({ pathname: '/login', search: '', hash: '' }) })
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('Loading')
+    expect(router.state.location.pathname).toBe('/')
     client.clear()
   })
 })

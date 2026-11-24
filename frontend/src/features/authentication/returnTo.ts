@@ -1,3 +1,4 @@
+import { isLoginPath } from '@/app/navigation'
 import { canOpen, landingFor, NAV_ITEMS } from '@/permissions/navConfig'
 import type { Me } from '@/types/api'
 
@@ -7,7 +8,8 @@ const UNSAFE_CHARACTERS = /[\u0000-\u001F\u007F-\u009F\s]/
 
 /**
  * returnTo safety against open redirects (frontend.md §7.1, NFR-SEC). `raw` is accepted only if it starts with exactly one
- * `/` (not `//`, not `/\`), has no control or whitespace character, resolves to the same origin, and is not `/login`.
+ * `/` (not `//`, not `/\`), has no control or whitespace character, resolves to the same origin, and is not a path the router matches as `/login`
+ * (`/login/`, `/Login`, `/%6Cogin`: see `isLoginPath`).
  * Returns `pathname + search + hash` for `router.navigate()`, otherwise `fallback` (the user's role landing page).
  */
 export function safeReturnTo(
@@ -24,7 +26,7 @@ export function safeReturnTo(
     return fallback
   }
   if (url.origin !== new URL(origin).origin) return fallback
-  if (url.pathname === '/login') return fallback
+  if (isLoginPath(url.pathname)) return fallback
   return url.pathname + url.search + url.hash
 }
 
