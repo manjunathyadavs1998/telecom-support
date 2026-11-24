@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b",
+    "build": "node node_modules/typescript/bin/tsc -b && vite build",
+    "typecheck": "node node_modules/typescript/bin/tsc -b",
     "lint": "oxlint --deny-warnings src",
     "test": "vitest",
-    "gen:api:check": "echo 'gen:api:check: stub until F7 (generated API types)'",
+    "gen:api": "node scripts/gen-api.mjs",
+    "gen:api:check": "node scripts/gen-api.mjs --check",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,11 +27,18 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
     "jsdom": "31.0.1",
+    "openapi-typescript": "7.13.0",
     "oxlint": "1.95.0",
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2",
+    "typescript-compiler-api": "npm:typescript@5.9.3",
     "vite": "8.3.8",
     "vitest": "5.1.1",
     "vitest-axe": "0.1.0"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
