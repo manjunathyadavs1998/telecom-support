@@ -2,13 +2,13 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { server } from '@/test/msw/server'
 import { BOOTSTRAP_TOKEN, clearXsrfCookie, setXsrfCookie } from '@/test/msw/handlers'
+import { registerNavigator } from '@/app/navigation'
+import { ME_QUERY_KEY, queryClient } from '@/app/queryClient'
 import { api } from './client'
 import { ApiError, applyProblemToForm, GENERIC_ERROR_MESSAGE } from './errors'
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const CREDENTIALS = { username: '+919876543210', password: 'secret' }
-// The contract marks X-XSRF-TOKEN as a required header parameter; the middleware always replaces this placeholder.
-const XSRF_PLACEHOLDER = { header: { 'X-XSRF-TOKEN': 'placeholder' } }
 
 const ME = {
   id: 1,
@@ -39,8 +39,8 @@ function problemResponse(status: number, type: string, extra: Record<string, unk
   })
 }
 
-const login = () => api.call(api.client.POST('/api/v1/auth/login', { params: XSRF_PLACEHOLDER, body: CREDENTIALS }))
-const logout = () => api.call(api.client.POST('/api/v1/auth/logout', { params: XSRF_PLACEHOLDER }))
+const login = () => api.call(api.client.POST('/api/v1/auth/login', { body: CREDENTIALS }))
+const logout = () => api.call(api.client.POST('/api/v1/auth/logout'))
 const me = () => api.call(api.client.GET('/api/v1/auth/me'))
 
 async function caught(promise: Promise<unknown>): Promise<ApiError> {
@@ -59,6 +59,7 @@ beforeEach(() => setXsrfCookie('token-1'))
 afterEach(() => {
   server.resetHandlers()
   clearXsrfCookie()
+  queryClient.clear()
 })
 afterAll(() => server.close())
 
@@ -238,6 +239,89 @@ describe('ApiError mapping', () => {
     expect(error.message).toBe(GENERIC_ERROR_MESSAGE)
     expect(error.correlationId).toMatch(UUID_V4)
     expect(error.correlationId).toBe(sentId)
+  })
+})
+
+describe('401 handler', () => {
+  const OTHER_DATA_KEY = ['other']
+  let navigate: ReturnType<typeof vi.fn<(to: string) => unknown>>
+  let unregister: () => void
+
+  function at(pathname: string, search = '', hash = '') {
+    navigate = vi.fn<(to: string) => unknown>()
+    unregister = registerNavigator({ navigate, location: () => ({ pathname, search, hash }) })
+  }
+
+  function signedIn() {
+    queryClient.setQueryData(ME_QUERY_KEY, ME)
+    queryClient.setQueryData(OTHER_DATA_KEY, 'cached')
+  }
+
+  const unauthorized = () => problemResponse(401, 'unauthenticated')
+
+  afterEach(() => unregister())
+
+  it('on expiry goes to /login with reason=expired and returnTo, then clears the whole cache', async () => {
+    at('/customer/profile', '?tab=1', '#top')
+    signedIn()
+    server.use(http.get('*/api/v1/auth/me', unauthorized))
+
+    await caught(me())
+
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(
+      `/login?reason=expired&returnTo=${encodeURIComponent('/customer/profile?tab=1#top')}`,
+    )
+    const target = new URL(navigate.mock.calls[0]![0], 'http://app')
+    expect(target.searchParams.get('returnTo')).toBe('/customer/profile?tab=1#top')
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  })
+
+  it('ignores the bootstrap /me: no user cached means anonymous, no navigation', async () => {
+    at('/customer')
+    queryClient.setQueryData(OTHER_DATA_KEY, 'cached')
+    server.use(http.get('*/api/v1/auth/me', unauthorized))
+
+    await caught(me())
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(OTHER_DATA_KEY)).toBe('cached')
+  })
+
+  it.each([
+    ['POST /auth/login', () => login(), http.post('*/api/v1/auth/login', unauthorized)],
+    ['POST /auth/logout', () => logout(), http.post('*/api/v1/auth/logout', unauthorized)],
+  ])('ignores %s (own flow)', async (_name, call, handler) => {
+    at('/customer')
+    signedIn()
+    server.use(handler)
+
+    await caught(call())
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(ME)
+  })
+
+  it('ignores requests made while on /login, so the expiry redirect cannot loop', async () => {
+    at('/login', '?reason=expired&returnTo=%2Fcustomer')
+    signedIn()
+    server.use(http.get('*/api/v1/auth/me', unauthorized))
+
+    await caught(me())
+    await caught(me())
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(ME)
+  })
+
+  it('leaves non-401 errors alone', async () => {
+    at('/customer')
+    signedIn()
+    server.use(http.get('*/api/v1/auth/me', () => problemResponse(403, 'forbidden')))
+
+    await caught(me())
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(ME)
   })
 })
 
