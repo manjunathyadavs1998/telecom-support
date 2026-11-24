@@ -1,0 +1,30 @@
+/** Mirror of backend `Permissions.java` (BRD §8). Keep in sync via the rbac-permission skill. */
+export const P = {
+  CUSTOMER_PROFILE_READ: 'customer.profile.read',
+  CUSTOMER_PROFILE_UPDATE: 'customer.profile.update',
+  CUSTOMER_LOOKUP: 'customer.lookup',
+  CUSTOMER_VERIFY: 'customer.verify',
+  PLAN_READ: 'plan.read',
+  PLAN_CHANGE: 'plan.change',
+  PROMOTION_READ: 'promotion.read',
+  PROMOTION_CLAIM: 'promotion.claim',
+  CASE_CREATE: 'case.create',
+  CASE_CREATE_ON_BEHALF: 'case.create.onbehalf',
+  CASE_CATEGORY_INTERNAL: 'case.category.internal',
+  CASE_READ: 'case.read',
+  CASE_READ_QUEUE: 'case.read.queue',
+  CASE_ASSIGN: 'case.assign',
+  CASE_ASSIGN_ANY: 'case.assign.any',
+  CASE_STATUS_UPDATE: 'case.status.update',
+  CASE_NOTE_INTERNAL: 'case.note.internal',
+  CASE_BOOKMARK: 'case.bookmark',
+  SERVICE_REACTIVATE: 'service.reactivate',
+  PAYMENT_READ: 'payment.read',
+  PAYMENT_INITIATE: 'payment.initiate',
+  ANALYTICS_READ: 'analytics.read',
+  AUDIT_READ: 'audit.read',
+  REPORTS_EXPORT: 'reports.export',
+  REPORTS_EXPORT_PII: 'reports.export.pii',
+} as const
+
+export type Permission = (typeof P)[keyof typeof P]

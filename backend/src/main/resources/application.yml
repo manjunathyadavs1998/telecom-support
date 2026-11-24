@@ -16,11 +16,31 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  session:
+    jdbc:
+      initialize-schema: never   # created by Flyway V2
+      cleanup-cron: "0 */5 * * * *"
+    timeout: 30m
 
 server:
   port: ${PORT:8080}
   shutdown: graceful
   forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        name: SESSION
+        http-only: true
+        same-site: lax
+        secure: ${COOKIE_SECURE:false}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  default-produces-media-type: application/json
+  paths-to-match: /api/**
 
 management:
   endpoints:
@@ -34,3 +54,8 @@ management:
 
 app:
   display-time-zone: Asia/Kolkata
+  security:
+    api-docs-public: false
+    login-attempts-per-minute: 10
+    max-failed-logins: 5
+    lock-minutes: 15

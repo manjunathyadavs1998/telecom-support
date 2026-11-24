@@ -42,19 +42,19 @@ Status: `Planned` · `In progress` · `Done` · `Deferred (reason)`.
 | BR-07 | Configurable SLA by category | 2 | | | Planned |
 | BR-08 | Payment/provisioning confirmed server-side | 2 | | | Planned |
 | BR-09 | Request ↔ internal work items | — | | | Deferred (future operational design) |
-| BR-10 | Server-side authorization | 1 | | | Planned |
-| XC-01 | Role-specific navigation | 1 | | | Planned |
-| XC-02 | Restricted routes/APIs denied | 1 | | | Planned |
-| XC-03 | Loading/empty/error/validation states | 1 | | | Planned |
+| BR-10 | Server-side authorization | 1 | `security/SecurityConfig`, `@EnableMethodSecurity`, `Permissions`, V2 role/permission grants | `PermissionMatrixIT` (18), `AuthIT` | Done (foundation; per-endpoint checks added per feature) |
+| XC-01 | Role-specific navigation | 1 | `frontend/src/app/navigation.ts`, `components/layout/Sidebar.tsx` | `App.test.tsx` (customer vs outbound nav) | Done |
+| XC-02 | Restricted routes/APIs denied | 1 | `permissions/Can.tsx` `RequirePermission`, `router.tsx`; backend 401/403 ProblemDetail | `App.test.tsx` (direct nav → /forbidden), `AuthIT` (401) | Done |
+| XC-03 | Loading/empty/error/validation states | 1 | `components/feedback/states.tsx`, `components/ui/form-field.tsx` | `LoginPage.test.tsx` | In progress (applied per screen) |
 | XC-04 | Server-side paging keeps filters | 2 | | | Planned |
 | XC-05 | Validated dates, documented TZ | 2 | | | Planned |
-| XC-06 | High-risk actions confirmed + audited | 1 | | | Planned |
+| XC-06 | High-risk actions confirmed + audited | 1 | `audit/AuditService`, append-only `audit_events` (triggers) | `AuditTrailIT` | In progress (infra done; used by each action) |
 | XC-07 | Success only after backend confirmation | 2 | | | Planned |
 | XC-08 | Keyboard + breakpoints | 6 | | | Planned |
 | XC-09 | Automated tests for critical flows | 6 | | | Planned |
-| NFR-SEC | Security controls | 1/6 | | | Planned |
-| NFR-REL | Idempotency | 2 | | | Planned |
-| NFR-OBS | Correlation IDs, metrics, logs | 1/6 | | | Planned |
+| NFR-SEC | Security controls | 1/6 | Session (Spring Session JDBC) + HttpOnly cookie, SPA CSRF, BCrypt, lockout after 5 failures, per-IP/user rate limit | `AuthIT` | In progress (headers/CSP in phase 6) |
+| NFR-REL | Idempotency | 2 | `common/idempotency/IdempotencyService`, `idempotency_keys` | `IdempotencyServiceIT` | In progress (infra done) |
+| NFR-OBS | Correlation IDs, metrics, logs | 1/6 | `CorrelationIdFilter`, ProblemDetail `correlationId`, frontend `X-Correlation-Id` | `AuthIT` | In progress (metrics in phase 6) |
 | NFR-A11Y | Accessibility | 6 | | | Planned |
 | NFR-PERF | Performance budgets | 6 | | | Planned |
 
