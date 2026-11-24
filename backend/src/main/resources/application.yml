@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: telecom-support
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+  session:
+    timeout: 30m
+    jdbc:
+      initialize-schema: never   # SPRING_SESSION tables come from Flyway V2
+      cleanup-cron: "0 */5 * * * *"
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  display-time-zone: Asia/Kolkata
+  session:
+    absolute-timeout: 12h
+  security:
+    trusted-proxies: []   # CIDR list; empty = ignore X-Forwarded-* and use the remote address
