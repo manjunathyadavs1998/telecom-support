@@ -8,11 +8,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mock.env.MockEnvironment;
 
 /**
  * C4: the limiter maps are really bounded (01 backend §4.1 "bounded, expiring in-memory maps"; NFR-SEC). A new key that
  * does not fit after the idle sweep is throttled (429 {@code capacity}); existing keys keep their counters.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class LoginRateLimiterTest {
 
     private static final int CAPACITY = 3;
@@ -139,5 +144,39 @@ class LoginRateLimiterTest {
     void unsetPropertiesKeepTheApprovedDefaults() {
         assertThat(LoginLimitProperties.DEFAULTS).isEqualTo(
                 new LoginLimitProperties(20, 5, Duration.ofMinutes(15), 50));
+    }
+
+    @Test
+    void startupLogsTheEffectiveLimitsAtInfo(CapturedOutput output) {
+        new LoginRateLimiter(clock, LoginLimitProperties.DEFAULTS, new MockEnvironment());
+
+        assertThat(output).contains("Login limits: L1 ip-attempts-per-minute=20, L2 pair-max-failures=5 pair-block=PT15M, "
+                + "L3 username-anomaly-failures-per-hour=50");
+        assertThat(output).doesNotContain("WARN");
+    }
+
+    @Test
+    void looserLimitsWithTheProdProfileAreWarnedButStartupContinues(CapturedOutput output) {
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+
+        LoginRateLimiter loose = new LoginRateLimiter(clock,
+                new LoginLimitProperties(100_000, 6, Duration.ofMinutes(1), 51), prod);
+
+        assertThat(loose).isNotNull();
+        assertThat(output).contains("app.security.login.ip-attempts-per-minute=100000 is looser than the default 20")
+                .contains("app.security.login.pair-max-failures=6 is looser")
+                .contains("app.security.login.pair-block=PT1M is looser")
+                .contains("app.security.login.username-anomaly-failures-per-hour=51 is looser");
+    }
+
+    @Test
+    void stricterLimitsWithTheProdProfileAndLooserOnesOutsideProdAreNotWarned(CapturedOutput output) {
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+        new LoginRateLimiter(clock, new LoginLimitProperties(10, 3, Duration.ofMinutes(30), 20), prod);
+        new LoginRateLimiter(clock, new LoginLimitProperties(100_000, null, null, null), new MockEnvironment());
+
+        assertThat(output).contains("Login limits:").doesNotContain("is looser");
     }
 }

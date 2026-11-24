@@ -20,6 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 /**
@@ -71,6 +73,11 @@ public class LoginRateLimiter {
     private final BoundedMap<UserState> usernames;
 
     @Autowired
+    public LoginRateLimiter(Clock clock, LoginLimitProperties limits, Environment environment) {
+        this(clock, limits, MAX_KEYS);
+        logEffectiveLimits(limits, environment.acceptsProfiles(Profiles.of("prod")));
+    }
+
     public LoginRateLimiter(Clock clock, LoginLimitProperties limits) {
         this(clock, limits, MAX_KEYS);
     }
@@ -105,6 +112,35 @@ public class LoginRateLimiter {
                 return true;
             }
         };
+    }
+
+    /**
+     * Logs the effective L1/L2/L3 limits at INFO once at startup (review FC9). With the {@code prod} profile, every
+     * limit looser than its §4.1 default is logged at WARN naming its property; startup is never blocked.
+     */
+    static void logEffectiveLimits(LoginLimitProperties limits, boolean prod) {
+        log.info("Login limits: L1 ip-attempts-per-minute={}, L2 pair-max-failures={} pair-block={}, "
+                        + "L3 username-anomaly-failures-per-hour={}", limits.ipAttemptsPerMinute(),
+                limits.pairMaxFailures(), limits.pairBlock(), limits.usernameAnomalyFailuresPerHour());
+        if (!prod) {
+            return;
+        }
+        warnIfLooser("ip-attempts-per-minute", limits.ipAttemptsPerMinute() > LoginLimitProperties.DEFAULT_IP_ATTEMPTS_PER_MINUTE,
+                limits.ipAttemptsPerMinute(), LoginLimitProperties.DEFAULT_IP_ATTEMPTS_PER_MINUTE);
+        warnIfLooser("pair-max-failures", limits.pairMaxFailures() > LoginLimitProperties.DEFAULT_PAIR_MAX_FAILURES,
+                limits.pairMaxFailures(), LoginLimitProperties.DEFAULT_PAIR_MAX_FAILURES);
+        warnIfLooser("pair-block", limits.pairBlock().compareTo(LoginLimitProperties.DEFAULT_PAIR_BLOCK) < 0,
+                limits.pairBlock(), LoginLimitProperties.DEFAULT_PAIR_BLOCK);
+        warnIfLooser("username-anomaly-failures-per-hour",
+                limits.usernameAnomalyFailuresPerHour() > LoginLimitProperties.DEFAULT_USERNAME_ANOMALY_FAILURES_PER_HOUR,
+                limits.usernameAnomalyFailuresPerHour(), LoginLimitProperties.DEFAULT_USERNAME_ANOMALY_FAILURES_PER_HOUR);
+    }
+
+    private static void warnIfLooser(String property, boolean looser, Object value, Object defaultValue) {
+        if (looser) {
+            log.warn("Login limit app.security.login.{}={} is looser than the default {} with the prod profile active",
+                    property, value, defaultValue);
+        }
     }
 
     /** L1 then L2, before the credential check. Counts one attempt against the IP. Empty = allowed. */

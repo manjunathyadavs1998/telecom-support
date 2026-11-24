@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Quiet frontend check. Runs npm steps inside a Linux node container, because Windows Application Control
-# blocks unsigned native npm binaries (see CLAUDE.md). The repo root is mounted at /app (work dir
-# /app/frontend) so gen:api:check can read docs/design; node_modules lives in a named Docker volume so host
-# files and Linux binaries never mix. Full logs go to .logs/frontend-<step>.log; only step results and the
+# blocks unsigned native npm binaries (see CLAUDE.md). The repo root is mounted READ-ONLY at /app so
+# gen:api:check can read docs/design, and only frontend/ (work dir /app/frontend) is writable, so dependency
+# install scripts cannot write to .git, backend/ or scripts/ (review FC5, NFR-SEC). node_modules lives in a
+# named Docker volume so host files and Linux binaries never mix. Full logs go to .logs/frontend-<step>.log; only step results and the
 # first errors are printed.
 # Usage: scripts/check-frontend.sh [steps…]   (default: ci typecheck lint test gen:api:check)
 #   opt-in: install (npm install: the only way to create/update package-lock.json), build (→ frontend/dist),
@@ -38,7 +39,8 @@ for step in "${steps[@]}"; do
     *) cmd="npm run $step" ;;
   esac
   log="$LOG_DIR/frontend-${step//:/-}.log"
-  MSYS_NO_PATHCONV=1 docker run --rm -v "$HOST_ROOT:/app" -v "$NM_VOLUME:/app/frontend/node_modules" \
+  MSYS_NO_PATHCONV=1 docker run --rm -v "$HOST_ROOT:/app:ro" -v "$HOST_ROOT/frontend:/app/frontend" \
+    -v "$NM_VOLUME:/app/frontend/node_modules" \
     -w /app/frontend "${extra[@]}" "$image" sh -c "$cmd" >"$log" 2>&1
   rc=$?
   if [ $rc -eq 0 ]; then

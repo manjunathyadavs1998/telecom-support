@@ -4,6 +4,11 @@
 // openapi-typescript drives the TypeScript compiler API, which the native TypeScript 7 package does not ship.
 // The devDependency alias `typescript-compiler-api` (typescript 5.x) provides it: the resolve hook below sends
 // openapi-typescript's `typescript` import there, so the project's own `tsc` stays on TypeScript 7.
+// Why not a nested override (`"overrides": {"openapi-typescript": {"typescript": "5.9.3"}}`)? openapi-typescript
+// declares `typescript` as a peerDependency, and npm always places a peer beside its dependent (here the root,
+// which holds typescript 7), never under it: that override fails `npm install` with ERESOLVE ("peer overridden
+// typescript@5.9.3 ... Conflicting peer dependency"). The root override `"typescript": "$typescript"` only
+// silences that peer check; the alias is what actually supplies 5.x. `module.registerHooks` needs Node >= 22.15.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { tmpdir } from 'node:os'
