@@ -155,8 +155,8 @@ sequenceDiagram
 
 ### 4.4 Client IP and filter order
 
-- `server.forward-headers-strategy=none` (erratum, see §11): a global `framework` or `native` setting would apply forwarded headers from
-  any client. `TrustedProxyFilter` applies them (via Spring's `ForwardedHeaderFilter`) only when the remote address matches
+- `server.forward-headers-strategy=none` (erratum, see §11): `framework` would apply forwarded headers from any client, and `native`
+  trusts Tomcat's built-in internal-proxy ranges (all private networks) instead of our configured list. `TrustedProxyFilter` applies them (via Spring's `ForwardedHeaderFilter`) only when the remote address matches
   `app.security.trusted-proxies` (CIDR list, IPv4/IPv6; an invalid entry fails startup). Empty (dev default) → the remote address is used
   and `X-Forwarded-*` is ignored. `ClientIp.resolve(request)` is the one value used by the limiter and by audit `client_ip`.
 - Servlet filter order: `TrustedProxyFilter` (HIGHEST_PRECEDENCE) → `CorrelationIdFilter` (HIGHEST_PRECEDENCE + 1) → Spring
@@ -261,4 +261,4 @@ Finding (review.md) → section: #1 rejected, no change · #2/#4 §2, §4, §4.1
 
 | # | Section | Change | Why |
 |---|---|---|---|
-| E1 | §4.4, OV§5 | `server.forward-headers-strategy=none` instead of `framework`. Forwarded headers are applied only inside `TrustedProxyFilter`, for trusted proxies. The client IP is the right-most `X-Forwarded-For`/`Forwarded` entry that isn't a trusted proxy | `framework` registers Boot's `ForwardedHeaderFilter` for every request, so any client could spoof its IP and dodge the limiter. Found by the B8b builder, locked in by `ClientIpIT` |
+| E1 | §4.4, OV§5 | `server.forward-headers-strategy=none` instead of `framework`. Forwarded headers are applied only inside `TrustedProxyFilter`, for trusted proxies. The client IP is the right-most `X-Forwarded-For`/`Forwarded` entry that isn't a trusted proxy | `framework` registers Boot's `ForwardedHeaderFilter` for every request, so any client could spoof its IP and dodge the limiter. `native` trusts every private-range peer, not our list. Found by the B8b builder, confirmed by the reviewer (C2), locked in by `ClientIpIT` |
