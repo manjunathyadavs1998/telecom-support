@@ -1,6 +1,9 @@
 spring:
   application:
     name: telecom-support
+  autoconfigure:
+    # no generated in-memory user (its password would be logged); real users come from AppUserDetailsService (B7)
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -26,7 +29,19 @@ management:
     health:
       show-details: never
 
+springdoc:            # API docs only in the dev profile (01 backend §4.3)
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+
 app:
+  web:
+    max-request-size: 1MB   # larger @RequestBody payloads get 413 payload-too-large
   display-time-zone: Asia/Kolkata
   session:
     absolute-timeout: 12h

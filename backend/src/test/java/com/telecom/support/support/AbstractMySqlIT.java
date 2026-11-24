@@ -1,7 +1,10 @@
 package com.telecom.support.support;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 
 /**
@@ -9,8 +12,9 @@ import org.testcontainers.containers.MySQLContainer;
  *
  * <p>One MySQL 8.4 container is shared by every IT class in the JVM and wired in through {@link ServiceConnection}.
  * Flyway applies the versioned migrations and then the repeatable test data from {@code db/test-data}; the dev
- * seed in {@code db/seed} is never loaded.
+ * seed in {@code db/seed} is never loaded. {@link #mvc} drives the full servlet filter chain (correlation id + security).
  */
+@AutoConfigureMockMvc
 @SpringBootTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/test-data")
 public abstract class AbstractMySqlIT {
 
@@ -30,4 +34,7 @@ public abstract class AbstractMySqlIT {
     static {
         MYSQL.start();
     }
+
+    @Autowired
+    protected MockMvc mvc;
 }
