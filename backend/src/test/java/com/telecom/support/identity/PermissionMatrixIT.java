@@ -2,11 +2,18 @@ package com.telecom.support.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telecom.support.identity.CurrentUser.UserType;
 import com.telecom.support.support.AbstractMySqlIT;
+import com.telecom.support.support.PermissionProbeController;
+import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,22 +22,35 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 
 /**
- * B7 data level of the permission matrix (design 01-foundation backend §3, §3.1, §6; BRD §8, BR-10). The expected
- * matrix is written out here from §3, independently of V2. B9 extends this class with the {@code /me} and probe cases.
+ * The permission matrix end to end (design 01-foundation backend §3, §3.1, §6, §8; BRD §8, BR-10, XC-02). The expected
+ * matrix is written out here from §3, independently of V2. B7: loaded authorities and seed data. B9: {@code /me} and a
+ * {@code @PreAuthorize} probe per {@link Permissions} constant (200 for holders, 403 for every other role, 401 anonymous).
+ * Probe cases are generated from the constants, so a new permission cannot be left out.
  */
+@Import(PermissionProbeController.class)
 class PermissionMatrixIT extends AbstractMySqlIT {
+
+    private static final String XSRF = "matrix-xsrf-token";
+    private static final AtomicInteger IPS = new AtomicInteger();
 
     /** Design §3, one column per role. */
     private static final Map<String, Set<String>> MATRIX = Map.of(
@@ -54,6 +74,9 @@ class PermissionMatrixIT extends AbstractMySqlIT {
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     /** Test-data users (R__test_users.sql), one per §3.1 role combination. */
     static List<Arguments> testUsers() {
@@ -121,6 +144,66 @@ class PermissionMatrixIT extends AbstractMySqlIT {
         }
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("testUsers")
+    void meReturnsExactlyTheMatrixPermissions(String username, UserType type, Set<String> roles) throws Exception {
+        Cookie session = login(username);
+
+        MvcResult me = mvc.perform(get("/api/v1/auth/me").cookie(session)).andExpect(status().isOk()).andReturn();
+        Object permissions = objectMapper.readValue(me.getResponse().getContentAsString(), Map.class)
+                .get("permissions");
+        assertThat(permissions).isInstanceOf(List.class);
+        assertThat((List<?>) permissions).doesNotHaveDuplicates();
+        assertThat(new HashSet<>((List<?>) permissions)).isEqualTo(expectedPermissions(roles));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("testUsers")
+    void probeIs200ForHoldersAnd403ForEveryoneElse(String username, UserType type, Set<String> roles)
+            throws Exception {
+        Cookie session = login(username);
+        Set<String> held = expectedPermissions(roles);
+
+        Map<String, Integer> expected = new TreeMap<>();
+        Map<String, Integer> actual = new TreeMap<>();
+        for (String permission : permissionConstants()) {
+            expected.put(permission, held.contains(permission) ? 200 : 403);
+            actual.put(permission, mvc.perform(get(PermissionProbeController.PATH + "/" + permission).cookie(session))
+                    .andReturn().getResponse().getStatus());
+        }
+        assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    void probeIs401ForAnonymous() throws Exception {
+        Map<String, Integer> actual = new TreeMap<>();
+        for (String permission : permissionConstants()) {
+            actual.put(permission, mvc.perform(get(PermissionProbeController.PATH + "/" + permission))
+                    .andReturn().getResponse().getStatus());
+        }
+        assertThat(actual).hasSize(permissionConstants().size());
+        assertThat(actual.values()).containsOnly(401);
+    }
+
+    @Test
+    void everyPermissionHasExactlyOneProbeGuardedByItsOwnAuthority() {
+        Map<String, String> guards = new TreeMap<>();
+        for (Method m : PermissionProbeController.class.getDeclaredMethods()) {
+            GetMapping mapping = m.getAnnotation(GetMapping.class);
+            if (mapping == null) {
+                continue;
+            }
+            PreAuthorize guard = m.getAnnotation(PreAuthorize.class);
+            assertThat(guard).as(m.getName() + " has @PreAuthorize").isNotNull();
+            assertThat(guards.put(mapping.value()[0].substring(1), guard.value())).as("duplicate probe").isNull();
+        }
+        Map<String, String> expected = new TreeMap<>();
+        for (Field f : permissionFields()) {
+            expected.put(value(f), "hasAuthority(T(" + Permissions.class.getName() + ")." + f.getName() + ")");
+        }
+        assertThat(guards).isEqualTo(expected);
+    }
+
     @Test
     void unknownUsernameIsNotFound() {
         assertThatThrownBy(() -> userDetailsService.loadUserByUsername("NO-SUCH-USER"))
@@ -144,6 +227,35 @@ class PermissionMatrixIT extends AbstractMySqlIT {
         assertThat(user.toString()).doesNotContain("$2");
     }
 
+    private static Set<String> expectedPermissions(Set<String> roles) {
+        return roles.stream().flatMap(r -> MATRIX.get(r).stream()).collect(Collectors.toSet());
+    }
+
+    /** Logs in like the SPA (XSRF cookie echoed in the header) from a fresh client IP; returns the session cookie. */
+    private Cookie login(String username) throws Exception {
+        int n = IPS.incrementAndGet();
+        String ip = "10.9." + (n / 250) + "." + (n % 250 + 1);
+        MvcResult result = mvc.perform(post("/api/v1/auth/login")
+                        .with(r -> {
+                            r.setRemoteAddr(ip);
+                            return r;
+                        })
+                        .cookie(new Cookie("XSRF-TOKEN", XSRF))
+                        .header("X-XSRF-TOKEN", XSRF)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("username", username, "password", TEST_PASSWORD))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie session = null;
+        for (Cookie c : result.getResponse().getCookies()) {
+            if (c.getName().equals("SESSION")) {
+                session = new Cookie("SESSION", c.getValue());
+            }
+        }
+        assertThat(session).as("session cookie").isNotNull();
+        return session;
+    }
+
     private static Set<String> authorities(CurrentUser user) {
         return user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
     }
@@ -154,11 +266,14 @@ class PermissionMatrixIT extends AbstractMySqlIT {
     }
 
     private static Set<String> permissionConstants() {
+        return permissionFields().stream().map(PermissionMatrixIT::value).collect(Collectors.toSet());
+    }
+
+    private static List<Field> permissionFields() {
         return Arrays.stream(Permissions.class.getDeclaredFields())
                 .filter(f -> Modifier.isPublic(f.getModifiers()) && Modifier.isStatic(f.getModifiers())
                         && f.getType() == String.class)
-                .map(PermissionMatrixIT::value)
-                .collect(Collectors.toSet());
+                .toList();
     }
 
     private static String value(Field field) {

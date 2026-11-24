@@ -1,5 +1,6 @@
 package com.telecom.support.common.error;
 
+import com.telecom.support.audit.DeniedAccessRecorder;
 import com.telecom.support.common.error.ApiExceptions.ApiException;
 import com.telecom.support.common.error.ProblemDetailFactory.FieldViolation;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
@@ -38,14 +39,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final ProblemDetailFactory problems;
+    private final DeniedAccessRecorder deniedAccess;
 
-    public GlobalExceptionHandler(ProblemDetailFactory problems) {
+    public GlobalExceptionHandler(ProblemDetailFactory problems, DeniedAccessRecorder deniedAccess) {
         this.problems = problems;
+        this.deniedAccess = deniedAccess;
     }
 
-    /** {@code @PreAuthorize} (method-level) denial: 403 {@code forbidden} (01 backend §4.4). */
+    /** {@code @PreAuthorize} (method-level) denial: one sampled ACCESS_DENIED row, 403 {@code forbidden} (§4.4, §7). */
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        deniedAccess.record(request, ex);
         return respond(problems.create(Problem.FORBIDDEN, request.getRequestURI()), HttpHeaders.EMPTY);
     }
 

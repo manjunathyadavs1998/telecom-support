@@ -1,5 +1,6 @@
 package com.telecom.support.identity;
 
+import com.telecom.support.audit.DeniedAccessRecorder;
 import com.telecom.support.common.error.ProblemDetailFactory;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
 import java.time.Clock;
@@ -7,6 +8,7 @@ import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -33,11 +35,15 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
  *   <li>Public: {@code /api/v1/auth/csrf}, {@code /api/v1/auth/login}, {@code /actuator/health}, static SPA assets,
  *       API docs (springdoc is enabled only in the {@code dev} profile). All other {@code /api/**} and
  *       {@code /actuator/**} need a session.</li>
- *   <li>401 and 403 (URL-level and CSRF) are JSON problems from {@link ProblemDetailFactory}; never a redirect.</li>
+ *   <li>401 and 403 (URL-level and CSRF) are JSON problems from {@link ProblemDetailFactory}; never a redirect. Each
+ *       403 here is recorded once by {@link DeniedAccessRecorder} (§4.4, §7).</li>
+ *   <li>Method security is on: every endpoint carries {@code @PreAuthorize} with a §3 permission (BR-10); its
+ *       denials are handled and recorded by {@code GlobalExceptionHandler}.</li>
  * </ul>
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -55,6 +61,7 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ProblemDetailFactory problems,
+                                            DeniedAccessRecorder deniedAccess,
                                             CsrfTokenRepository csrfTokenRepository,
                                             SecurityContextRepository securityContextRepository,
                                             UserRepository users, Clock clock,
@@ -76,8 +83,10 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, e) ->
                     problems.write(request, response, Problem.UNAUTHENTICATED))
-                .accessDeniedHandler((request, response, e) ->
-                    problems.write(request, response, Problem.FORBIDDEN)))
+                .accessDeniedHandler((request, response, e) -> {
+                    deniedAccess.record(request, e);
+                    problems.write(request, response, Problem.FORBIDDEN);
+                }))
             .requestCache(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)

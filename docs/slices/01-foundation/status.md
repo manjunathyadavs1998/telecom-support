@@ -5,8 +5,8 @@
 | Design | ☑ `docs/design/01-foundation/backend.md` | ☐ `docs/design/01-foundation/frontend.md` |
 | Approved by user | ☑ rev 2 (rev 1: PR #3) | ☐ |
 | Tasks planned | ☑ (rows revised for rev 2) | ☐ |
-| Built | ☐ branch `slice/01-foundation-be` | ☐ branch `slice/01-foundation-fe` |
-| Checks green | ☐ | ☐ |
+| Built | ☑ branch `slice/01-foundation-be` | ☐ branch `slice/01-foundation-fe` |
+| Checks green | ☑ | ☐ |
 | Review clean (no open High) | ☐ `review.md` | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
@@ -27,15 +27,14 @@ Every task ends with `scripts/check-backend.sh` green (all earlier tests still p
 | B7 | Identity read side: permission constants, user/role/permission queries, `AppUserDetailsService` (authorities = permission codes), `CurrentUser` | `J/identity/Permissions.java`, `J/identity/UserRepository.java`, `J/identity/AppUserDetailsService.java`, `J/identity/CurrentUser.java`, `T/identity/PermissionMatrixIT.java` | §3, §6 | §2, §8, BR-10 | `PermissionMatrixIT` data case passes: for every seeded role the loaded authorities equal the §3 matrix exactly, and `Permissions` holds exactly the 25 seeded codes | ☑ |
 | B8 | Login / logout / me: `AuthService` (constant-time check with dummy hash, generic 401, `last_login_at`, LOGIN_SUCCESS/FAILURE (masked)/LOGIN_ANOMALY/LOGOUT audit), `LoginRateLimiter` L1–L3 on `AppClock` (no account lock) with 429 + `Retry-After`, `SessionPolicyFilter` (12 h absolute, DISABLED re-check), controller, session fixation + login wiring | `J/identity/AuthService.java`, `J/identity/LoginRateLimiter.java`, `J/identity/AuthController.java`, `J/identity/SessionPolicyFilter.java` + `SecurityConfig.java` (edit), `T/identity/AuthIT.java` | §4, §4.1–§4.3, §5, §7, `openapi.yaml` | NFR-SEC, §2 | `AuthIT` passes with every §8 case (identical 401s, L1 429 on the 21st/min, L2 pair block 15 min, L3 anomaly without lock, cookie flags, no redirect, rotated CSRF cookie, idle/absolute expiry, DISABLED mid-session, no secrets in logs) | ☑ |
 | B8b | Client IP: `TrustedProxyFilter` (forwarded headers only from `app.security.trusted-proxies`) + `ClientIp`, used by the limiter and audit | `J/common/web/TrustedProxyFilter.java`, `J/common/web/ClientIp.java`, `J/identity/LoginRateLimiter.java` + `J/audit/AuditService.java` (edit), `T/common/ClientIpIT.java` | §4.4, OV§5 | NFR-SEC, XC-06 | `ClientIpIT` passes (forged `X-Forwarded-For` from an untrusted address ignored; honoured from a trusted proxy) | ☑ |
-| B9 | Enforcement + audit completion: `DeniedAccessRecorder` (sampled 1/user+path/min) called once from both the URL-level `AccessDeniedHandler` and `GlobalExceptionHandler` (`@PreAuthorize`), test-only probe per permission in `src/test` only, extend matrix and audit ITs | `J/audit/DeniedAccessRecorder.java`, `J/identity/SecurityConfig.java` (edit), `T/support/PermissionProbeController.java`, `T/identity/PermissionMatrixIT.java` (extend), `T/audit/AuditTrailIT.java` (extend) | §3, §4.4, §7, §8 | BR-10, XC-02, BR-03, XC-06 | `PermissionMatrixIT` and `AuditTrailIT` pass in full (`/me` permissions = matrix for every test-data role combination; probe 200 for holders, 403 for every other role, 401 anonymous; §7 rows with correlation id; LOGIN_FAILURE survives rollback; URL-level and method-level 403 each write one row, repeat within a minute writes none); `scripts/check-backend.sh` green | ☐ |
+| B9 | Enforcement + audit completion: `DeniedAccessRecorder` (sampled 1/user+path/min) called once from both the URL-level `AccessDeniedHandler` and `GlobalExceptionHandler` (`@PreAuthorize`), test-only probe per permission in `src/test` only, extend matrix and audit ITs | `J/audit/DeniedAccessRecorder.java`, `J/identity/SecurityConfig.java` (edit), `T/support/PermissionProbeController.java`, `T/identity/PermissionMatrixIT.java` (extend), `T/audit/AuditTrailIT.java` (extend) | §3, §4.4, §7, §8 | BR-10, XC-02, BR-03, XC-06 | `PermissionMatrixIT` and `AuditTrailIT` pass in full (`/me` permissions = matrix for every test-data role combination; probe 200 for holders, 403 for every other role, 401 anonymous; §7 rows with correlation id; LOGIN_FAILURE survives rollback; URL-level and method-level 403 each write one row, repeat within a minute writes none); `scripts/check-backend.sh` green | ☑ |
 
 ## Tasks — frontend
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B8b (… login/logout/me + L1–L3 limiter + SessionPolicyFilter; client IP via `TrustedProxyFilter` + `ClientIp`). 74 tests green.
-- Next: B9 — `DeniedAccessRecorder` + probes; audit rows get `client_ip` from `ClientIp.current()` automatically.
-- Client IP: `server.forward-headers-strategy=none`; `TrustedProxyFilter` (HIGHEST_PRECEDENCE) applies Spring's `ForwardedHeaderFilter` only for `app.security.trusted-proxies`, else strips the headers. Tests override the list with `@TestPropertySource` (`ClientIpIT$BehindTrustedProxy`).
-- Tests: limiter state is per context, give each test its own IP (`setRemoteAddr`); `IdempotencyServiceIT.MutableClock` via `@TestBean(name = "clock")`. Method security not enabled yet (B9).
+- Done: B1–B9 (B9: `DeniedAccessRecorder` sampled 1/user-or-IP+path/min, bounded map; called once from the chain `AccessDeniedHandler` and `GlobalExceptionHandler`; `@EnableMethodSecurity` on; probes in `T/support/PermissionProbeController`). 96 tests green.
+- Next: test-engineer gap pass on slice 01 backend, then reviewer (`review.md`), then merge-steward (PR).
+- `ACCESS_DENIED` details: `method`, `path`, `reason` (`permission|csrf`), `requiredAuthority` when the decision names it (plain `hasAuthority(...)`).
 - Env: run check-backend with `-o` if Maven dependency resolution hangs.

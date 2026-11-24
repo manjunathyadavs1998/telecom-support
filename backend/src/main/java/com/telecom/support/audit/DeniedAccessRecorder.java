@@ -1,0 +1,139 @@
+package com.telecom.support.audit;
+
+import com.telecom.support.audit.AuditEvent.Outcome;
+import com.telecom.support.common.web.ClientIp;
+import com.telecom.support.identity.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.expression.Expression;
+import org.springframework.expression.spel.SpelNode;
+import org.springframework.expression.spel.ast.MethodReference;
+import org.springframework.expression.spel.standard.SpelExpression;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorityAuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.security.authorization.AuthorizationResult;
+import org.springframework.security.authorization.ExpressionAuthorizationDecision;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.web.csrf.CsrfException;
+import org.springframework.stereotype.Component;
+
+/**
+ * Writes the {@code ACCESS_DENIED} audit row for a 403 (01 backend §4.4, §7; BR-03, BR-10, XC-06). Called exactly once
+ * per denial: by the security chain's {@code AccessDeniedHandler} (URL-level and CSRF) and by
+ * {@code GlobalExceptionHandler} ({@code @PreAuthorize}).
+ *
+ * <p>Sampled: at most one row per (user, or client IP when anonymous, + path) per minute. The sampling map is bounded:
+ * when it is full, expired keys are dropped first, and if it is still full it is cleared, so overflow can only write
+ * more rows, never fewer.
+ */
+@Component
+public class DeniedAccessRecorder {
+
+    static final String ACTION = "ACCESS_DENIED";
+    static final Duration WINDOW = Duration.ofMinutes(1);
+    static final int DEFAULT_MAX_KEYS = 10_000;
+
+    private static final SpelExpressionParser PARSER = new SpelExpressionParser();
+
+    private final AuditService audit;
+    private final Clock clock;
+    private final int maxKeys;
+    private final Map<String, Instant> lastRecorded = new ConcurrentHashMap<>();
+
+    @Autowired
+    public DeniedAccessRecorder(AuditService audit, Clock clock) {
+        this(audit, clock, DEFAULT_MAX_KEYS);
+    }
+
+    DeniedAccessRecorder(AuditService audit, Clock clock, int maxKeys) {
+        this.audit = audit;
+        this.clock = clock;
+        this.maxKeys = maxKeys;
+    }
+
+    /** Records the denial of {@code request} unless the same user (or IP) + path was recorded within the window. */
+    public void record(HttpServletRequest request, AccessDeniedException denial) {
+        CurrentUser user = CurrentUser.get().orElse(null);
+        String path = request.getRequestURI();
+        String key = (user != null ? "u:" + user.id() : "ip:" + ClientIp.resolve(request)) + " " + path;
+        if (!sample(key, clock.instant())) {
+            return;
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("method", request.getMethod());
+        details.put("path", path);
+        details.put("reason", denial instanceof CsrfException ? "csrf" : "permission");
+        String required = requiredAuthority(denial);
+        if (required != null) {
+            details.put("requiredAuthority", required);
+        }
+        audit.recordIndependently(ACTION, Outcome.DENIED, user != null ? user.id() : null,
+                user != null ? user.getUsername() : null, null, null, details);
+    }
+
+    /** Number of keys held for sampling (bounded by {@code maxKeys}). */
+    int trackedKeys() {
+        return lastRecorded.size();
+    }
+
+    private boolean sample(String key, Instant now) {
+        if (!lastRecorded.containsKey(key) && lastRecorded.size() >= maxKeys) {
+            Instant cutoff = now.minus(WINDOW);
+            lastRecorded.values().removeIf(at -> !at.isAfter(cutoff));
+            if (lastRecorded.size() >= maxKeys) {
+                lastRecorded.clear();
+            }
+        }
+        boolean[] write = {false};
+        lastRecorded.compute(key, (k, last) -> {
+            if (last == null || !now.isBefore(last.plus(WINDOW))) {
+                write[0] = true;
+                return now;
+            }
+            return last;
+        });
+        return write[0];
+    }
+
+    /** The authority the denied check required, when the decision says so; otherwise null. */
+    static String requiredAuthority(AccessDeniedException denial) {
+        if (!(denial instanceof AuthorizationDeniedException denied)) {
+            return null;
+        }
+        AuthorizationResult result = denied.getAuthorizationResult();
+        if (result instanceof AuthorityAuthorizationDecision decision) {
+            return decision.getAuthorities().stream().map(GrantedAuthority::getAuthority).sorted()
+                    .collect(Collectors.joining(","));
+        }
+        if (result instanceof ExpressionAuthorizationDecision decision) {
+            return fromHasAuthority(decision.getExpression());
+        }
+        return null;
+    }
+
+    /** The argument of a plain {@code hasAuthority(x)} expression (literal or {@code T(Permissions).X}); else null. */
+    private static String fromHasAuthority(Expression expression) {
+        if (!(expression instanceof SpelExpression spel)
+                || !(spel.getAST() instanceof MethodReference method)
+                || !"hasAuthority".equals(method.getName()) || method.getChildCount() != 1) {
+            return null;
+        }
+        SpelNode argument = method.getChild(0);
+        try {
+            Object value = PARSER.parseExpression(argument.toStringAST()).getValue(new StandardEvaluationContext());
+            return value instanceof String s ? s : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+}
