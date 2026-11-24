@@ -8,8 +8,8 @@
 | Built | ☑ branch `slice/01-foundation-be` | ☑ branch `slice/01-foundation-fe` |
 | Checks green | ☑ | ☑ |
 | Review clean (no open High) | ☑ `review.md` | ☑ `review.md` |
-| PR | ☐ #… | ☐ #… |
-| Merged (by user) | ☐ | ☐ |
+| PR | ☑ #5 (merged) | ☑ #7 |
+| Merged (by user) | ☑ | ☐ |
 
 ## Tasks — backend
 Path prefixes: `J/` = `backend/src/main/java/com/telecom/support/`, `T/` = `backend/src/test/java/com/telecom/support/`,
