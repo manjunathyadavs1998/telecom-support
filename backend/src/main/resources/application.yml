@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: telecom-support
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/telecom_support?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    username: ${DB_USERNAME:telecom_app}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  flyway:
+    locations: classpath:db/migration
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  display-time-zone: Asia/Kolkata

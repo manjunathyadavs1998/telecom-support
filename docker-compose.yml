@@ -1,0 +1,46 @@
+# Local development stack. Production overrides live in docker-compose.prod.yml.
+# Values below are DEV-ONLY defaults; real deployments must supply them via environment / .env.
+name: telecom-support
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: telecom_support
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_dev_only}
+      MYSQL_USER: ${DB_USERNAME:-telecom_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-telecom_app_dev}
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--log-bin-trust-function-creators=1"]
+    ports: ["3306:3306"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_dev_only}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+
+  # Frontend toolchain in Linux (same as CI). Used on hosts where native npm binaries cannot run.
+  #   docker compose run --rm web npm ci
+  #   docker compose run --rm web npm test
+  #   docker compose run --rm --service-ports web npm run dev -- --host 0.0.0.0
+  web:
+    image: node:24-bookworm-slim
+    profiles: ["tools"]
+    working_dir: /app
+    environment:
+      VITE_API_TARGET: http://host.docker.internal:8080
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["5173:5173"]
+    volumes:
+      - ./frontend:/app
+      - web-node-modules:/app/node_modules
+
+volumes:
+  mysql-data:
+  web-node-modules:
