@@ -1,0 +1,117 @@
+import { useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import { Navigate, Outlet, useLocation } from 'react-router'
+import { loginUrl } from '@/app/navigation'
+import { ErrorState } from '@/components/states/ErrorState'
+import { FullPageSpinner } from '@/components/states/LoadingState'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useMeQuery } from '@/features/authentication/meQuery'
+import { visibleNav } from '@/permissions/navConfig'
+import { useSidebarRail, useUiStore } from '@/stores/uiStore'
+import type { Me } from '@/types/api'
+import { Header } from './Header'
+import { Sidebar } from './Sidebar'
+
+const MAIN_ID = 'main'
+
+/** Route-change focus target (frontend.md §8, XC-08): the page's `<h1>` (focusable via PageContainer), else `<main>`. */
+function focusMainHeading() {
+  const main = document.getElementById(MAIN_ID)
+  const target = main?.querySelector<HTMLElement>('h1') ?? main
+  target?.focus()
+}
+
+/** The skip link moves focus itself: a `#main` hash change would be a router navigation, and jsdom/Safari don't move focus. */
+function skipToMain(event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault()
+  document.getElementById(MAIN_ID)?.focus()
+}
+
+function Shell({ me }: { me: Me }) {
+  const groups = useMemo(() => visibleNav(me), [me])
+  const rail = useSidebarRail()
+  const collapsed = useUiStore((state) => state.sidebarCollapsed)
+  const toggleSidebarCollapsed = useUiStore((state) => state.toggleSidebarCollapsed)
+  const mobileNavOpen = useUiStore((state) => state.mobileNavOpen)
+  const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const focusHeadingOnClose = useRef(false)
+  const { pathname } = useLocation()
+  const shownPath = useRef(pathname)
+
+  // On a route change: close the drawer (its close then focuses the heading) or move focus to the new page's <h1>.
+  useEffect(() => {
+    if (shownPath.current === pathname) return
+    shownPath.current = pathname
+    if (useUiStore.getState().mobileNavOpen) {
+      focusHeadingOnClose.current = true
+      useUiStore.getState().setMobileNavOpen(false)
+      return
+    }
+    focusMainHeading()
+  }, [pathname])
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <a
+        href={`#${MAIN_ID}`}
+        onClick={skipToMain}
+        className="sr-only rounded-md bg-white px-4 py-2 font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
+      >
+        Skip to main content
+      </a>
+      <Sidebar groups={groups} collapsed={rail} className="sticky top-0 hidden h-screen shrink-0 md:flex" />
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent
+          title="Navigation"
+          closeLabel="Close navigation menu"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            if (focusHeadingOnClose.current) {
+              focusHeadingOnClose.current = false
+              focusMainHeading()
+            } else {
+              menuButtonRef.current?.focus()
+            }
+          }}
+        >
+          <Sidebar groups={groups} collapsed={false} onNavigate={() => setMobileNavOpen(false)} />
+        </SheetContent>
+      </Sheet>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header
+          me={me}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleSidebarCollapsed}
+          mobileNavOpen={mobileNavOpen}
+          onOpenMobileNav={() => setMobileNavOpen(true)}
+          menuButtonRef={menuButtonRef}
+        />
+        <main id={MAIN_ID} tabIndex={-1} className="flex-1">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The protected layout route element (frontend.md §3 Application shell, §8; XC-01, XC-08, NFR-RESP): skip link, sidebar
+ * (icon rail per breakpoint/preference), mobile drawer, header and `<main>`. Bootstrap shows `FullPageSpinner`; a `/me`
+ * 5xx/network failure a full-page `ErrorState` with retry; a dropped session (another tab signed out) goes to login.
+ */
+export function AppShell() {
+  const { data: me, error, refetch } = useMeQuery()
+  const { pathname, search, hash } = useLocation()
+  if (me === undefined) {
+    if (error) {
+      return (
+        <main id={MAIN_ID} tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4">
+          <ErrorState title="We couldn't load your session" error={error} onRetry={() => void refetch()} />
+        </main>
+      )
+    }
+    return <FullPageSpinner />
+  }
+  if (me === null) return <Navigate to={loginUrl(pathname + search + hash)} replace />
+  return <Shell me={me} />
+}

@@ -1,4 +1,5 @@
 import { redirect, type LoaderFunctionArgs, type RouteObject } from 'react-router'
+import { AppShell } from '@/components/layout/AppShell'
 import { FullPageSpinner } from '@/components/states/LoadingState'
 import { meQuery } from '@/features/authentication/meQuery'
 import { ComingSoonPage } from '@/pages/ComingSoonPage'
@@ -8,7 +9,7 @@ import { NAV_ITEMS } from '@/permissions/navConfig'
 import { RequirePermission } from '@/permissions/RequirePermission'
 import { LOGIN_PATH, loginUrl } from './navigation'
 import { ME_QUERY_KEY, queryClient } from './queryClient'
-import { LandingRedirect, LoginPlaceholder, ProtectedLayout } from './RouteElements'
+import { LandingRedirect, LoginPlaceholder } from './RouteElements'
 
 /**
  * Session re-validation on every navigation into the protected area (frontend.md §7 Re-validation): `fetchQuery(meQuery)`
@@ -50,7 +51,7 @@ export const appRoutes: RouteObject[] = [
     loader: protectedLoader,
     // Re-check the session on every navigation, not only when this route's params change (§7 Re-validation).
     shouldRevalidate: () => true,
-    element: <ProtectedLayout />,
+    element: <AppShell />,
     hydrateFallbackElement: <FullPageSpinner />,
     errorElement: <RouteErrorBoundary />,
     children: [{ index: true, element: <LandingRedirect /> }, ...navRoutes, { path: '*', element: <NotFoundPage /> }],
