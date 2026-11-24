@@ -1,6 +1,9 @@
 package com.telecom.support.identity;
 
 import com.telecom.support.identity.CurrentUser.UserType;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +41,19 @@ public class UserRepository {
             WHERE ur.user_id = :userId
             """;
 
+    /** Status only: the per-request DISABLED re-check of {@code SessionPolicyFilter} (§4.3). */
+    private static final String FIND_STATUS = """
+            SELECT status
+            FROM users
+            WHERE id = :id
+            """;
+
+    private static final String UPDATE_LAST_LOGIN = """
+            UPDATE users
+            SET last_login_at = :lastLoginAt
+            WHERE id = :id
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public UserRepository(NamedParameterJdbcTemplate jdbc) {
@@ -54,6 +70,19 @@ public class UserRepository {
                 .stream()
                 .findFirst()
                 .map(this::toCurrentUser);
+    }
+
+    /** {@code users.status = ACTIVE}; false for a DISABLED or deleted user. */
+    public boolean isActive(long id) {
+        return jdbc.queryForList(FIND_STATUS, Map.of("id", id), String.class).stream()
+                .findFirst()
+                .map("ACTIVE"::equals)
+                .orElse(false);
+    }
+
+    /** Sets {@code last_login_at} (UTC) after a successful login (§4). */
+    public void updateLastLoginAt(long id, Instant at) {
+        jdbc.update(UPDATE_LAST_LOGIN, Map.of("id", id, "lastLoginAt", LocalDateTime.ofInstant(at, ZoneOffset.UTC)));
     }
 
     private CurrentUser toCurrentUser(UserRow row) {

@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
  * the {@code AppClock} bean; the 409 case uses two real threads coordinated by latches.
  */
 @Import(IdempotencyServiceIT.IdempotencyProbe.class)
-class IdempotencyServiceIT extends AbstractMySqlIT {
+public class IdempotencyServiceIT extends AbstractMySqlIT {
 
     private static final String USERNAME = "T-IN";
     private static final String OPERATION = "PROBE_CREATE";
@@ -289,15 +289,15 @@ class IdempotencyServiceIT extends AbstractMySqlIT {
     }
 
     /** A UTC clock whose instant the test sets. */
-    static final class MutableClock extends Clock {
+    public static final class MutableClock extends Clock {
 
         private volatile Instant instant;
 
-        MutableClock(Instant instant) {
+        public MutableClock(Instant instant) {
             this.instant = instant;
         }
 
-        void set(Instant instant) {
+        public void set(Instant instant) {
             this.instant = instant;
         }
 
