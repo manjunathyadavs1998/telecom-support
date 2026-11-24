@@ -20,6 +20,11 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+server:
+  # forwarded headers are applied only by TrustedProxyFilter, for app.security.trusted-proxies (01 backend §4.4);
+  # 'none' stops Tomcat (native) and Spring Boot (framework) from applying them for any caller
+  forward-headers-strategy: none
+
 management:
   endpoints:
     web:

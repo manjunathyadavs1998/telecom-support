@@ -3,6 +3,7 @@ package com.telecom.support.audit;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telecom.support.audit.AuditEvent.Outcome;
+import com.telecom.support.common.web.ClientIp;
 import com.telecom.support.common.web.CorrelationIdFilter;
 import java.time.Clock;
 import java.util.Map;
@@ -11,8 +12,6 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Writes audit events (BR-03, XC-06; 00-overview §6, 01 backend §6/§7).
@@ -81,11 +80,8 @@ public class AuditService {
         return id != null ? id : UUID.randomUUID().toString();
     }
 
-    /** Remote address of the current request; B8b switches this to the trusted-proxy aware {@code ClientIp}. */
+    /** Trusted-proxy aware client IP of the current request (01 backend §4.4). */
     private static String clientIp() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs) {
-            return attrs.getRequest().getRemoteAddr();
-        }
-        return NO_CLIENT_IP;
+        return ClientIp.current().orElse(NO_CLIENT_IP);
     }
 }

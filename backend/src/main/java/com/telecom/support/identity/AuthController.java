@@ -2,6 +2,7 @@ package com.telecom.support.identity;
 
 import com.telecom.support.common.error.ProblemDetailFactory;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
+import com.telecom.support.common.web.ClientIp;
 import com.telecom.support.identity.AuthService.BadCredentialsException;
 import com.telecom.support.identity.AuthService.LoginThrottledException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,7 +85,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public Me login(@Valid @RequestBody LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
-        CurrentUser user = auth.authenticate(clientIp(request), body.username(), body.password());
+        CurrentUser user = auth.authenticate(ClientIp.resolve(request), body.username(), body.password());
 
         if (request.getSession(false) != null) {
             request.changeSessionId(); // session fixation: an existing session gets a new id
@@ -140,10 +141,5 @@ public class AuthController {
         csrfTokens.saveToken(token, request, response);
         request.setAttribute(CsrfToken.class.getName(), token);
         request.setAttribute(token.getParameterName(), token);
-    }
-
-    /** Seam for the limiter's client IP: the remote address until B8b swaps in {@code ClientIp.resolve} (§4.4). */
-    static String clientIp(HttpServletRequest request) {
-        return request.getRemoteAddr();
     }
 }

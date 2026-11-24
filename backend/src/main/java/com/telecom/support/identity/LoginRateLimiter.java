@@ -20,7 +20,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Login throttling without an account lock (design 01-foundation backend §4.1, NFR-SEC). All counters live in bounded,
- * expiring in-memory maps (single instance, OQ 3); time comes only from the {@code AppClock} bean.
+ * expiring in-memory maps (single instance, OQ 3); time comes only from the {@code AppClock} bean. The client IP key is
+ * always {@code ClientIp.resolve(request)} (§4.4): the remote address, or the forwarded client only behind a trusted proxy.
  *
  * <ul>
  *   <li>L1 — client IP: 20 attempts per minute (success or failure, all usernames), a Bucket4j bucket.</li>
