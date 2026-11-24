@@ -5,8 +5,8 @@
 | Design | ☑ `docs/design/01-foundation/backend.md` | ☑ `docs/design/01-foundation/frontend.md` (rev 2) |
 | Approved by user | ☑ rev 2 (rev 1: PR #3) | ☑ rev 2 + backend erratum E2 |
 | Tasks planned | ☑ (rows revised for rev 2) | ☑ F1–F22 (F1–F5 = erratum E2) |
-| Built | ☑ branch `slice/01-foundation-be` | ☐ branch `slice/01-foundation-fe` |
-| Checks green | ☑ | ☐ |
+| Built | ☑ branch `slice/01-foundation-be` | ☑ branch `slice/01-foundation-fe` |
+| Checks green | ☑ | ☑ |
 | Review clean (no open High) | ☑ `review.md` | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
@@ -61,14 +61,15 @@ because the guards render those pages and the protected routes are generated fro
 | F19 | Logout: `useLogout` (403 → CSRF re-bootstrap + retry once; 204/401 → clear, `authChannel.post('logout')`, close drawer, `/login?reason=signed-out`; 5xx/network → toast, stay signed in) wired to the Sidebar Logout and UserMenu "Sign out" (and `NoAccessPage`) | `S/features/authentication/useLogout.ts`, `S/components/layout/Sidebar.tsx` (edit), `S/components/layout/UserMenu.tsx` (edit), `S/pages/NoAccessPage.tsx` (edit), `S/features/authentication/logout.test.tsx` | §7 Logout | NFR-SEC, XC-02 | `logout.test.tsx` passes (204 and 401 → cache cleared, `logout` broadcast, `/login?reason=signed-out`; 500/network → toast, still signed in, cache kept) | ☑ |
 | F20 | Playwright setup: config (base URL `E2E_BASE_URL`, 3 viewport projects, `retries: 0` for login specs), setup project logging in the 7 seed users once → `e2e/.auth/<user>.json` (git-ignored), `login()` helper honouring `Retry-After`, `e2e` npm script; first journey `auth-nav.spec.ts` | `F/playwright.config.ts`, `F/e2e/auth.setup.ts`, `F/e2e/helpers/login.ts` (+ users list), `F/e2e/auth-nav.spec.ts`, `F/package.json` + `F/.gitignore` (edit) | §9 e2e, §10 login budget | XC-01, §15 exit | Observable sequence: `check-frontend.sh build` → `./mvnw -Pfrontend package` → JAR with `dev,e2e` + compose MySQL → `check-frontend.sh e2e` PASS: setup (7 logins) + `auth-nav.spec.ts` (each user lands on its route with exactly its §2 nav) | ☑ |
 | F21 | Journeys: forbidden and session | `F/e2e/forbidden.spec.ts`, `F/e2e/session.spec.ts` | §10 e2e rows, §7 | XC-02, NFR-SEC | `check-frontend.sh e2e` PASS incl. `forbidden.spec.ts` (customer `/outbound`, `IN001` `/analytics` and `/customer/plan`, direct URL + reload → 403; `/nope` → 404) and `session.spec.ts` (wrong password; logout + Back shows nothing protected; expiry via `page.clock` + cleared `SESSION` → banner → re-login returns to the route) | ☑ |
-| F22 | Journey: responsive + a11y at 1280×800, 768×1024, 375×812 (`@axe-core/playwright`); close-out: traceability Code/Tests columns for the FE rows | `F/e2e/responsive-a11y.spec.ts`, `F/package.json` (edit), `docs/requirements/traceability.md` | §8, §10 | XC-08, NFR-A11Y, NFR-RESP | Full `check-frontend.sh` default steps + `build` + `e2e` PASS with no 429 in the run (≤ 12 logins, §10 budget); axe no serious/critical at all 3 viewports; keyboard-only login at 375×812 | ☐ |
+| F22 | Journey: responsive + a11y at 1280×800, 768×1024, 375×812 (`@axe-core/playwright`); close-out: traceability Code/Tests columns for the FE rows | `F/e2e/responsive-a11y.spec.ts`, `F/package.json` (edit), `docs/requirements/traceability.md` | §8, §10 | XC-08, NFR-A11Y, NFR-RESP | Full `check-frontend.sh` default steps + `build` + `e2e` PASS with no 429 in the run (≤ 12 logins, §10 budget); axe no serious/critical at all 3 viewports; keyboard-only login at 375×812 | ☑ |
 
 ## Deferred to slice 06 (production readiness)
 - C11 `CurrentUser` is Java-serialized into Spring Session; a field change breaks live sessions. Decide JSON session serializer or a "flush sessions on deploy" runbook.
 - C12 `--log-bin-trust-function-creators=1` is dev/test only. Production: DBA creates the audit triggers, or the migration runs as a privileged user.
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: F1–F20. F20: `playwright.config.ts` (setup + chromium desktop 1280×800; tablet 768×1024 / mobile 375×812 run only `responsive-a11y.spec`), `e2e/auth.setup.ts` (7 logins → `e2e/.auth/<user>.json`), `e2e/helpers/{login,users}.ts`, `e2e/auth-nav.spec.ts`.
-- e2e env: `.env` from `.env.example`; `docker compose up -d mysql` (healthy); `check-frontend.sh build`; `cd backend && ./mvnw -q -o -Pfrontend -DskipTests package`; `set -a; . ./.env; set +a; java -jar backend/target/support.jar --spring.profiles.active=dev,e2e` (log `.logs/e2e-app.log`, wait `/actuator/health` UP); `E2E_PASSWORD=<seed password, R__01_identity.sql> bash scripts/check-frontend.sh e2e`; then stop the JAR and `docker compose down`.
-- Next: F21 `forbidden.spec.ts` + `session.spec.ts` (fresh logins via `login()`; never reuse a shared storageState for logout/expiry). Budget so far: 7 of 12.
-- Env: all npm tooling only via `bash scripts/check-frontend.sh` (Docker). Package = `check-frontend.sh build`, then `./mvnw -Pfrontend package`. check-backend with `-o` if Maven hangs.
+- Done: F1–F22; FE Built + Checks green. F21 `e2e/{forbidden,session}.spec.ts`; F22 `e2e/responsive-a11y.spec.ts` (`@axe-core/playwright` 4.14.0), `tsconfig.e2e.json` (typecheck covers `e2e/`), traceability FE rows. e2e: 44 passed, 2 skipped (keyboard login runs only at mobile), twice in a row; 12 logins per run (setup 7 + session 4 + keyboard login 1).
+- F22 fix: `AppShell` drawer link now focuses the new page `<h1>` (the animated drawer close returned focus to the menu button in a real browser; jsdom missed it).
+- e2e env: compose `mysql` healthy → `check-frontend.sh build` → `cd backend && ./mvnw -q -o -Pfrontend -DskipTests package` → `set -a; . ./.env; set +a; java -jar backend/target/support.jar --spring.profiles.active=dev,e2e` (log `.logs/e2e-app.log`, health UP) → `E2E_PASSWORD=<R__01_identity.sql> bash scripts/check-frontend.sh e2e` → stop JAR, `docker compose down`.
+- Next: test-engineer gap pass → reviewer (`docs/slices/01-foundation/review.md`) → merge-steward (PR; merge only on the user's "merge").
+- Env: all npm tooling only via `bash scripts/check-frontend.sh` (Docker), never on the Windows host.

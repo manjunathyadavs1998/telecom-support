@@ -44,6 +44,13 @@ function Shell({ me }: { me: Me }) {
   const signOut = useCallback(() => void logout(), [logout])
   const outletContext = useMemo<ShellContext>(() => ({ logout: signOut }), [signOut])
 
+  // A drawer link closes the drawer before the route changes; its (animated) close must then focus the page heading, not
+  // return focus to the menu button, or it would steal focus from the new page's <h1> (XC-08).
+  const closeDrawerOnNavigate = useCallback(() => {
+    focusHeadingOnClose.current = true
+    setMobileNavOpen(false)
+  }, [setMobileNavOpen])
+
   // On a route change: close the drawer (its close then focuses the heading) or move focus to the new page's <h1>.
   useEffect(() => {
     if (shownPath.current === pathname) return
@@ -80,7 +87,7 @@ function Shell({ me }: { me: Me }) {
             }
           }}
         >
-          <Sidebar groups={groups} collapsed={false} onNavigate={() => setMobileNavOpen(false)} onLogout={signOut} />
+          <Sidebar groups={groups} collapsed={false} onNavigate={closeDrawerOnNavigate} onLogout={signOut} />
         </SheetContent>
       </Sheet>
       <div className="flex min-w-0 flex-1 flex-col">
