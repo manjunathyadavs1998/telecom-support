@@ -1,0 +1,30 @@
+# Build output
+backend/target/
+backend/src/main/resources/static/
+frontend/dist/
+frontend/node_modules/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+node_modules/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+*.pem
+*.key
+
+# Runtime data
+data/
+uploads/
+*.log
