@@ -1,6 +1,6 @@
 # 00 — System overview and cross-cutting conventions
 
-- Status: **Proposed** (awaiting approval) · Date: 2026-11-24
+- Status: **Approved** · Date: 2026-11-24
 - Covers: BRD §2, §7, §8, §9, §11, §13, §15 · ADRs 0001–0003
 
 This document fixes the conventions that every slice design reuses. Slice designs reference it instead of repeating it.
