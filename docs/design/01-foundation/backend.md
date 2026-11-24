@@ -262,3 +262,17 @@ Finding (review.md) → section: #1 rejected, no change · #2/#4 §2, §4, §4.1
 | # | Section | Change | Why |
 |---|---|---|---|
 | E1 | §4.4, OV§5 | `server.forward-headers-strategy=none` instead of `framework`. Forwarded headers are applied only inside `TrustedProxyFilter`, for trusted proxies. The client IP is the right-most `X-Forwarded-For`/`Forwarded` entry that isn't a trusted proxy | `framework` registers Boot's `ForwardedHeaderFilter` for every request, so any client could spoof its IP and dodge the limiter. `native` trusts every private-range peer, not our list. Found by the B8b builder, confirmed by the reviewer (C2), locked in by `ClientIpIT` |
+
+## 12. Errata proposed by the frontend design (E2) — approved by the user 2026-11-24
+
+Source: [`frontend.md`](frontend.md) §9, §10, §12 and review `docs/slices/01-foundation/review-frontend-design.md` F3, F7, F8. Nothing
+here is built until the user approves it. Other sections stay as approved.
+
+| # | Area | Change | Test / Done when | Why (BRD) |
+|---|---|---|---|---|
+| E2.1 | web (`common/web/SpaForwardController`) | `GET` requests whose path has no dot in the last segment and is not under `/api/**`, `/actuator/**`, `/error`, `/v3/**`, `/swagger-ui/**` → `forward:/index.html`. `index.html` sent with `Cache-Control: no-cache`; hashed `/assets/**` `max-age=31536000, immutable`. No security change (`anyRequest().permitAll()` already lets SPA routes through) | `SpaForwardIT`: `/outbound` and `/customer/plan` → 200 HTML; `/api/v1/nope` → 404 ProblemDetail; `/actuator/nope` and `/error` not forwarded; `/missing.js` → 404 | deep links and reload (XC-02, ADR 0001) |
+| E2.2 | build (`backend/pom.xml`) | Maven profile `frontend`: copies `../frontend/dist` into `target/classes/static`; `maven-enforcer` `requireFilesExist` fails the build if `../frontend/dist/index.html` is missing. No node in Maven (Windows blocks native binaries). Build order: `bash scripts/check-frontend.sh build`, then `./mvnw -Pfrontend package` | `-Pfrontend package` without `dist` fails; with `dist` the JAR contains `static/index.html` | single JAR (ADR 0001) |
+| E2.3 | identity (`LoginRateLimiter`) | limits become `@ConfigurationProperties` `app.security.login.*` with **unchanged defaults**: `ip-attempts-per-minute` 20 (L1), `pair-max-failures` 5 and `pair-block` 15m (L2), `username-anomaly-failures-per-hour` 50 (L3) | `LoginRateLimiterTest` still passes on defaults; a test with a custom value applies it | testable limits (NFR-SEC §4.1) |
+| E2.4 | config (`application-e2e.yml`) | profile `e2e` (used only as `dev,e2e`) sets `app.security.login.ip-attempts-per-minute: 100`; nothing else | e2e run of `frontend.md` §10 (≤ 12 logins) has no 429 | e2e reliability |
+| E2.5 | config guard | a startup check fails the application context when profiles `prod` and `e2e` are both active | `ProfileGuardIT`: context with `prod,e2e` fails to start with a clear message | the relaxed limit can never reach production (NFR-SEC) |
+| E2.6 | tooling (`scripts/check-frontend.sh`) | mount the repo root (work dir `frontend/`) so `gen:api:check` sees `docs/design`; default steps `ci typecheck lint test gen:api:check`; `build` and `e2e` opt-in; `e2e` uses the Playwright image with `E2E_BASE_URL` (default `http://host.docker.internal:8080`) and `E2E_PASSWORD` | script runs default steps on the skeleton; `e2e` step skipped unless named | typed contract drift (NFR-MAINT) |
