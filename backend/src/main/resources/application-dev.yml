@@ -4,6 +4,10 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
 
+app:
+  security:
+    api-docs-public: true   # lets `npm run gen:api` fetch /v3/api-docs without a session
+
 logging:
   level:
     com.telecom.support: DEBUG
