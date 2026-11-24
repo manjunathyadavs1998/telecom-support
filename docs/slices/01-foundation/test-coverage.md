@@ -1,7 +1,7 @@
 # Slice 01-foundation (backend) — test coverage matrix
 
 Gap pass against `docs/design/01-foundation/backend.md` §8 (+ §4–§7 security rules, §11 E1) and BRD NFR-SEC, NFR-OBS,
-NFR-REL, BR-01, BR-03, BR-10, XC-02, XC-05, XC-06. "Added" = written in this pass. Result: 117 tests green.
+NFR-REL, BR-01, BR-03, BR-10, XC-02, XC-05, XC-06. "Added" = written in this pass. Result: 117 tests green after this pass; 135 after the code-review fixes (ProdCookieIT, LoginRateLimiterTest, AuthServiceTest and added cases).
 
 ## §8 test plan
 
