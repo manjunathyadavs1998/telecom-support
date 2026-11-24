@@ -155,8 +155,9 @@ sequenceDiagram
 
 ### 4.4 Client IP and filter order
 
-- `server.forward-headers-strategy=framework` is used only behind a trusted proxy. `TrustedProxyFilter` applies forwarded headers
-  only when the remote address matches `app.security.trusted-proxies` (CIDR list). Empty (dev default) → the remote address is used
+- `server.forward-headers-strategy=none` (erratum, see §11): a global `framework` or `native` setting would apply forwarded headers from
+  any client. `TrustedProxyFilter` applies them (via Spring's `ForwardedHeaderFilter`) only when the remote address matches
+  `app.security.trusted-proxies` (CIDR list, IPv4/IPv6; an invalid entry fails startup). Empty (dev default) → the remote address is used
   and `X-Forwarded-*` is ignored. `ClientIp.resolve(request)` is the one value used by the limiter and by audit `client_ip`.
 - Servlet filter order: `TrustedProxyFilter` (HIGHEST_PRECEDENCE) → `CorrelationIdFilter` (HIGHEST_PRECEDENCE + 1) → Spring
   Security chain (-100). So every 401/403 from the chain already has the correlation id.
@@ -255,3 +256,9 @@ Finding (review.md) → section: #1 rejected, no change · #2/#4 §2, §4, §4.1
 #6 §4.4, §8 `ClientIpIT`, OV§5 · #7/#8 §3.1, §3.2, OQ 6–8 · #9 §2 (test-data), §8 intro · #10 §4.4, §6, §8, OV§5 ·
 #11 §6.1, §8, OV§4/§7 · #12 §6.2, §8, OV§8 · #13 §8 · #14 §5, openapi · #15 §6, §8, OV§4, openapi · #16 §5, openapi ·
 #17 §2 · #18 §4.3, §8 · #19 §7 · #20 §1. (OV = 00-overview.)
+
+## 11. Errata during build (slice/01-foundation-be)
+
+| # | Section | Change | Why |
+|---|---|---|---|
+| E1 | §4.4, OV§5 | `server.forward-headers-strategy=none` instead of `framework`. Forwarded headers are applied only inside `TrustedProxyFilter`, for trusted proxies. The client IP is the right-most `X-Forwarded-For`/`Forwarded` entry that isn't a trusted proxy | `framework` registers Boot's `ForwardedHeaderFilter` for every request, so any client could spoof its IP and dodge the limiter. Found by the B8b builder, locked in by `ClientIpIT` |
