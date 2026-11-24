@@ -69,3 +69,12 @@ What this showed:
   A few minutes later Claude Code picked the files up without a restart, and later tasks use the real subagents.
 - **Changing an approved design re-opens the gate.** The revision sets `Status: Proposed` and unticks "Approved" in
   `status.md`. Building waits for the user to re-approve.
+
+## 6. Gaps found while building slice 01 (2026-11-24)
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| G9 | Two builders edited the F19 files at the same time and left the frontend uncompilable | After a usage-limit pause, the lead assumed the interrupted F17–F19 builder was dead and started a fresh F19 builder. The original resumed by itself once the limit reset | Before starting a builder for a task, check that no builder for it is still running (stop it, or resume it with SendMessage). Builders write only on the slice branch and commit per task, so the damage was limited to uncommitted files, which were stashed. The rebuilt F19 replaced them |
+| G10 | Builders lost a lot of time to hung Docker and Maven (B3: about 30 min) | Builders waited on hung tools without a time limit | Builder briefs now say: if `timeout 15 docker version` fails or a run makes no progress for 5 minutes, stop and report. `check-backend.sh -o` runs offline |
+| G11 | The approved design was wrong in two places (forwarded-header strategy, `Secure` cookie under prod) | The design review checks the text, but some mistakes only show up when building | Builders report design gaps instead of improvising. The lead records an erratum (`backend.md` §11/§12) and the user approves it before merge |
+
