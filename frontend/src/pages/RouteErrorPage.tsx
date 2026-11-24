@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
+import { useRevalidator, useRouteError } from 'react-router'
 import { PageContainer } from '@/components/layout/PageContainer'
 import { ErrorState } from '@/components/states/ErrorState'
 import { ApiError } from '@/services/api/errors'
 
 type RouteErrorPageProps = {
-  /** The router's error (`useRouteError()` in the `errorElement`, F14). */
+  /** The router's error (`useRouteError()`, see `RouteErrorBoundary`). */
   error: unknown
   onRetry: () => void
 }
@@ -24,4 +25,11 @@ export function RouteErrorPage({ error, onRetry }: RouteErrorPageProps) {
       <ErrorState title="This page couldn't be shown" error={shown} onRetry={onRetry} />
     </PageContainer>
   )
+}
+
+/** The router `errorElement`: the route's error, and retry re-runs the loaders (`revalidate`). */
+export function RouteErrorBoundary() {
+  const error = useRouteError()
+  const { revalidate } = useRevalidator()
+  return <RouteErrorPage error={error} onRetry={() => void revalidate()} />
 }

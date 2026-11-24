@@ -1,8 +1,11 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppProviders } from '@/app/AppProviders'
 import { registerNavigator } from '@/app/navigation'
+import { registerRouter } from '@/app/router'
+import { appRoutes } from '@/app/routes'
 import { ME_QUERY_KEY, queryClient, shouldRetryQuery } from '@/app/queryClient'
 import { authChannel } from '@/services/api/authChannel'
 import { ApiError } from '@/services/api/errors'
@@ -60,6 +63,7 @@ function otherTab() {
 
 let navigate: ReturnType<typeof vi.fn<(to: string) => unknown>>
 let unregister: () => void
+let unregisterRouter: (() => void) | null = null
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
@@ -73,6 +77,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup() // unmount first: clearing the cache under a mounted useMeQuery would start a re-bootstrap
   unregister()
+  unregisterRouter?.()
+  unregisterRouter = null
+  vi.useRealTimers()
   server.resetHandlers()
   clearXsrfCookie()
   queryClient.clear()
@@ -107,6 +114,92 @@ describe('bootstrap', () => {
     expect(meQuery.staleTime).toBe(60_000)
     expect(meQuery.refetchOnWindowFocus).toBe(true)
     expect(meQuery.refetchInterval).toBeUndefined()
+  })
+})
+
+/** The app as `main.tsx` mounts it, on a memory router at `path`; records every committed location after the first render. */
+async function renderRouterApp(path: string, firstHeading: string) {
+  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
+  unregisterRouter = registerRouter(router)
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+  expect(await screen.findByRole('heading', { level: 1, name: firstHeading })).toBeInTheDocument()
+  const locations: string[] = []
+  let last = router.state.location.pathname + router.state.location.search
+  router.subscribe((state) => {
+    const at = state.location.pathname + state.location.search
+    if (at !== last) locations.push(at)
+    last = at
+  })
+  return { router, locations }
+}
+
+/** `/me` cached more than 60 s ago, so the next check refetches it (§7 Re-validation). */
+function makeMeStale() {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(Date.now() + 61_000)
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+describe('re-validation on navigation (§7, XC-02)', () => {
+  it('(b) stale /me + 401 on navigation → /login?reason=expired&returnTo=<the page being opened>, redirected exactly once', async () => {
+    meResponse = meCustomer
+    const { router, locations } = await renderRouterApp('/customer', 'Home')
+
+    makeMeStale()
+    meResponse = null
+    await act(() => router.navigate('/customer/profile'))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    await settle()
+
+    expect(locations).toEqual([`/login?reason=expired&returnTo=${encodeURIComponent('/customer/profile')}`])
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
+    expect(queryClient.getQueryData(ME_QUERY_KEY) ?? null).toBeNull() // no user left (a re-bootstrap may store null)
+    expect(calls.slice(0, 3)).toEqual(['csrf', 'me', 'me'])
+  })
+
+  it('(c) stale /me + 401 on window focus → /login?reason=expired&returnTo=<current page>, exactly once', async () => {
+    meResponse = meCustomer
+    const { router, locations } = await renderRouterApp('/customer/plan', 'My plan')
+
+    makeMeStale()
+    meResponse = null
+    act(() => {
+      window.dispatchEvent(new Event('visibilitychange'))
+    })
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    await settle()
+
+    expect(locations).toEqual([`/login?reason=expired&returnTo=${encodeURIComponent('/customer/plan')}`])
+    expect(queryClient.getQueryData(ME_QUERY_KEY) ?? null).toBeNull()
+  })
+
+  it('stale /me that is still valid → refetched, no redirect', async () => {
+    meResponse = meCustomer
+    const { router, locations } = await renderRouterApp('/customer', 'Home')
+
+    makeMeStale()
+    await act(() => router.navigate('/customer/profile'))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Profile' })).toBeInTheDocument()
+    await settle()
+
+    expect(locations).toEqual(['/customer/profile'])
+    expect(calls).toEqual(['csrf', 'me', 'me'])
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(meCustomer)
+  })
+
+  it('fresh /me (< 60 s) → navigation makes no /me request', async () => {
+    meResponse = meCustomer
+    const { router } = await renderRouterApp('/customer', 'Home')
+
+    await act(() => router.navigate('/customer/profile'))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Profile' })).toBeInTheDocument()
+
+    expect(calls).toEqual(['csrf', 'me'])
   })
 })
 

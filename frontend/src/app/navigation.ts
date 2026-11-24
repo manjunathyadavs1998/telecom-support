@@ -34,3 +34,10 @@ export function currentLocation(): AppLocation {
   const { pathname, search, hash } = globalThis.location ?? { pathname: '/', search: '', hash: '' }
   return { pathname, search, hash }
 }
+
+export const LOGIN_PATH = '/login'
+
+/** `/login?[reason=…&]returnTo=<target>` (frontend.md §2 guard order, §7 401 handler). */
+export function loginUrl(returnTo: string, reason?: 'expired'): string {
+  return `${LOGIN_PATH}?${reason ? `reason=${reason}&` : ''}returnTo=${encodeURIComponent(returnTo)}`
+}

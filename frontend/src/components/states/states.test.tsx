@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { axe } from 'vitest-axe'
 import { createQueryClient, ME_QUERY_KEY } from '@/app/queryClient'
@@ -128,7 +129,11 @@ describe('FormRootError (forms)', () => {
 function withMe(me: Me | null) {
   const client = createQueryClient()
   client.setQueryData(ME_QUERY_KEY, me)
-  return ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 describe('system pages (frontend.md §3 System pages, §4; XC-02, NFR-A11Y)', () => {
