@@ -1,0 +1,203 @@
+openapi: 3.1.0
+info:
+  title: Telecom Customer Support API — 01 Foundation
+  version: 0.1.0
+  description: |
+    Contract-first spec for slice 01 (see backend.md). Later slices add their own files;
+    the backend's generated /v3/api-docs must stay compatible with these contracts.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security:
+  - session: []
+tags:
+  - name: Authentication
+    description: Session login, logout, CSRF token and current-user endpoints
+paths:
+  /api/v1/auth/csrf:
+    get:
+      tags: [Authentication]
+      operationId: getCsrfToken
+      summary: Issue the CSRF cookie and token for the SPA
+      security: []
+      responses:
+        '200':
+          description: Token issued; the XSRF-TOKEN cookie is also set
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CsrfToken' }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Sign in and start a server session
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in; the SESSION cookie is set
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: End the current session
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      responses:
+        '204':
+          description: Session invalidated
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getMe
+      summary: Current user with roles and permissions (drives role-based navigation)
+      responses:
+        '200':
+          description: The signed-in user
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: SESSION
+  headers:
+    CorrelationId:
+      description: Request correlation id (echoed if valid, otherwise generated)
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+  parameters:
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: Value of the XSRF-TOKEN cookie
+      schema: { type: string }
+  responses:
+    Problem:
+      description: Error (RFC 7807), see 00-overview.md §4
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+  schemas:
+    CsrfToken:
+      type: object
+      required: [headerName, token]
+      properties:
+        headerName: { type: string, examples: [X-XSRF-TOKEN] }
+        token: { type: string }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: E.164 mobile number (customer) or employee id (staff)
+          examples: ['+919876543210']
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          format: password
+    Me:
+      type: object
+      required: [id, username, displayName, userType, roles, permissions]
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        displayName: { type: string }
+        userType: { type: string, enum: [CUSTOMER, STAFF] }
+        teamId: { type: [integer, 'null'], format: int64 }
+        customerId:
+          type: [integer, 'null']
+          format: int64
+          description: Always null until slice 02 adds customers
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [CUSTOMER, INBOUND_AGENT, REACTIVATION_APPROVER, OUTBOUND_AGENT,
+                   OUTBOUND_SUPERVISOR, BUSINESS_ANALYST, BUSINESS_AUDITOR]
+        permissions:
+          type: array
+          items: { $ref: '#/components/schemas/Permission' }
+    Permission:
+      type: string
+      enum:
+        - customer.profile.read
+        - customer.profile.update
+        - customer.lookup
+        - customer.verify
+        - plan.read
+        - plan.change
+        - promotion.read
+        - promotion.claim
+        - case.create
+        - case.create.onbehalf
+        - case.category.internal
+        - case.read
+        - case.read.queue
+        - case.assign
+        - case.assign.any
+        - case.status.update
+        - case.note.internal
+        - case.bookmark
+        - service.reactivate
+        - payment.read
+        - payment.initiate
+        - analytics.read
+        - audit.read
+        - reports.export
+        - reports.export.pii
+    FieldViolation:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ProblemDetail:
+      type: object
+      required: [type, title, status, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldViolation' }

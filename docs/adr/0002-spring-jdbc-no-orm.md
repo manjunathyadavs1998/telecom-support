@@ -13,5 +13,6 @@ The product owner requires that SQL is explicit and reviewable, and that it is n
 
 ## Consequences
 - Every query is visible in code review and can be tuned with `EXPLAIN`.
-- More boilerplate (row mappers), which the `spring-jdbc-endpoint` skill generates consistently.
-- The rule is enforced by a hook (`guard-patterns`) and by ArchUnit tests, not only by this document.
+- More boilerplate (row mappers). Once the first endpoint pattern is approved and green, it is captured as a project skill.
+- The rule is enforced by an ArchUnit test (`ArchitectureTest`, slice 01) and by review, not only by this document.
+- Reviewed 2026-11-24 for the clean start: decision unchanged.
