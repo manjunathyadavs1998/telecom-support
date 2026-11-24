@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,7 +35,8 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code /api/v1/auth} (design 01-foundation backend §4, §5; openapi.yaml). Login and logout are session + CSRF
  * operations: login changes the session id (fixation), stores the security context and the login time, and rotates the
  * {@code XSRF-TOKEN} cookie; logout writes LOGOUT, invalidates the session and rotates the cookie. {@code /me} and
- * {@code /logout} need a session (URL rule in {@link SecurityConfig}).
+ * {@code /logout} need a session: the URL rule in {@link SecurityConfig} (401 problem for anonymous callers) and
+ * {@code @PreAuthorize("isAuthenticated()")} (BR-10, CLAUDE.md backend rule 3).
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -104,6 +106,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         auth.logout(CurrentUser.require());
         HttpSession session = request.getSession(false);
@@ -116,6 +119,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
     public Me me() {
         return Me.of(CurrentUser.require());
     }

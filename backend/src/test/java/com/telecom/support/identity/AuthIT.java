@@ -1,6 +1,7 @@
 package com.telecom.support.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -29,6 +30,10 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -56,6 +61,9 @@ class AuthIT extends AbstractMySqlIT {
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;
+
+    @Autowired
+    AuthController authController;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -219,6 +227,15 @@ class AuthIT extends AbstractMySqlIT {
         String secure = setCookie(mvc.perform(loginRequest(nextIp(), "T-IN", TEST_PASSWORD).secure(true))
                 .andExpect(status().isOk()).andReturn(), "SESSION");
         assertThat(secure).contains("HttpOnly", "SameSite=Lax", "Secure");
+    }
+
+    @Test
+    void meAndLogoutAreGuardedByMethodSecurityToo() {
+        SecurityContextHolder.clearContext();
+        assertThatThrownBy(() -> authController.me())
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThatThrownBy(() -> authController.logout(new MockHttpServletRequest(), new MockHttpServletResponse()))
+                .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
     }
 
     @Test

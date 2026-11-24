@@ -16,8 +16,14 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class UserRepository {
 
-    private record UserRow(long id, String username, String passwordHash, String displayName, String userType,
-                           Long customerId, Long teamId, String status) {}
+    /** One {@code users} row without authorities: what the credential check needs before the hash matches (§4.1). */
+    record UserRow(long id, String username, String passwordHash, String displayName, String userType,
+                   Long customerId, Long teamId, String status) {
+
+        boolean active() {
+            return "ACTIVE".equals(status);
+        }
+    }
 
     private static final String FIND_BY_USERNAME = """
             SELECT id, username, password_hash, display_name, user_type, customer_id, team_id, status
@@ -62,14 +68,21 @@ public class UserRepository {
 
     /** The user with roles and permissions, or empty for an unknown username. */
     public Optional<CurrentUser> findByUsername(String username) {
+        return findRow(username).map(this::withAuthorities);
+    }
+
+    /**
+     * The {@code users} row only (one query, no roles or permissions), or empty for an unknown username. The login
+     * credential check uses it so known and unknown usernames run the same queries before BCrypt (§4.1).
+     */
+    Optional<UserRow> findRow(String username) {
         return jdbc.query(FIND_BY_USERNAME, Map.of("username", username), (rs, i) -> new UserRow(
                         rs.getLong("id"), rs.getString("username"), rs.getString("password_hash"),
                         rs.getString("display_name"), rs.getString("user_type"),
                         rs.getObject("customer_id", Long.class), rs.getObject("team_id", Long.class),
                         rs.getString("status")))
                 .stream()
-                .findFirst()
-                .map(this::toCurrentUser);
+                .findFirst();
     }
 
     /** {@code users.status = ACTIVE}; false for a DISABLED or deleted user. */
@@ -85,12 +98,13 @@ public class UserRepository {
         jdbc.update(UPDATE_LAST_LOGIN, Map.of("id", id, "lastLoginAt", LocalDateTime.ofInstant(at, ZoneOffset.UTC)));
     }
 
-    private CurrentUser toCurrentUser(UserRow row) {
+    /** Loads the row's roles and permissions (two queries) into the principal. */
+    CurrentUser withAuthorities(UserRow row) {
         Map<String, Long> params = Map.of("userId", row.id());
         Set<String> roles = new TreeSet<>(codes(FIND_ROLES, params));
         Set<String> permissions = new TreeSet<>(codes(FIND_PERMISSIONS, params));
         return new CurrentUser(row.id(), row.username(), row.passwordHash(), row.displayName(),
-                UserType.valueOf(row.userType()), row.customerId(), row.teamId(), "ACTIVE".equals(row.status()),
+                UserType.valueOf(row.userType()), row.customerId(), row.teamId(), row.active(),
                 roles, permissions);
     }
 

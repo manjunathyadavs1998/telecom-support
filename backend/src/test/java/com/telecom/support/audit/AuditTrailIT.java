@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telecom.support.audit.AuditEvent.Outcome;
 import com.telecom.support.common.IdempotencyServiceIT.MutableClock;
+import com.telecom.support.common.security.ActorProvider;
 import com.telecom.support.common.web.CorrelationIdFilter;
 import com.telecom.support.identity.Permissions;
 import com.telecom.support.support.AbstractMySqlIT;
@@ -63,6 +64,9 @@ class AuditTrailIT extends AbstractMySqlIT {
 
     @Autowired
     AuditService audit;
+
+    @Autowired
+    ActorProvider actors;
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;
@@ -260,7 +264,7 @@ class AuditTrailIT extends AbstractMySqlIT {
 
     @Test
     void samplingMapIsBoundedAndOverflowNeverDropsARow() {
-        DeniedAccessRecorder recorder = new DeniedAccessRecorder(audit, CLOCK, 3);
+        DeniedAccessRecorder recorder = new DeniedAccessRecorder(audit, actors, CLOCK, 3);
         for (int i = 0; i < 7; i++) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/bounded/" + i);
             request.setRemoteAddr("203.0.113.7");

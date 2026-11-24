@@ -2,6 +2,7 @@ package com.telecom.support;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -45,6 +46,14 @@ class ArchitectureTest {
                 .should(onlyBeAccessedFromTheirOwnModule())
                 .because("00-overview §1: a module calls another module's *Service, never its repository")
                 .allowEmptyShould(true)
+                .check(productionClasses);
+    }
+
+    @Test
+    void topLevelPackagesAreFreeOfCycles() {
+        slices().matching(ROOT + ".(*)..")
+                .should().beFreeOfCycles()
+                .because("ADR 0001: modules (common, audit, identity, ...) form an acyclic graph so a feature can be split out")
                 .check(productionClasses);
     }
 

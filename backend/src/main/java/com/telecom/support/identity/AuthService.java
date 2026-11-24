@@ -3,6 +3,7 @@ package com.telecom.support.identity;
 import com.telecom.support.audit.AuditEvent.Outcome;
 import com.telecom.support.audit.AuditService;
 import com.telecom.support.identity.LoginRateLimiter.Throttled;
+import com.telecom.support.identity.UserRepository.UserRow;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,7 +25,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <ul>
  *   <li>L1/L2 of {@link LoginRateLimiter} run before the credential check; a 429 is logged at WARN, never audited.</li>
  *   <li>Constant time: an unknown or DISABLED user is still checked with BCrypt against a dummy hash of the same cost,
- *       and every failure is the same {@link BadCredentialsException}. The real reason goes only into the audit row.</li>
+ *       and every failure is the same {@link BadCredentialsException}. The real reason goes only into the audit row.
+ *       Only the {@code users} row (with the hash) is read before BCrypt; roles and permissions are loaded after a
+ *       successful match, so known and unknown usernames run the same queries before the hash check.</li>
  *   <li>LOGIN_FAILURE / LOGIN_ANOMALY: null actor, masked username, written independently so they survive a rollback.
  *       LOGIN_SUCCESS is written with {@code last_login_at} in one transaction. There is no account lock.</li>
  * </ul>
@@ -94,15 +97,15 @@ public class AuthService {
             throw new LoginThrottledException(throttled.get());
         }
 
-        Optional<CurrentUser> found = users.findByUsername(name);
+        Optional<UserRow> found = users.findRow(name);
         String reason;
         if (found.isEmpty()) {
             encoder.matches(password, dummyHash);
             reason = "unknown_user";
-        } else if (!found.get().isEnabled()) {
+        } else if (!found.get().active()) {
             encoder.matches(password, dummyHash);
             reason = "disabled";
-        } else if (!encoder.matches(password, found.get().getPassword())) {
+        } else if (!encoder.matches(password, found.get().passwordHash())) {
             reason = "bad_password";
         } else {
             reason = null;
@@ -111,7 +114,7 @@ public class AuthService {
         if (reason != null) {
             fail(clientIp, name, reason);
         }
-        CurrentUser user = found.get();
+        CurrentUser user = users.withAuthorities(found.get()); // only after the hash matched
         user.eraseCredentials();
         limiter.recordSuccess(clientIp, name);
         tx.executeWithoutResult(status -> {

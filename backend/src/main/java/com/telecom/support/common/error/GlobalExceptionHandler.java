@@ -1,15 +1,16 @@
 package com.telecom.support.common.error;
 
-import com.telecom.support.audit.DeniedAccessRecorder;
 import com.telecom.support.common.error.ApiExceptions.ApiException;
 import com.telecom.support.common.error.ProblemDetailFactory.FieldViolation;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
+import com.telecom.support.common.security.AccessDeniedListener;
 import com.telecom.support.common.web.RequestSizeLimitAdvice.PayloadTooLargeException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -39,9 +40,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final ProblemDetailFactory problems;
-    private final DeniedAccessRecorder deniedAccess;
+    private final ObjectProvider<AccessDeniedListener> deniedAccess;
 
-    public GlobalExceptionHandler(ProblemDetailFactory problems, DeniedAccessRecorder deniedAccess) {
+    public GlobalExceptionHandler(ProblemDetailFactory problems, ObjectProvider<AccessDeniedListener> deniedAccess) {
         this.problems = problems;
         this.deniedAccess = deniedAccess;
     }
@@ -49,7 +50,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /** {@code @PreAuthorize} (method-level) denial: one sampled ACCESS_DENIED row, 403 {@code forbidden} (§4.4, §7). */
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        deniedAccess.record(request, ex);
+        deniedAccess.orderedStream().forEach(listener -> listener.onAccessDenied(request, ex));
         return respond(problems.create(Problem.FORBIDDEN, request.getRequestURI()), HttpHeaders.EMPTY);
     }
 
