@@ -3,7 +3,7 @@ info:
   title: Telecom Customer Support API — 01 Foundation
   version: 0.2.0
   description: |
-    Status: **Proposed** (revision 2, awaiting re-approval).
+    Status: **Approved** (revision 2).
     Contract-first spec for slice 01 (see backend.md). Later slices add their own files;
     the backend's generated /v3/api-docs must stay compatible with these contracts.
   license:

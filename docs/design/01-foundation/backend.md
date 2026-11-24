@@ -1,6 +1,6 @@
 # 01 Foundation — backend design
 
-- Status: **Proposed** (revision 2, awaiting re-approval) · Date: 2026-11-24
+- Status: **Approved** (revision 2) · Date: 2026-11-24
 - BRD: §2 roles, §8 permission matrix, BR-01, BR-03, BR-10, XC-02, XC-05, XC-06, NFR-SEC, NFR-OBS, NFR-REL
 - Conventions: [`../00-overview.md`](../00-overview.md) · Contract: [`openapi.yaml`](openapi.yaml) · ADRs 0001–0003
 - Review input: [`../../slices/01-foundation/review.md`](../../slices/01-foundation/review.md) (changes listed in §10)

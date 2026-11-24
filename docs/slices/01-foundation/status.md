@@ -3,7 +3,7 @@
 | Gate | Backend | Frontend |
 |---|---|---|
 | Design | ☑ `docs/design/01-foundation/backend.md` | ☐ `docs/design/01-foundation/frontend.md` |
-| Approved by user | ☐ rev 2 awaiting re-approval (rev 1: PR #3) | ☐ |
+| Approved by user | ☑ rev 2 (rev 1: PR #3) | ☐ |
 | Tasks planned | ☑ (rows revised for rev 2) | ☐ |
 | Built | ☐ branch `slice/01-foundation-be` | ☐ branch `slice/01-foundation-fe` |
 | Checks green | ☐ | ☐ |
