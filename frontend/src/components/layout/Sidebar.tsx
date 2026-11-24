@@ -10,7 +10,7 @@ type SidebarProps = {
   collapsed: boolean
   /** Called when a nav link is chosen (the mobile drawer closes). */
   onNavigate?: () => void
-  /** Logout entry point (wired to `useLogout` in F19). */
+  /** Logout entry point (the shell's `useLogout`). */
   onLogout?: () => void
   className?: string
 }

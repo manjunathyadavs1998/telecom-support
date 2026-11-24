@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
-import { loginUrl } from '@/app/navigation'
+import { currentLocation, LOGIN_PATH, loginUrl } from '@/app/navigation'
 import { ErrorState } from '@/components/states/ErrorState'
 import { FullPageSpinner } from '@/components/states/LoadingState'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useMeQuery } from '@/features/authentication/meQuery'
+import { useLogout } from '@/features/authentication/useLogout'
 import { visibleNav } from '@/permissions/navConfig'
 import { useSidebarRail, useUiStore } from '@/stores/uiStore'
 import type { Me } from '@/types/api'
 import { Header } from './Header'
+import type { ShellContext } from './shellContext'
 import { Sidebar } from './Sidebar'
 
 const MAIN_ID = 'main'
@@ -37,6 +39,10 @@ function Shell({ me }: { me: Me }) {
   const focusHeadingOnClose = useRef(false)
   const { pathname } = useLocation()
   const shownPath = useRef(pathname)
+  // The one logout flow (§7 Logout) for every entry point: sidebar, drawer, user menu and NoAccessPage (via the outlet).
+  const { logout } = useLogout()
+  const signOut = useCallback(() => void logout(), [logout])
+  const outletContext = useMemo<ShellContext>(() => ({ logout: signOut }), [signOut])
 
   // On a route change: close the drawer (its close then focuses the heading) or move focus to the new page's <h1>.
   useEffect(() => {
@@ -59,7 +65,7 @@ function Shell({ me }: { me: Me }) {
       >
         Skip to main content
       </a>
-      <Sidebar groups={groups} collapsed={rail} className="sticky top-0 hidden h-screen shrink-0 md:flex" />
+      <Sidebar groups={groups} collapsed={rail} onLogout={signOut} className="sticky top-0 hidden h-screen shrink-0 md:flex" />
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <SheetContent
           title="Navigation"
@@ -74,7 +80,7 @@ function Shell({ me }: { me: Me }) {
             }
           }}
         >
-          <Sidebar groups={groups} collapsed={false} onNavigate={() => setMobileNavOpen(false)} />
+          <Sidebar groups={groups} collapsed={false} onNavigate={() => setMobileNavOpen(false)} onLogout={signOut} />
         </SheetContent>
       </Sheet>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -85,9 +91,10 @@ function Shell({ me }: { me: Me }) {
           mobileNavOpen={mobileNavOpen}
           onOpenMobileNav={() => setMobileNavOpen(true)}
           menuButtonRef={menuButtonRef}
+          onSignOut={signOut}
         />
         <main id={MAIN_ID} tabIndex={-1} className="flex-1">
-          <Outlet />
+          <Outlet context={outletContext} />
         </main>
       </div>
     </div>
@@ -112,6 +119,10 @@ export function AppShell() {
     }
     return <FullPageSpinner />
   }
-  if (me === null) return <Navigate to={loginUrl(pathname + search + hash)} replace />
+  if (me === null) {
+    // The router is already on its way to /login (logout, the 401 handler): that is the one redirect, add no second one.
+    if (currentLocation().pathname === LOGIN_PATH) return null
+    return <Navigate to={loginUrl(pathname + search + hash)} replace />
+  }
   return <Shell me={me} />
 }

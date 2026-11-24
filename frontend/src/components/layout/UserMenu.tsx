@@ -12,7 +12,7 @@ import type { Me } from '@/types/api'
 
 type UserMenuProps = {
   me: Me
-  /** Sign-out entry point (wired to `useLogout` in F19). */
+  /** Sign-out entry point (the shell's `useLogout`). */
   onSignOut?: () => void
 }
 

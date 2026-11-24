@@ -3,7 +3,7 @@ import { EmptyState } from '@/components/states/EmptyState'
 import { PageContainer } from '@/components/layout/PageContainer'
 
 type NoAccessPageProps = {
-  /** Sign out (wired to `useLogout` in F19); the button shows only when given. */
+  /** Sign out (the shell's `useLogout`, via the outlet context); the button shows only when given. */
   onSignOut?: () => void
 }
 
