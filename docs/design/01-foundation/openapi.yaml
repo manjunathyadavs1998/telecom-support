@@ -1,8 +1,9 @@
 openapi: 3.1.0
 info:
   title: Telecom Customer Support API — 01 Foundation
-  version: 0.1.0
+  version: 0.2.0
   description: |
+    Status: **Approved** (revision 2).
     Contract-first spec for slice 01 (see backend.md). Later slices add their own files;
     the backend's generated /v3/api-docs must stay compatible with these contracts.
   license:
@@ -15,22 +16,29 @@ security:
 tags:
   - name: Authentication
     description: Session login, logout, CSRF token and current-user endpoints
+  - name: Operations
+    description: Liveness/readiness probe (the only exposed actuator endpoint)
 paths:
   /api/v1/auth/csrf:
     get:
       tags: [Authentication]
       operationId: getCsrfToken
-      summary: Issue the CSRF cookie and token for the SPA
+      summary: Bootstrap the XSRF-TOKEN cookie for the SPA
+      description: |
+        Bootstrap only. The XSRF-TOKEN cookie is the source of truth: the SPA reads it before every
+        mutating request. Login and logout responses set a rotated cookie.
       security: []
       responses:
         '200':
-          description: Token issued; the XSRF-TOKEN cookie is also set
+          description: Token issued; the XSRF-TOKEN cookie is also set (same value as the body token)
           headers:
             X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+            Set-Cookie: { $ref: '#/components/headers/XsrfCookie' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CsrfToken' }
         '4XX': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/login:
     post:
       tags: [Authentication]
@@ -46,16 +54,20 @@ paths:
             schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
         '200':
-          description: Signed in; the SESSION cookie is set
+          description: Signed in; the SESSION cookie and a rotated XSRF-TOKEN cookie are set
           headers:
             X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+            Set-Cookie: { $ref: '#/components/headers/SessionAndXsrfCookies' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '400': { $ref: '#/components/responses/Problem' }
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
-        '429': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/logout:
     post:
       tags: [Authentication]
@@ -65,11 +77,13 @@ paths:
         - $ref: '#/components/parameters/XsrfToken'
       responses:
         '204':
-          description: Session invalidated
+          description: Session invalidated; a rotated XSRF-TOKEN cookie is set
           headers:
             X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+            Set-Cookie: { $ref: '#/components/headers/XsrfCookie' }
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
   /api/v1/auth/me:
     get:
       tags: [Authentication]
@@ -84,6 +98,24 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /actuator/health:
+    get:
+      tags: [Operations]
+      operationId: getHealth
+      summary: Health probe (show-details=never)
+      security: []
+      responses:
+        '200':
+          description: Application is up
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: Application or a dependency is down
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
 components:
   securitySchemes:
     session:
@@ -94,18 +126,35 @@ components:
     CorrelationId:
       description: Request correlation id (echoed if valid, otherwise generated)
       schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+    XsrfCookie:
+      description: 'XSRF-TOKEN=<token>; Path=/; SameSite=Lax (readable by the SPA, Secure in prod)'
+      schema: { type: string }
+    SessionAndXsrfCookies:
+      description: 'SESSION=<id>; Path=/; HttpOnly; SameSite=Lax (Secure in prod), plus a rotated XSRF-TOKEN cookie'
+      schema: { type: string }
+    RetryAfter:
+      description: Seconds until the caller may retry
+      schema: { type: integer, minimum: 1 }
   parameters:
     XsrfToken:
       name: X-XSRF-TOKEN
       in: header
       required: true
-      description: Value of the XSRF-TOKEN cookie
+      description: Current value of the XSRF-TOKEN cookie, read by the SPA before each mutating request (no masking)
       schema: { type: string }
   responses:
     Problem:
       description: Error (RFC 7807), see 00-overview.md §4
       headers:
         X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    TooManyRequests:
+      description: Login throttled (type too-many-requests), see backend.md §4.1
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ProblemDetail' }
@@ -119,7 +168,7 @@ components:
     LoginRequest:
       type: object
       required: [username, password]
-      additionalProperties: false
+      description: Unknown fields are ignored (Jackson default FAIL_ON_UNKNOWN_PROPERTIES=false).
       properties:
         username:
           type: string
@@ -182,6 +231,11 @@ components:
         - audit.read
         - reports.export
         - reports.export.pii
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [UP, DOWN] }
     FieldViolation:
       type: object
       required: [field, message]
