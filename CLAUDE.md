@@ -14,6 +14,17 @@ Design (the contract): `docs/design/`. Coverage: `docs/requirements/traceability
 6. Keep context small: read only the BRD sections and design files for the current task, and summarize long
    tool output instead of pasting it.
 
+## Agents and skills (`.claude/`)
+| Need | Use |
+|---|---|
+| Design a slice layer, plan its tasks, find design gaps | `ba-planner` agent + `design-doc` skill |
+| Write and run tests from the design | `test-engineer` agent |
+| Independent review before a PR | `reviewer` agent → `docs/slices/<slice>/review.md` |
+| Gate check + open PR (merge only on the user's "merge") | `merge-steward` agent |
+| Where a slice stands / what to do next | `slice-workflow` skill → `docs/slices/<slice>/status.md` |
+| BRD text | `brd-section` skill (never read `brd.md` whole) |
+| Is it green? | `run-checks` skill (`scripts/check-{backend,frontend,docs}.sh`) |
+
 ## Stack (ADR 0001–0003)
 - Modular monolith: one Spring Boot 3.5 JAR (Java 21) serves `/api/v1/**` and the built React SPA.
 - MySQL 8 + Flyway. Spring JDBC (`NamedParameterJdbcTemplate`) only.

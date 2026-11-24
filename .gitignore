@@ -28,3 +28,6 @@ Thumbs.db
 data/
 uploads/
 *.log
+
+# Quiet check logs (scripts/check-*.sh)
+.logs/
