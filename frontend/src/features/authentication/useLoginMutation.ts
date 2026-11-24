@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { OWN_FORBIDDEN_HANDLING } from '@/app/queryClient'
 import { api, apiClient } from '@/services/api/client'
 import { bootstrapCsrf } from '@/services/api/csrf'
 import type { Me } from '@/types/api'
@@ -20,8 +21,8 @@ export async function postLogin(values: LoginValues): Promise<Me> {
 
 /**
  * The login mutation. `gcTime: 0` plus the form's `reset()` after every response drop the mutation (and so its
- * `variables`, which hold the password) from the MutationCache as soon as it settles.
+ * `variables`, which hold the password) from the MutationCache as soon as it settles. Its 403 is a form error, not a toast.
  */
 export function useLoginMutation() {
-  return useMutation({ mutationFn: postLogin, gcTime: 0 })
+  return useMutation({ mutationFn: postLogin, gcTime: 0, meta: OWN_FORBIDDEN_HANDLING })
 }
