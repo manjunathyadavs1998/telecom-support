@@ -7,7 +7,7 @@
 | Tasks planned | ☑ (rows revised for rev 2) | ☑ F1–F22 (F1–F5 = erratum E2) |
 | Built | ☑ branch `slice/01-foundation-be` | ☑ branch `slice/01-foundation-fe` |
 | Checks green | ☑ | ☑ |
-| Review clean (no open High) | ☑ `review.md` | ☐ `review.md` |
+| Review clean (no open High) | ☑ `review.md` | ☑ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
@@ -68,8 +68,7 @@ because the guards render those pages and the protected routes are generated fro
 - C12 `--log-bin-trust-function-creators=1` is dev/test only. Production: DBA creates the audit triggers, or the migration runs as a privileged user.
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: F1–F22; FE Built + Checks green. F21 `e2e/{forbidden,session}.spec.ts`; F22 `e2e/responsive-a11y.spec.ts` (`@axe-core/playwright` 4.14.0), `tsconfig.e2e.json` (typecheck covers `e2e/`), traceability FE rows. e2e: 44 passed, 2 skipped (keyboard login runs only at mobile), twice in a row; 12 logins per run (setup 7 + session 4 + keyboard login 1).
-- F22 fix: `AppShell` drawer link now focuses the new page `<h1>` (the animated drawer close returned focus to the menu button in a real browser; jsdom missed it).
-- e2e env: compose `mysql` healthy → `check-frontend.sh build` → `cd backend && ./mvnw -q -o -Pfrontend -DskipTests package` → `set -a; . ./.env; set +a; java -jar backend/target/support.jar --spring.profiles.active=dev,e2e` (log `.logs/e2e-app.log`, health UP) → `E2E_PASSWORD=<R__01_identity.sql> bash scripts/check-frontend.sh e2e` → stop JAR, `docker compose down`.
-- Next: test-engineer gap pass → reviewer (`docs/slices/01-foundation/review.md`) → merge-steward (PR; merge only on the user's "merge").
-- Env: all npm tooling only via `bash scripts/check-frontend.sh` (Docker), never on the Windows host.
+- Done: F1–F22 built; test-engineer gap pass (test-coverage-frontend.md); code review FC1–FC13 closed (10 fixed, 3 accepted with reasons). FE 234 unit + 44 e2e, BE 151 green.
+- Next: merge-steward opens the PR for slice/01-foundation-fe → user merges. Slice 01 is then complete (BRD §15 Phase 1 exit criteria).
+- Deferred to slice 06: C11, C12 (backend), FC10 Node image pin, FC11 CI job building dist before -Pfrontend.
+- Env: check-backend with `-o` if Maven resolution hangs; all npm via scripts/check-frontend.sh (Docker).
