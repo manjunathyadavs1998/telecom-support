@@ -257,7 +257,7 @@ Finding (review.md) → section: #1 rejected, no change · #2/#4 §2, §4, §4.1
 #11 §6.1, §8, OV§4/§7 · #12 §6.2, §8, OV§8 · #13 §8 · #14 §5, openapi · #15 §6, §8, OV§4, openapi · #16 §5, openapi ·
 #17 §2 · #18 §4.3, §8 · #19 §7 · #20 §1. (OV = 00-overview.)
 
-## 11. Errata during build (slice/01-foundation-be)
+## 11. Errata during build (slice/01-foundation-be) — approved by the user 2026-11-24
 
 | # | Section | Change | Why |
 |---|---|---|---|
