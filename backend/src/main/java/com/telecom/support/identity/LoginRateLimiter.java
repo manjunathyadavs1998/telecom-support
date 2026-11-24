@@ -19,6 +19,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Component;
  * expiring in-memory maps (single instance, OQ 3); time comes only from the {@code AppClock} bean. The client IP key is
  * always {@code ClientIp.resolve(request)} (§4.4): the remote address, or the forwarded client only behind a trusted proxy.
  *
+ * <p>The limits come from {@link LoginLimitProperties} ({@code app.security.login.*}, §12 E2.3); the defaults are:
  * <ul>
  *   <li>L1 — client IP: 20 attempts per minute (success or failure, all usernames), a Bucket4j bucket.</li>
  *   <li>L2 — (IP, normalised username): 5 failures within 15 min block the pair for 15 min; success clears it.</li>
@@ -38,13 +40,14 @@ import org.springframework.stereotype.Component;
  * (429, limit {@code capacity}, logged at WARN). Existing keys keep their counters, so the limits are never weakened.
  */
 @Component
+@EnableConfigurationProperties(LoginLimitProperties.class)
 public class LoginRateLimiter {
 
-    static final int IP_ATTEMPTS_PER_MINUTE = 20;
-    static final int PAIR_MAX_FAILURES = 5;
+    /** Default L1 limit (tests); the running value is {@link LoginLimitProperties#ipAttemptsPerMinute()}. */
+    static final int IP_ATTEMPTS_PER_MINUTE = LoginLimitProperties.DEFAULT_IP_ATTEMPTS_PER_MINUTE;
+    /** Default L2 limit (tests); the running value is {@link LoginLimitProperties#pairMaxFailures()}. */
+    static final int PAIR_MAX_FAILURES = LoginLimitProperties.DEFAULT_PAIR_MAX_FAILURES;
     static final Duration PAIR_WINDOW = Duration.ofMinutes(15);
-    static final Duration PAIR_BLOCK = Duration.ofMinutes(15);
-    static final int USER_ANOMALY_FAILURES = 50;
     static final Duration USER_WINDOW = Duration.ofHours(1);
     /** Upper bound per map; at it, idle entries are swept, and a new key that still does not fit is throttled. */
     static final int MAX_KEYS = 100_000;
@@ -58,18 +61,35 @@ public class LoginRateLimiter {
     public record Throttled(String limit, long retryAfterSeconds) {}
 
     private final Clock clock;
+    private final int ipAttemptsPerMinute;
+    private final int pairMaxFailures;
+    private final Duration pairBlock;
+    private final int usernameAnomalyFailures;
     private final TimeMeter timeMeter;
     private final BoundedMap<IpState> ips;
     private final BoundedMap<PairState> pairs;
     private final BoundedMap<UserState> usernames;
 
     @Autowired
+    public LoginRateLimiter(Clock clock, LoginLimitProperties limits) {
+        this(clock, limits, MAX_KEYS);
+    }
+
+    /** The §4.1 default limits. */
     public LoginRateLimiter(Clock clock) {
-        this(clock, MAX_KEYS);
+        this(clock, LoginLimitProperties.DEFAULTS);
     }
 
     LoginRateLimiter(Clock clock, int maxKeys) {
+        this(clock, LoginLimitProperties.DEFAULTS, maxKeys);
+    }
+
+    LoginRateLimiter(Clock clock, LoginLimitProperties limits, int maxKeys) {
         this.clock = clock;
+        this.ipAttemptsPerMinute = limits.ipAttemptsPerMinute();
+        this.pairMaxFailures = limits.pairMaxFailures();
+        this.pairBlock = limits.pairBlock();
+        this.usernameAnomalyFailures = limits.usernameAnomalyFailuresPerHour();
         this.ips = new BoundedMap<>("ips", maxKeys);
         this.pairs = new BoundedMap<>("pairs", maxKeys);
         this.usernames = new BoundedMap<>("usernames", maxKeys);
@@ -127,8 +147,8 @@ public class LoginRateLimiter {
             synchronized (pair) {
                 prune(pair.failures, now.minus(PAIR_WINDOW));
                 pair.failures.addLast(now);
-                if (pair.failures.size() >= PAIR_MAX_FAILURES) {
-                    pair.blockedUntil = now.plus(PAIR_BLOCK);
+                if (pair.failures.size() >= pairMaxFailures) {
+                    pair.blockedUntil = now.plus(pairBlock);
                     pair.failures.clear();
                 }
             }
@@ -141,7 +161,7 @@ public class LoginRateLimiter {
             prune(user.failures, now.minus(USER_WINDOW));
             user.failures.addLast(now);
             boolean alertedInWindow = user.anomalyAt != null && now.isBefore(user.anomalyAt.plus(USER_WINDOW));
-            if (user.failures.size() > USER_ANOMALY_FAILURES && !alertedInWindow) {
+            if (user.failures.size() > usernameAnomalyFailures && !alertedInWindow) {
                 user.anomalyAt = now;
                 return OptionalInt.of(user.failures.size());
             }
@@ -164,8 +184,8 @@ public class LoginRateLimiter {
 
     private Bucket newIpBucket() {
         return Bucket.builder()
-                .addLimit(Bandwidth.builder().capacity(IP_ATTEMPTS_PER_MINUTE)
-                        .refillGreedy(IP_ATTEMPTS_PER_MINUTE, Duration.ofMinutes(1)).build())
+                .addLimit(Bandwidth.builder().capacity(ipAttemptsPerMinute)
+                        .refillGreedy(ipAttemptsPerMinute, Duration.ofMinutes(1)).build())
                 .withCustomTimePrecision(timeMeter)
                 .build();
     }

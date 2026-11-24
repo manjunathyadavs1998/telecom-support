@@ -88,4 +88,20 @@ class LoginRateLimiterTest {
         assertThat(limiter.acquire("198.51.100.99", "late")).isEmpty();
         assertThat(java.util.Arrays.stream(limiter.trackedKeys()).max().orElseThrow()).isLessThanOrEqualTo(CAPACITY);
     }
+
+    @Test
+    void configuredIpLimitIsApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(3, null, null, null));
+        for (int i = 0; i < 3; i++) {
+            assertThat(custom.acquire("192.0.2.50", "user-" + i)).as("attempt %d", i + 1).isEmpty();
+        }
+
+        assertThat(custom.acquire("192.0.2.50", "user-x")).get().extracting(Throttled::limit).isEqualTo("L1");
+    }
+
+    @Test
+    void unsetPropertiesKeepTheApprovedDefaults() {
+        assertThat(LoginLimitProperties.DEFAULTS).isEqualTo(
+                new LoginLimitProperties(20, 5, Duration.ofMinutes(15), 50));
+    }
 }
