@@ -80,7 +80,7 @@ Every error is an RFC 7807 `ProblemDetail` (`application/problem+json`):
   The id goes into the logging MDC, every response header, every `ProblemDetail` and every `audit_events` row (NFR-OBS).
   `CorrelationIdFilter` is registered before the Spring Security filter chain, so 401/403 from the chain carry it too.
 - Client IP (rate limits, audit `client_ip`): the remote address, unless it matches `app.security.trusted-proxies`; only then
-  are forwarded headers applied (`server.forward-headers-strategy=framework`). The list is empty in dev. Details: 01 backend §4.4.
+  are forwarded headers applied, by `TrustedProxyFilter` only (`server.forward-headers-strategy=none`, 01 backend §11 E1). The list is empty in dev. Details: 01 backend §4.4.
 - Logs never contain passwords, session ids, CSRF tokens, OTPs or full card data.
 
 ## 6. Audit (BR-03, XC-06)

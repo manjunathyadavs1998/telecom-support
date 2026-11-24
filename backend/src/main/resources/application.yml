@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: telecom-support
+  autoconfigure:
+    # no generated in-memory user (its password would be logged); real users come from AppUserDetailsService (B7)
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+  session:
+    timeout: 30m
+    jdbc:
+      initialize-schema: never   # SPRING_SESSION tables come from Flyway V2
+      cleanup-cron: "0 */5 * * * *"
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  # forwarded headers are applied only by TrustedProxyFilter, for app.security.trusted-proxies (01 backend §4.4);
+  # 'none' stops Tomcat (native) and Spring Boot (framework) from applying them for any caller
+  forward-headers-strategy: none
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:            # API docs only in the dev profile (01 backend §4.3)
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+
+app:
+  web:
+    max-request-size: 1MB   # larger @RequestBody payloads get 413 payload-too-large
+  display-time-zone: Asia/Kolkata
+  session:
+    absolute-timeout: 12h
+  idempotency:
+    stale-after: 2m              # IN_PROGRESS keys older than this are reclaimed (01 backend §6.1)
+    purge-cron: "0 0 * * * *"    # hourly purge of keys older than 24 h
+  security:
+    trusted-proxies: []   # CIDR list; empty = ignore X-Forwarded-* and use the remote address
+    cookie-secure: false  # true (prod profile) = XSRF-TOKEN always Secure; false = Secure only over HTTPS
