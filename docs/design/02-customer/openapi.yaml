@@ -1,0 +1,923 @@
+openapi: 3.1.0
+info:
+  title: Telecom Customer Support API — 02 Customer portal
+  version: 0.2.0
+  description: |
+    Status: **Proposed** (awaiting approval), revision 2 (review D1–D23). Contract-first spec for slice 02 (see backend.md).
+    Auth (session cookie, CSRF header) and the shared components (ProblemDetail, FieldViolation, CorrelationId,
+    XsrfToken, Problem, TooManyRequests) are **copied verbatim** from 01-foundation/openapi.yaml so that each
+    slice file is self-contained for type generation; any change to them is made in 01 first and copied here.
+    Every `/api/v1/customers/me/**` path is scoped to the signed-in customer's own account (backend.md R1):
+    the account is never taken from the request. Idempotent operations hash {path variables, body}, so a key
+    reused on another path id returns 422 idempotency-mismatch.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security:
+  - session: []
+tags:
+  - name: Profile
+    description: Own profile and verified contact changes (CUS-01, CUS-02)
+  - name: Plans
+    description: Subscriptions, plan benefits, upgrade options and plan changes (CUS-03)
+  - name: Promotions
+    description: Eligible offers and claims (CUS-04)
+  - name: Service requests
+    description: Own service requests and categories (CUS-05, CUS-06)
+  - name: Payments
+    description: Invoices, payment history, receipts and payment initiation (CUS-07, CUS-08)
+  - name: Payment gateway
+    description: Signed server-to-server callbacks from the payment gateway (CUS-08.3)
+paths:
+  /api/v1/customers/me/profile:
+    get:
+      tags: [Profile]
+      operationId: getMyProfile
+      summary: Own profile (name, primary mobile, account reference, contacts, billing address)
+      description: 'Permission customer.profile.read + customer principal. CUS-01.1, CUS-02.3.'
+      responses:
+        '200':
+          description: The profile
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Profile]
+      operationId: updateMyProfile
+      summary: Update the alias name (contacts change via verification)
+      description: 'Permission customer.profile.update. CUS-02.1, CUS-02.4, CUS-02.5. Stale version → 409. Inactive customer or closed account → 422.'
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileUpdate' }
+      responses:
+        '200':
+          description: Updated profile
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/contact-verifications:
+    post:
+      tags: [Profile]
+      operationId: startContactVerification
+      summary: Send a one-time code to a new email or secondary mobile number
+      description: 'Permission customer.profile.update. CUS-02.2. At most 5 starts per hour (429). Code sender down → 503.'
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactVerificationStart' }
+      responses:
+        '201':
+          description: Code sent; the change is applied only after confirmation
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactVerification' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/contact-verifications/{verificationId}/confirm:
+    post:
+      tags: [Profile]
+      operationId: confirmContactVerification
+      summary: Confirm the code and apply the contact change
+      description: |
+        Permission customer.profile.update. CUS-02.2. Every attempt is counted in a committed write before the
+        constant-time comparison (backend.md §3.2). Wrong code → 422 with attemptsRemaining; expired or locked → 422.
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - name: verificationId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactVerificationConfirm' }
+      responses:
+        '200':
+          description: Contact changed and verified
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422':
+          description: Wrong, expired or locked code (business-rule)
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/VerificationProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/subscriptions:
+    get:
+      tags: [Plans]
+      operationId: listMySubscriptions
+      summary: Own subscriptions with current plan summary and benefits (primary first)
+      description: 'Permission plan.read. CUS-03.1, CUS-03.2. No usage data (CUS-03.3).'
+      responses:
+        '200':
+          description: Subscriptions
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/subscriptions/{subscriptionId}/plan-options:
+    get:
+      tags: [Plans]
+      operationId: listPlanOptions
+      summary: Eligible upgrade plans with price/benefit comparison and quote
+      description: 'Permission plan.read. CUS-03.4. Another account''s subscription → 404.'
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Eligible options (may be empty)
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PlanOption' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/subscriptions/{subscriptionId}/plan-changes:
+    post:
+      tags: [Plans]
+      operationId: schedulePlanChange
+      summary: Confirm a plan change for the quoted effective date and charge
+      description: 'Permission plan.change. Idempotent (operation PLAN_CHANGE, hash includes subscriptionId). CUS-03.5, XC-06. Suspended or closed account → 422.'
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanChangeRequest' }
+      responses:
+        '201':
+          description: Plan change scheduled
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanChange' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/promotions:
+    get:
+      tags: [Promotions]
+      operationId: listMyPromotions
+      summary: Active promotions the customer is eligible for
+      description: 'Permission promotion.read. CUS-04.1, CUS-04.2.'
+      responses:
+        '200':
+          description: Eligible active promotions (may be empty)
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Promotion' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/promotions/{promotionCode}/claims:
+    post:
+      tags: [Promotions]
+      operationId: claimPromotion
+      summary: Claim an eligible promotion for one own subscription (after confirmation)
+      description: 'Permission promotion.claim. Idempotent (operation PROMOTION_CLAIM, hash includes promotionCode). CUS-04.3, CUS-04.4. Stale termsHash → 422.'
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: promotionCode
+          in: path
+          required: true
+          schema: { type: string, maxLength: 32 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PromotionClaimRequest' }
+      responses:
+        '201':
+          description: Claim recorded
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromotionClaim' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/case-categories:
+    get:
+      tags: [Service requests]
+      operationId: listCaseCategories
+      summary: Active customer-facing categories with their subcategories
+      description: 'Permission case.create. CUS-06.2.'
+      responses:
+        '200':
+          description: Categories
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/cases:
+    get:
+      tags: [Service requests]
+      operationId: listMyCases
+      summary: Own service requests, default last 3 months, newest first
+      description: 'Permission case.read. CUS-05, BR-05, BR-06. Sort whitelist createdAt.'
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: reference
+          in: query
+          description: Exact request reference, searched inside the date window
+          schema: { type: string, maxLength: 24, pattern: '^SR-\d{8}-\d{6,}$' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          schema: { type: string, enum: ['createdAt,desc', 'createdAt,asc'], default: 'createdAt,desc' }
+      responses:
+        '200':
+          description: One page of requests
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CasePage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Service requests]
+      operationId: createMyCase
+      summary: Create a service request against the own account
+      description: 'Permission case.create. Idempotent (operation CASE_CREATE). CUS-06, BR-01, BR-02.'
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CaseCreateRequest' }
+      responses:
+        '201':
+          description: Request created
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaseCreated' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/invoices:
+    get:
+      tags: [Payments]
+      operationId: listMyInvoices
+      summary: Latest 12 own invoices with outstanding amount
+      description: 'Permission payment.read. CUS-08.1, CUS-01.'
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, PAID] }
+      responses:
+        '200':
+          description: Invoices, newest issue date first
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/payments:
+    get:
+      tags: [Payments]
+      operationId: listMyPayments
+      summary: Own payment history, default last 3 months, newest first
+      description: 'Permission payment.read. CUS-07.1–07.4. Sort whitelist initiatedAt.'
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          schema: { type: string, enum: ['initiatedAt,desc', 'initiatedAt,asc'], default: 'initiatedAt,desc' }
+      responses:
+        '200':
+          description: One page of payments
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentPage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Payments]
+      operationId: initiatePayment
+      summary: Start paying the full outstanding amount of one own invoice
+      description: |
+        Permission payment.initiate. Idempotent (operation PAYMENT_INITIATE). CUS-08.1, 08.2, 08.4.
+        The result is never taken from the browser return: poll getMyPayment (CUS-08.3).
+      parameters:
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentInitiateRequest' }
+      responses:
+        '201':
+          description: Payment PENDING; redirect the browser to redirectUrl
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentInitiated' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/payments/{reference}:
+    get:
+      tags: [Payments]
+      operationId: getMyPayment
+      summary: One own payment (polled after the gateway return)
+      description: 'Permission payment.read. CUS-08.3–08.5.'
+      parameters:
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '200':
+          description: The payment
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/customers/me/payments/{reference}/receipt:
+    get:
+      tags: [Payments]
+      operationId: getMyPaymentReceipt
+      summary: Receipt data for a successful own payment
+      description: 'Permission payment.read. CUS-07.4, CUS-08.5. Not SUCCEEDED → 422.'
+      parameters:
+        - $ref: '#/components/parameters/PaymentReference'
+      responses:
+        '200':
+          description: Receipt
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Receipt' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/payment-gateway/webhooks:
+    post:
+      tags: [Payment gateway]
+      operationId: receiveGatewayWebhook
+      summary: Signed payment status event from the gateway (server to server)
+      description: |
+        Public, no session, no CSRF. Order (backend.md §8): per-IP rate limit (429), signature over the raw body
+        with 5 min tolerance (401, checked before any parsing), then validation (400). Duplicate event ids,
+        unknown payments and transitions not allowed by backend.md §3.1 are acknowledged with 204 and change nothing.
+      security: []
+      parameters:
+        - name: X-Gateway-Signature
+          in: header
+          required: true
+          description: 't=<epoch seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">'
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayWebhookEvent' }
+      responses:
+        '204':
+          description: Event accepted (applied, duplicate or ignored)
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: SESSION
+  headers:
+    CorrelationId:
+      description: Request correlation id (echoed if valid, otherwise generated)
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+    RetryAfter:
+      description: Seconds until the caller may retry
+      schema: { type: integer, minimum: 1 }
+  parameters:
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: Current value of the XSRF-TOKEN cookie, read by the SPA before each mutating request (no masking)
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated key, reused on retries of the same request (00-overview §7)
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    PaymentReference:
+      name: reference
+      in: path
+      required: true
+      schema: { type: string, maxLength: 24, pattern: '^PAY-\d{8}-\d{6,}$' }
+    From:
+      name: from
+      in: query
+      description: Inclusive start date (Asia/Kolkata). Default today minus 3 months. Range ≤ 366 days.
+      schema: { type: string, format: date }
+    To:
+      name: to
+      in: query
+      description: Inclusive end date (Asia/Kolkata). Default today.
+      schema: { type: string, format: date }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Problem:
+      description: Error (RFC 7807), see 00-overview.md §4
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    TooManyRequests:
+      description: Rate limit hit (type too-many-requests)
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+  schemas:
+    Money:
+      type: string
+      description: Decimal amount in INR with two fraction digits
+      pattern: '^\d{1,10}\.\d{2}$'
+      examples: ['499.00']
+    Msisdn:
+      type: string
+      description: E.164 mobile number
+      pattern: '^\+[1-9]\d{7,14}$'
+      examples: ['+919800000001']
+    BillingAddress:
+      type: object
+      required: [line1, city, state, postalCode, country]
+      properties:
+        line1: { type: string }
+        line2: { type: [string, 'null'] }
+        city: { type: string }
+        state: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+    Profile:
+      type: object
+      required: [customerRef, accountRef, fullName, primaryMsisdn, emailVerified, secondaryMsisdnVerified, billingAddress, version]
+      properties:
+        customerRef: { type: string }
+        accountRef: { type: string }
+        fullName: { type: string }
+        aliasName: { type: [string, 'null'] }
+        primaryMsisdn: { $ref: '#/components/schemas/Msisdn' }
+        secondaryMsisdn:
+          oneOf:
+            - $ref: '#/components/schemas/Msisdn'
+            - type: 'null'
+        secondaryMsisdnVerified: { type: boolean }
+        email: { type: [string, 'null'], format: email }
+        emailVerified: { type: boolean }
+        billingAddress: { $ref: '#/components/schemas/BillingAddress' }
+        version: { type: integer }
+    ProfileUpdate:
+      type: object
+      required: [aliasName, version]
+      description: Only the alias is editable here; aliasName is required, null clears it. Unknown fields are ignored.
+      properties:
+        aliasName:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 60
+          pattern: "^[\\p{L}\\p{N} .'-]+$"
+        version: { type: integer }
+    ContactChannel:
+      type: string
+      enum: [EMAIL, SECONDARY_MSISDN]
+    ContactVerificationStart:
+      type: object
+      required: [channel, value]
+      properties:
+        channel: { $ref: '#/components/schemas/ContactChannel' }
+        value: { type: string, minLength: 3, maxLength: 254, description: Email address or E.164 number }
+    ContactVerification:
+      type: object
+      required: [id, channel, maskedDestination, expiresAt]
+      properties:
+        id: { type: integer, format: int64 }
+        channel: { $ref: '#/components/schemas/ContactChannel' }
+        maskedDestination: { type: string, examples: ['ra***@ex***.com'] }
+        expiresAt: { type: string, format: date-time }
+    ContactVerificationConfirm:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^\d{6}$' }
+    Benefit:
+      type: object
+      required: [type, label, value, key]
+      properties:
+        type: { type: string, enum: [VOICE, DATA, SMS, ROAMING, OTT, OTHER] }
+        label: { type: string }
+        value: { type: string }
+        key: { type: boolean, description: Shown in the collapsed plan card }
+    PlanSummary:
+      type: object
+      required: [code, name, planType, monthlyRental, benefits]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        planType: { type: string, enum: [PREPAID, POSTPAID] }
+        monthlyRental: { $ref: '#/components/schemas/Money' }
+        description: { type: [string, 'null'] }
+        benefits:
+          type: array
+          items: { $ref: '#/components/schemas/Benefit' }
+    PlanChange:
+      type: object
+      required: [id, fromPlanCode, toPlanCode, effectiveDate, charge, status]
+      properties:
+        id: { type: integer, format: int64 }
+        fromPlanCode: { type: string }
+        toPlanCode: { type: string }
+        effectiveDate: { type: string, format: date }
+        charge: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [SCHEDULED, APPLIED, CANCELLED] }
+    Subscription:
+      type: object
+      required: [id, msisdn, primary, status, billingCycleDay, plan]
+      properties:
+        id: { type: integer, format: int64 }
+        msisdn: { $ref: '#/components/schemas/Msisdn' }
+        primary: { type: boolean }
+        status: { type: string, enum: [ACTIVE, SUSPENDED, TERMINATED] }
+        billingCycleDay: { type: integer, minimum: 1, maximum: 28 }
+        plan: { $ref: '#/components/schemas/PlanSummary' }
+        pendingPlanChange:
+          oneOf:
+            - $ref: '#/components/schemas/PlanChange'
+            - type: 'null'
+    PlanOption:
+      type: object
+      required: [plan, rentalDifference, effectiveDate, charge]
+      properties:
+        plan: { $ref: '#/components/schemas/PlanSummary' }
+        rentalDifference: { $ref: '#/components/schemas/Money' }
+        effectiveDate: { type: string, format: date }
+        charge: { $ref: '#/components/schemas/Money' }
+    PlanChangeRequest:
+      type: object
+      required: [targetPlanCode, expectedEffectiveDate, expectedCharge]
+      description: The expected values must equal the quote the customer confirmed, else 422.
+      properties:
+        targetPlanCode: { type: string, maxLength: 32 }
+        expectedEffectiveDate: { type: string, format: date }
+        expectedCharge: { $ref: '#/components/schemas/Money' }
+    Promotion:
+      type: object
+      required: [code, title, shortDescription, eligibility, terms, termsHash, validFrom, validTo, claimed, eligibleSubscriptionIds]
+      properties:
+        code: { type: string }
+        title: { type: string }
+        shortDescription: { type: string }
+        eligibility: { type: string }
+        terms: { type: string }
+        termsHash: { type: string, pattern: '^[0-9a-f]{64}$', description: SHA-256 of terms; echoed on claim }
+        validFrom: { type: string, format: date-time }
+        validTo: { type: string, format: date-time }
+        claimed: { type: boolean }
+        eligibleSubscriptionIds:
+          type: array
+          items: { type: integer, format: int64 }
+    PromotionClaimRequest:
+      type: object
+      required: [subscriptionId, acceptTerms, termsHash]
+      properties:
+        subscriptionId: { type: integer, format: int64 }
+        acceptTerms: { type: boolean, const: true }
+        termsHash: { type: string, pattern: '^[0-9a-f]{64}$' }
+    PromotionClaim:
+      type: object
+      required: [promotionCode, subscriptionId, status, claimedAt]
+      properties:
+        promotionCode: { type: string }
+        subscriptionId: { type: integer, format: int64 }
+        status: { type: string, enum: [CLAIMED] }
+        claimedAt: { type: string, format: date-time }
+    Severity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    Category:
+      type: object
+      required: [code, name, subcategories]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        subcategories:
+          type: array
+          items:
+            type: object
+            required: [code, name]
+            properties:
+              code: { type: string }
+              name: { type: string }
+    PublicCaseStatus:
+      type: string
+      enum: [SUBMITTED, IN_PROGRESS, AWAITING_YOUR_REPLY, RESOLVED, CLOSED]
+    CaseSummary:
+      type: object
+      required: [reference, categoryName, subject, createdAt, severity, status]
+      properties:
+        reference: { type: string, examples: [SR-20261125-000042] }
+        categoryName: { type: string }
+        subcategoryName: { type: [string, 'null'] }
+        subject: { type: string }
+        createdAt: { type: string, format: date-time }
+        severity: { $ref: '#/components/schemas/Severity' }
+        status: { $ref: '#/components/schemas/PublicCaseStatus' }
+    CasePage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CaseSummary' }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    CaseCreateRequest:
+      type: object
+      required: [categoryCode, subject, description, preferredContact]
+      description: Account, contact number and channel are set by the server (CUS-06.1); unknown fields are ignored.
+      properties:
+        categoryCode: { type: string, maxLength: 32 }
+        subcategoryCode: { type: [string, 'null'], maxLength: 32 }
+        subscriptionId: { type: [integer, 'null'], format: int64 }
+        subject: { type: string, minLength: 5, maxLength: 150 }
+        description: { type: string, minLength: 10, maxLength: 4000 }
+        preferredContact: { type: string, enum: [PHONE, SMS, EMAIL] }
+    CaseCreated:
+      type: object
+      required: [reference, caseType, status, severity, createdAt, contactMsisdn, accountRef]
+      properties:
+        reference: { type: string }
+        caseType: { type: string, enum: [REQUEST, COMPLAINT] }
+        status: { $ref: '#/components/schemas/PublicCaseStatus' }
+        severity: { $ref: '#/components/schemas/Severity' }
+        createdAt: { type: string, format: date-time }
+        contactMsisdn: { $ref: '#/components/schemas/Msisdn' }
+        accountRef: { type: string }
+    Invoice:
+      type: object
+      required: [id, invoiceRef, periodStart, periodEnd, issueDate, dueDate, amountDue, amountPaid, outstanding, status]
+      properties:
+        id: { type: integer, format: int64 }
+        invoiceRef: { type: string }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        issueDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        amountDue: { $ref: '#/components/schemas/Money' }
+        amountPaid: { $ref: '#/components/schemas/Money' }
+        outstanding: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [OPEN, PAID] }
+    PaymentStatus:
+      type: string
+      description: REVIEW = held for manual reconciliation (amount mismatch or unreconciled after 24 h); blocks a new payment on the invoice
+      enum: [PENDING, SUCCEEDED, FAILED, EXPIRED, REVIEW]
+    Payment:
+      type: object
+      required: [reference, invoiceRef, amount, currency, status, initiatedAt, receiptAvailable]
+      properties:
+        reference: { type: string, examples: [PAY-20261125-000007] }
+        invoiceRef: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, enum: [INR] }
+        method: { type: [string, 'null'], enum: [UPI, CARD, NETBANKING, WALLET, null] }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        failureReason: { type: [string, 'null'] }
+        initiatedAt: { type: string, format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        receiptAvailable: { type: boolean }
+    PaymentPage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Payment' }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    PaymentInitiateRequest:
+      type: object
+      required: [invoiceId, expectedAmount]
+      properties:
+        invoiceId: { type: integer, format: int64 }
+        expectedAmount: { $ref: '#/components/schemas/Money' }
+    PaymentInitiated:
+      type: object
+      required: [reference, status, redirectUrl]
+      properties:
+        reference: { type: string }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        redirectUrl: { type: string, format: uri-reference }
+    Receipt:
+      type: object
+      required: [paymentReference, invoiceRef, accountRef, customerName, amount, currency, method, gatewayTransactionId, paidAt]
+      properties:
+        paymentReference: { type: string }
+        invoiceRef: { type: string }
+        accountRef: { type: string }
+        customerName: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, enum: [INR] }
+        method: { type: string, enum: [UPI, CARD, NETBANKING, WALLET] }
+        gatewayTransactionId: { type: string }
+        paidAt: { type: string, format: date-time }
+    GatewayWebhookEvent:
+      type: object
+      required: [eventId, type, paymentReference, sessionId, amount, currency, occurredAt]
+      if:
+        properties:
+          type: { const: payment.succeeded }
+      then:
+        required: [gatewayTransactionId, method]
+        properties:
+          gatewayTransactionId: { type: string, maxLength: 64 }
+          method: { type: string, enum: [UPI, CARD, NETBANKING, WALLET] }
+      properties:
+        eventId: { type: string, maxLength: 64 }
+        type: { type: string, enum: [payment.succeeded, payment.failed, payment.expired] }
+        paymentReference: { type: string, maxLength: 24 }
+        sessionId: { type: string, maxLength: 64 }
+        gatewayTransactionId: { type: [string, 'null'], maxLength: 64 }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, enum: [INR] }
+        method: { type: [string, 'null'], enum: [UPI, CARD, NETBANKING, WALLET, null] }
+        failureReason: { type: [string, 'null'], maxLength: 100 }
+        occurredAt: { type: string, format: date-time }
+    FieldViolation:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ProblemDetail:
+      type: object
+      required: [type, title, status, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldViolation' }
+    VerificationProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            attemptsRemaining: { type: integer, minimum: 0 }

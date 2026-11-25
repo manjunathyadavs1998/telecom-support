@@ -8,8 +8,8 @@
 | Built | ☑ branch `slice/01-foundation-be` | ☑ branch `slice/01-foundation-fe` |
 | Checks green | ☑ | ☑ |
 | Review clean (no open High) | ☑ `review.md` | ☑ `review.md` |
-| PR | ☑ #5 (merged) | ☑ #7 |
-| Merged (by user) | ☑ | ☐ |
+| PR | ☑ #5 (merged) | ☑ #7 (merged) |
+| Merged (by user) | ☑ | ☑ |
 
 ## Tasks — backend
 Path prefixes: `J/` = `backend/src/main/java/com/telecom/support/`, `T/` = `backend/src/test/java/com/telecom/support/`,
@@ -69,6 +69,6 @@ because the guards render those pages and the protected routes are generated fro
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Done: F1–F22 built; test-engineer gap pass (test-coverage-frontend.md); code review FC1–FC13 closed (10 fixed, 3 accepted with reasons). FE 234 unit + 44 e2e, BE 151 green.
-- Next: merge-steward opens the PR for slice/01-foundation-fe → user merges. Slice 01 is then complete (BRD §15 Phase 1 exit criteria).
+- Next: slice 01 COMPLETE (PR #7 merged 2026-11-25). Continue in docs/slices/02-customer/status.md.
 - Deferred to slice 06: C11, C12 (backend), FC10 Node image pin, FC11 CI job building dist before -Pfrontend.
 - Env: check-backend with `-o` if Maven resolution hangs; all npm via scripts/check-frontend.sh (Docker).
