@@ -66,7 +66,7 @@ class PromotionIT extends AbstractMySqlIT {
         assertThat(codes(body)).containsExactly("T_DATA_BOOST");
         Map<String, Object> promo = body.get(0);
         assertThat(promo).containsOnlyKeys("code", "title", "shortDescription", "eligibility", "terms", "termsHash",
-                "validFrom", "validTo", "claimed", "eligibleSubscriptionIds");
+                "validFrom", "validTo", "claimed", "eligibleSubscriptionIds", "claimedSubscriptionIds");
         assertThat(promo.get("title")).isEqualTo("Extra 10 GB");
         assertThat(promo.get("shortDescription")).isEqualTo("10 GB extra data for 30 days");
         assertThat(promo.get("eligibility")).isEqualTo("All active subscriptions");
@@ -75,6 +75,7 @@ class PromotionIT extends AbstractMySqlIT {
         assertThat((String) promo.get("validFrom")).endsWith("Z");
         assertThat((String) promo.get("validTo")).endsWith("Z");
         assertThat(promo.get("claimed")).isEqualTo(false);
+        assertThat(claimedIds(promo)).isEmpty();
         assertThat(ids(promo)).containsExactly(subscriptionId("+919900000001"), subscriptionId("+919900000011"));
     }
 
@@ -149,9 +150,10 @@ class PromotionIT extends AbstractMySqlIT {
         Map<String, Object> details = objectMapper.readValue((String) audit.get("details"), new TypeReference<>() {});
         assertThat(details).isEqualTo(Map.of("subscriptionId", (int) sub, "termsHash", hash));
 
-        // E8 now marks it claimed and offers only the subscription that has not claimed it
+        // E8 (E6) now marks it claimed, names the claiming subscription and offers only the one that has not claimed it
         List<Map<String, Object>> list = json(mvc.perform(get(PATH).cookie(session)).andReturn());
         assertThat(list.get(0).get("claimed")).isEqualTo(true);
+        assertThat(claimedIds(list.get(0))).containsExactly(sub);
         assertThat(ids(list.get(0))).containsExactly(subscriptionId("+919900000001"));
     }
 
@@ -287,6 +289,11 @@ class PromotionIT extends AbstractMySqlIT {
     @SuppressWarnings("unchecked")
     private static List<Long> ids(Map<String, Object> promotion) {
         return ((List<Number>) promotion.get("eligibleSubscriptionIds")).stream().map(Number::longValue).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Long> claimedIds(Map<String, Object> promotion) {
+        return ((List<Number>) promotion.get("claimedSubscriptionIds")).stream().map(Number::longValue).toList();
     }
 
     private String terms(String code) {

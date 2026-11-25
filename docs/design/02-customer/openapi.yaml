@@ -3,7 +3,7 @@ info:
   title: Telecom Customer Support API — 02 Customer portal
   version: 0.2.0
   description: |
-    Status: **Proposed** (awaiting approval), revision 2 (review D1–D23). Contract-first spec for slice 02 (see backend.md).
+    Status: **Approved** (user, 2026-11-25), revision 2 (review D1–D23; errata E1–E6 in backend.md §11). Contract-first spec for slice 02 (see backend.md).
     Auth (session cookie, CSRF header) and the shared components (ProblemDetail, FieldViolation, CorrelationId,
     XsrfToken, Problem, TooManyRequests) are **copied verbatim** from 01-foundation/openapi.yaml so that each
     slice file is self-contained for type generation; any change to them is made in 01 first and copied here.
@@ -712,7 +712,7 @@ components:
         expectedCharge: { $ref: '#/components/schemas/Money' }
     Promotion:
       type: object
-      required: [code, title, shortDescription, eligibility, terms, termsHash, validFrom, validTo, claimed, eligibleSubscriptionIds]
+      required: [code, title, shortDescription, eligibility, terms, termsHash, validFrom, validTo, claimed, eligibleSubscriptionIds, claimedSubscriptionIds]
       properties:
         code: { type: string }
         title: { type: string }
@@ -722,9 +722,14 @@ components:
         termsHash: { type: string, pattern: '^[0-9a-f]{64}$', description: SHA-256 of terms; echoed on claim }
         validFrom: { type: string, format: date-time }
         validTo: { type: string, format: date-time }
-        claimed: { type: boolean }
+        claimed: { type: boolean, description: true when at least one own subscription has claimed it (E6) }
         eligibleSubscriptionIds:
           type: array
+          description: own ACTIVE subscriptions on an applicable plan that have not claimed it yet (E6)
+          items: { type: integer, format: int64 }
+        claimedSubscriptionIds:
+          type: array
+          description: own subscriptions that have already claimed it (E6)
           items: { type: integer, format: int64 }
     PromotionClaimRequest:
       type: object

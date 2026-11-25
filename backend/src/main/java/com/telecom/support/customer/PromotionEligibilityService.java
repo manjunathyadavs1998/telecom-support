@@ -40,10 +40,13 @@ public class PromotionEligibilityService {
     static final String CLAIMED = "PROMOTION_CLAIMED";
     static final String ENTITY_PROMOTION = "PROMOTION";
 
-    /** The {@code Promotion} schema. {@code eligibleSubscriptionIds}: own ACTIVE subscriptions that may still claim it. */
+    /**
+     * The {@code Promotion} schema (erratum E6). {@code eligibleSubscriptionIds}: own ACTIVE subscriptions that may still
+     * claim it; {@code claimedSubscriptionIds}: own subscriptions that already claimed it; {@code claimed}: at least one.
+     */
     public record PromotionView(String code, String title, String shortDescription, String eligibility, String terms,
                                 String termsHash, Instant validFrom, Instant validTo, boolean claimed,
-                                List<Long> eligibleSubscriptionIds) {}
+                                List<Long> eligibleSubscriptionIds, List<Long> claimedSubscriptionIds) {}
 
     public enum ClaimStatus { CLAIMED }
 
@@ -75,8 +78,8 @@ public class PromotionEligibilityService {
     /**
      * E8 (R7): live promotions (ACTIVE, {@code validFrom <= now < validTo}) that are open to all plans or apply to the
      * plan of an ACTIVE own subscription, soonest-ending first. {@code claimed} is true when an own subscription has
-     * claimed it; {@code eligibleSubscriptionIds} lists the own ACTIVE subscriptions on an applicable plan that have not
-     * claimed it yet. Reads are allowed in every account state (R16).
+     * claimed it, {@code claimedSubscriptionIds} lists those subscriptions (E6) and {@code eligibleSubscriptionIds} lists
+     * the own ACTIVE subscriptions on an applicable plan that have not claimed it yet. Reads are allowed in every account state (R16).
      */
     @Transactional(readOnly = true)
     public List<PromotionView> myPromotions() {
@@ -97,7 +100,7 @@ public class PromotionEligibilityService {
                             .toList();
                     return new PromotionView(p.code(), p.title(), p.shortDescription(), p.eligibilityText(),
                             p.terms(), termsHash(p.terms()), p.validFrom(), p.validTo(), !claimedSubs.isEmpty(),
-                            eligible);
+                            eligible, claimedSubs.stream().sorted().toList());
                 })
                 .toList();
     }
