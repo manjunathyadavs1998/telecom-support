@@ -55,6 +55,8 @@ app:
       starts-per-hour: 5          # per customer per rolling hour -> 429
       hmac-secret: ${OTP_HMAC_SECRET:}   # blank = random per-process key
       dev-fixed-code: ""          # set only in dev; ProfileGuard refuses it with prod
+    plan-change:
+      apply-cron: "0 5 0 * * *"   # daily 00:05 in app.display-time-zone (02 backend R6)
   session:
     absolute-timeout: 12h
   idempotency:
