@@ -286,7 +286,7 @@ Other questions:
 
 ## 11. Errata
 
-### E1 — REVIEW must not collide with the one-open-payment key (found in B16) · Status: **Proposed**
+### E1 — REVIEW must not collide with the one-open-payment key (found in B16) · Status: **Approved** (user, 2026-11-25)
 **Problem.** §2 makes `open_invoice_id` cover PENDING **and** REVIEW. R12 lets a new payment start on an invoice whose
 earlier payment is FAILED/EXPIRED (after the gateway re-check). If that earlier payment later gets a mismatched capture,
 §3.1 moves it to REVIEW while the new payment is PENDING → the UK throws, the transition rolls back, and the captured
