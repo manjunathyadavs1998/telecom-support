@@ -283,3 +283,19 @@ Other questions:
 | 9 | Receipt format? | JSON; the frontend renders a printable page |
 | 11 | OTP channel in dev (§14 #12 says Mailpit)? | In-memory mock until 03/04 (stated deviation) |
 | 13 | Escalation route for COMPLAINT cases (§12)? | Not captured in 02; designed with the lifecycle in 04 |
+
+## 11. Errata
+
+### E1 — REVIEW must not collide with the one-open-payment key (found in B16) · Status: **Proposed**
+**Problem.** §2 makes `open_invoice_id` cover PENDING **and** REVIEW. R12 lets a new payment start on an invoice whose
+earlier payment is FAILED/EXPIRED (after the gateway re-check). If that earlier payment later gets a mismatched capture,
+§3.1 moves it to REVIEW while the new payment is PENDING → the UK throws, the transition rolls back, and the captured
+money is never flagged for manual handling.
+**Change.**
+- §2 / V6 (not yet merged, edited in place): `open_invoice_id = IF(status = 'PENDING', invoice_id, NULL)` — the UK
+  covers PENDING only, so a transition to REVIEW can never fail on it.
+- R12: initiate locks the invoice row (`SELECT … FOR UPDATE`) and returns 409 if the invoice has any PENDING **or**
+  REVIEW payment. All payment inserts go through this lock, so "no new payment while one is in REVIEW" still holds.
+- §3.1: a transition to REVIEW is always applied, even when another payment on the invoice is PENDING (both then need ops).
+- §9 tests: `PaymentTransitionIT` FAILED + sibling PENDING + mismatched capture → REVIEW, no credit, no exception;
+  `PaymentInitiateIT` REVIEW on invoice → 409; `SchemaV3toV6IT` UK covers PENDING only.
