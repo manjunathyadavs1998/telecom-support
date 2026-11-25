@@ -265,11 +265,23 @@ class SchemaV3toV6IT extends AbstractMySqlIT {
     void oneOpenPaymentPerInvoiceWhileClosedOnesMayRepeat() {
         long invoice = invoiceId("INV-T-0102");
         insertPayment(invoice, "PAY-T-OPEN1", "599.00", "PENDING", null);
-        assertThatThrownBy(() -> insertPayment(invoice, "PAY-T-OPEN2", "599.00", "REVIEW", null))
+        assertThatThrownBy(() -> insertPayment(invoice, "PAY-T-OPEN2", "599.00", "PENDING", null))
                 .isInstanceOf(DataAccessException.class)
                 .hasMessageContaining("uk_payments_open_invoice");
         insertPayment(invoice, "PAY-T-FAIL1", "599.00", "FAILED", null);
         insertPayment(invoice, "PAY-T-EXP1", "599.00", "EXPIRED", null);
+    }
+
+    @Test
+    void openPaymentKeyCoversPendingOnlySoReviewMayCoexist() {
+        // Erratum E1: REVIEW is outside uk_payments_open_invoice (two REVIEW, or REVIEW + PENDING, on one invoice).
+        long invoice = invoiceId("INV-T-0102");
+        insertPayment(invoice, "PAY-T-REV1", "599.00", "REVIEW", null);
+        insertPayment(invoice, "PAY-T-REV2", "599.00", "REVIEW", null);
+        insertPayment(invoice, "PAY-T-PEND1", "599.00", "PENDING", null);
+        assertThatThrownBy(() -> insertPayment(invoice, "PAY-T-PEND2", "599.00", "PENDING", null))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("uk_payments_open_invoice");
     }
 
     @Test

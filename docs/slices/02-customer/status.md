@@ -46,7 +46,8 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B16, B19 (mock checkout page, `ProfileGuard` refuses prod + mock, CSRF-ignore only when mock on; `SpaForwardController` excludes `mock-gateway`). Full suite 338/0.
+- Done: B1–B16, B19 (mock checkout page, `ProfileGuard` refuses prod + mock, CSRF-ignore only when mock on; `SpaForwardController` excludes `mock-gateway`). Full suite 339/0.
 - Test infra: `src/test/resources/spring.properties` caps cached test contexts at 8 (was hitting MySQL's 151 connections); no max-connections bump.
 - Gaps: B19's webhook post reaches nothing until B18; FE dev needs a Vite proxy for `/mock-gateway`.
-- Next: implement design §11 erratum E1 (V6 open key PENDING only + B16 tests + SchemaV3toV6IT), then B17, B18, B20, B21.
+- E1 schema/transition part done (commit `fix(payment): apply design erratum E1 …`: V6 key PENDING only, REVIEW always applied); initiate part in B17.
+- Next: B17 (incl. E1 invoice lock + 409 on PENDING/REVIEW), B18, B20, B21.

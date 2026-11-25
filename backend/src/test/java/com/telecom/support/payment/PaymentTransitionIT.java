@@ -1,7 +1,6 @@
 package com.telecom.support.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.telecom.support.payment.PaymentGateway.Method;
 import com.telecom.support.payment.PaymentTransitionService.Capture;
@@ -23,7 +22,6 @@ import java.util.function.Function;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -195,12 +193,22 @@ class PaymentTransitionIT extends AbstractMySqlIT {
     }
 
     @Test
-    void reviewBlocksANewOpenPaymentOnTheInvoice() {
-        Pay pay = payment("PENDING", DUE, DUE, BigDecimal.ZERO);
-        transitions.unreconciled(pay.ref);
+    void mismatchedLateCaptureGoesToReviewEvenWithASiblingPendingPayment() {
+        // Erratum E1: the open-payment key covers PENDING only, so REVIEW is applied next to a PENDING sibling.
+        Pay failed = payment("FAILED", DUE, DUE, BigDecimal.ZERO);
+        String siblingRef = "PAY-TY-" + SEQ.incrementAndGet();
+        insertPayment(siblingRef, failed.invoiceId, "PENDING", DUE, "y-sess-" + SEQ.incrementAndGet());
 
-        assertThatThrownBy(() -> insertPayment("PAY-TY-" + SEQ.incrementAndGet(), pay.invoiceId, "PENDING", DUE,
-                null)).isInstanceOf(DuplicateKeyException.class);
+        Result result = transitions.succeeded(failed.ref,
+                new Capture(failed.session, new BigDecimal("398.99"), "INR", Method.UPI, "txn-sib"), Source.WEBHOOK);
+
+        assertThat(result).isEqualTo(new Result(Result.Kind.APPLIED, "REVIEW"));
+        assertThat(paymentRow(failed.ref)).containsEntry("status", "REVIEW")
+                .containsEntry("failure_reason", "amount_mismatch");
+        assertThat(paymentRow(siblingRef)).containsEntry("status", "PENDING");
+        assertInvoice(failed, "0.00", "OPEN", 0);
+        assertThat(auditCount("PAYMENT_REVIEW", failed.ref)).isEqualTo(1);
+        assertThat(auditCount("PAYMENT_SUCCEEDED", failed.ref)).isZero();
     }
 
     // ------------------------------------------------------------------ failure paths

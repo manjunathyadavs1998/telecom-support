@@ -43,6 +43,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <tr><td>anything else (incl. any event on SUCCEEDED or REVIEW)</td><td>—</td><td>IGNORED</td></tr>
  * </table>
  *
+ * <p>A transition to REVIEW is always applied, even when another payment on the invoice is PENDING (design erratum E1:
+ * the one-open-payment key covers PENDING only, so it cannot reject REVIEW).
+ *
  * <p>The age conditions of the reconcile rows (10 min, 24 h) are the job's decision (B20). Audit rows have no actor.
  */
 @Service

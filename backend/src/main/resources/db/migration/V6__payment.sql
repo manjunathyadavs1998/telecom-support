@@ -26,7 +26,8 @@ CREATE TABLE invoices (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 -- reference (PAY-…) is also the gateway merchant reference. Status changes only through the guarded transitions of §3.1.
--- open_invoice_id: at most one open (PENDING or REVIEW) payment per invoice.
+-- open_invoice_id: at most one PENDING payment per invoice (design erratum E1). REVIEW is outside the key so a transition
+-- to REVIEW never fails on it; "no new payment while one is PENDING or REVIEW" is enforced by initiate (R12, invoice lock).
 CREATE TABLE payments (
     id                   BIGINT        NOT NULL AUTO_INCREMENT,
     reference            VARCHAR(24)   NOT NULL,
@@ -46,7 +47,7 @@ CREATE TABLE payments (
     version              INT           NOT NULL DEFAULT 0,
     created_at           DATETIME(6)   NOT NULL,
     updated_at           DATETIME(6)   NOT NULL,
-    open_invoice_id      BIGINT        GENERATED ALWAYS AS (IF(status IN ('PENDING', 'REVIEW'), invoice_id, NULL)) STORED,
+    open_invoice_id      BIGINT        GENERATED ALWAYS AS (IF(status = 'PENDING', invoice_id, NULL)) STORED,
     PRIMARY KEY (id),
     UNIQUE KEY uk_payments_reference (reference),
     UNIQUE KEY uk_payments_gateway_session (gateway_session_id),
