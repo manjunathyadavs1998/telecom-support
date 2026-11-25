@@ -7,6 +7,8 @@ Design (the contract): `docs/design/`. Coverage: `docs/requirements/traceability
 1. **No code without an approved design doc.** A design is approved when its header says `Status: Approved`
    and that change is merged to `main`.
 2. One BRD slice at a time: backend design → approve → backend build → frontend design → approve → frontend build.
+   The frontend design may be written in parallel with the backend build (docs only, own git worktree); it is still
+   approved before any frontend code. The reviewer also covers test gaps (no separate test-engineer pass).
 3. One branch per step, cut from fresh `main`: `design/NN-*`, `slice/NN-<name>-be`, `slice/NN-<name>-fe`.
 4. Build only what the design lists. If the design is wrong or incomplete, stop and update the design (and get it
    re-approved). Don't improvise in code.

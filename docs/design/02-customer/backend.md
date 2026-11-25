@@ -299,3 +299,21 @@ money is never flagged for manual handling.
 - §3.1: a transition to REVIEW is always applied, even when another payment on the invoice is PENDING (both then need ops).
 - §9 tests: `PaymentTransitionIT` FAILED + sibling PENDING + mismatched capture → REVIEW, no credit, no exception;
   `PaymentInitiateIT` REVIEW on invoice → 409; `SchemaV3toV6IT` UK covers PENDING only.
+
+### E2 — `/case-categories` requires a linked customer (review C2) · Status: **Approved** (user, 2026-11-25)
+**Problem.** §4 lists E10 with `case.create` only, while §9 expects an unlinked customer login to get 403.
+**Change.** E10 `@PreAuthorize` = `case.create` **and** `@customerScope.isCustomer()`, like every `/customers/me/**`
+endpoint. §4 row and §9 `CaseCategoryIT` / `CustomerPortalAuthzIT`: unlinked customer → 403.
+
+### E3 — bounded plan-change provisioning retries (review C3) · Status: **Approved** (user, 2026-11-25)
+**Problem.** R6 retries a failed provisioning call daily without limit; the SCHEDULED row blocks any other plan change.
+**Change.** R6 / `PlanChangeApplyJob`: after a failure `apply_attempts` + 1; when it reaches **3**, the change becomes
+`CANCELLED` with reason `provisioning_failed`, audit `PLAN_CHANGE_CANCELLED` (outcome FAILURE, no actor), and the
+subscription can be quoted/changed again. §9 `SubscriptionPlanIT`: 3 failing runs → CANCELLED + audit; a new change
+can then be scheduled.
+
+### E4 — payment return URL path (frontend review F1) · Status: **Approved** (user, 2026-11-25)
+**Problem.** R12/§6 define only `app.payment.return-url-base`; the frontend needs a fixed return route.
+**Change.** `returnUrl = {app.payment.return-url-base}/customer/payments/{reference}` (as built in B17).
+`return-url-base` must equal the origin the user started from (Vite dev `http://localhost:5173`; e2e = the e2e base URL;
+prod set explicitly — `ProfileGuard` refuses prod when blank). `MockCheckoutIT`/`PaymentInitiateIT` assert the path.
