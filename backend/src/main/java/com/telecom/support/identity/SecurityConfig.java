@@ -36,6 +36,8 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
  *   <li>Public: {@code /api/v1/auth/csrf}, {@code /api/v1/auth/login}, {@code /actuator/health}, static SPA assets,
  *       API docs (springdoc is enabled only in the {@code dev} profile). All other {@code /api/**} and
  *       {@code /actuator/**} need a session.</li>
+ *   <li>Mock checkout {@code /mock-gateway/checkout/**} (02 backend §4): public (falls under {@code anyRequest}) and
+ *       CSRF-exempt only when {@code app.payment.mock.enabled}; otherwise CSRF stays on and nothing serves it.</li>
  *   <li>401 and 403 (URL-level and CSRF) are JSON problems from {@link ProblemDetailFactory}; never a redirect. Each
  *       403 here is reported once to the {@link AccessDeniedListener} (audit, §4.4, §7).</li>
  *   <li>Method security is on: every endpoint carries {@code @PreAuthorize} with a §3 permission (BR-10); its
@@ -46,6 +48,9 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /** Mock hosted checkout page (02 backend §4), registered only with {@code app.payment.mock.enabled}. */
+    static final String MOCK_CHECKOUT_PATHS = "/mock-gateway/checkout/**";
 
     /**
      * {@code XSRF-TOKEN} cookie: SameSite=Lax, readable by the SPA. Secure always when {@code app.security.cookie-secure}
@@ -75,12 +80,17 @@ public class SecurityConfig {
                                             CsrfTokenRepository csrfTokenRepository,
                                             SecurityContextRepository securityContextRepository,
                                             UserRepository users, Clock clock,
-                                            @Value("${app.session.absolute-timeout}") Duration absoluteTimeout)
+                                            @Value("${app.session.absolute-timeout}") Duration absoluteTimeout,
+                                            @Value("${app.payment.mock.enabled:false}") boolean mockCheckoutEnabled)
             throws Exception {
         http
-            .csrf(csrf -> csrf
-                .csrfTokenRepository(csrfTokenRepository)
-                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+            .csrf(csrf -> {
+                csrf.csrfTokenRepository(csrfTokenRepository)
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler());
+                if (mockCheckoutEnabled) {
+                    csrf.ignoringRequestMatchers(MOCK_CHECKOUT_PATHS);
+                }
+            })
             .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
             .securityContext(context -> context.securityContextRepository(securityContextRepository))
             .addFilterAfter(new SessionPolicyFilter(users, clock, absoluteTimeout), SecurityContextHolderFilter.class)

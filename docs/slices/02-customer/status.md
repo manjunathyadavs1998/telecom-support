@@ -36,7 +36,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | B16 | Guarded payment transitions + credit | `payment/PaymentTransitionService.java`, `payment/PaymentRepository.java`, `payment/InvoiceRepository.java`, `PaymentTransitionIT` | §3.1, R13, R14 | CUS-07.5, BR-08, NFR-INTEG | `PaymentTransitionIT` passes (parallel SUCCEEDED → one credit, disallowed pairs IGNORED) | ☑ |
 | B17 | Initiate E15 | `payment/PaymentService.java`, `payment/CustomerPaymentController.java`, `PaymentInitiateIT` | R12, §3.1, §8 | CUS-08.1/08.2/08.4, NFR-REL, NFR-AVAIL | `PaymentInitiateIT` passes (tx1/tx2, refused 503 FAILED, timeout PENDING, recent EXPIRED re-check 409) | ☐ |
 | B18 | Signed webhook E18 | `payment/PaymentWebhookController.java`, `payment/GatewayEventRepository.java`, `payment/WebhookRateLimiter.java`, `identity/SecurityConfig.java`, `PaymentWebhookIT` | §3.1, §4, §7, §8 | CUS-08.3/08.4, CUS-07.5, BR-08 | `PaymentWebhookIT` passes (401 before 400, 429, sampling, two events one credit, REVIEW) | ☐ |
-| B19 | Mock checkout page + prod guard | `payment/MockCheckoutController.java`, `common/ProfileGuard.java`, `identity/SecurityConfig.java`, `MockCheckoutIT` | §4, §6, §8 | CUS-08.2, NFR-SEC | `MockCheckoutIT` passes | ☐ |
+| B19 | Mock checkout page + prod guard | `payment/MockCheckoutController.java`, `common/ProfileGuard.java`, `identity/SecurityConfig.java`, `MockCheckoutIT` | §4, §6, §8 | CUS-08.2, NFR-SEC | `MockCheckoutIT` passes | ☑ |
 | B20 | Reconciliation job | `payment/PaymentReconciliationJob.java`, `PaymentReconciliationJobIT` | §3.1 | CUS-07.5, CUS-08.4/08.5, NFR-AVAIL | `PaymentReconciliationJobIT` passes (late capture, never auto-EXPIRE, 24 h REVIEW, parallel runs) | ☐ |
 | B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests | ☐ |
 
@@ -46,7 +46,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B16 — `PaymentTransitionService` is the only writer of `payments.status`: `succeeded(ref, Capture, Source)`, `failed(ref, reason, method, Source)`, `expired`, `notCreated`, `unreconciled` → `Result{APPLIED|IGNORED|UNKNOWN_PAYMENT, status}`; `Source` WEBHOOK/RECONCILE/INITIATE. Locks payment then invoice (`FOR UPDATE`), one guarded `UPDATE … WHERE status IN (:from)`; credit/audit only on 1 row, else `PAYMENT_EVENT_IGNORED` (independent tx). Late capture writes SUCCEEDED + LATE_CAPTURE; overpaid audited.
-- Session rule: an empty stored `gateway_session_id` (initiate timeout) counts as a match and is filled from the capture; mismatch → REVIEW `amount_mismatch`. Age rules (10 min NOT_FOUND, 24 h) stay in the job (B20); B17 does session/timeout writes (no status change) itself.
-- Open gap: FAILED/EXPIRED → REVIEW while another PENDING payment exists on the invoice hits UK `open_invoice_id` (DuplicateKeyException, tx rolls back) — design does not say what to do.
-- Tests: `PaymentTransitionIT` 11. Next: B17 (initiate E15). Blockers: none.
+- Done: B1–B16, B19 (mock checkout page, `ProfileGuard` refuses prod + mock, CSRF-ignore only when mock on; `SpaForwardController` excludes `mock-gateway`). Full suite 338/0.
+- Test infra: `src/test/resources/spring.properties` caps cached test contexts at 8 (was hitting MySQL's 151 connections); no max-connections bump.
+- Gaps: B19's webhook post reaches nothing until B18; FE dev needs a Vite proxy for `/mock-gateway`.
+- Next: implement design §11 erratum E1 (V6 open key PENDING only + B16 tests + SchemaV3toV6IT), then B17, B18, B20, B21.

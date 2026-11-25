@@ -14,12 +14,15 @@ import org.springframework.util.StringUtils;
  * <ul>
  *   <li>{@code e2e} is also active: it relaxes the L1 login limit (design 01-foundation backend §12 E2.5);</li>
  *   <li>{@code app.customer.otp.dev-fixed-code} is set: every contact verification code would be known
- *       (design 02-customer backend §6, §8, OQ 11).</li>
+ *       (design 02-customer backend §6, §8, OQ 11);</li>
+ *   <li>{@code app.payment.mock.enabled} is true: the public mock checkout page would let anyone settle a payment
+ *       (design 02-customer backend §4, §6).</li>
  * </ul>
  */
 public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
 
     static final String OTP_DEV_FIXED_CODE = "app.customer.otp.dev-fixed-code";
+    static final String PAYMENT_MOCK_ENABLED = "app.payment.mock.enabled";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -33,6 +36,10 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
         if (StringUtils.hasText(environment.getProperty(OTP_DEV_FIXED_CODE))) {
             throw new IllegalStateException("Property '" + OTP_DEV_FIXED_CODE + "' must not be set with the 'prod' "
                     + "profile: it makes every contact verification code known (02 backend §8, OQ 11)");
+        }
+        if (Boolean.TRUE.equals(environment.getProperty(PAYMENT_MOCK_ENABLED, Boolean.class, Boolean.FALSE))) {
+            throw new IllegalStateException("Property '" + PAYMENT_MOCK_ENABLED + "' must not be true with the 'prod' "
+                    + "profile: the mock checkout page is public and settles payments (02 backend §4, §6)");
         }
     }
 
