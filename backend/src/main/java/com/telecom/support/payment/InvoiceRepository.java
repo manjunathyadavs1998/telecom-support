@@ -15,7 +15,8 @@ import org.springframework.stereotype.Repository;
 
 /**
  * {@code invoices} (design 02-customer backend §2, R1; CUS-07, CUS-08.1). Every query of the customer portal filters by
- * the principal's {@code account_id}. The only write is the R14 credit of a winning SUCCEEDED transition.
+ * the principal's {@code account_id}. The only write is the R14 credit of a winning SUCCEEDED transition; initiate locks
+ * the invoice row ({@link #lockOwn}).
  */
 @Repository
 class InvoiceRepository {
@@ -44,6 +45,14 @@ class InvoiceRepository {
             SELECT id, invoice_ref, amount_due, amount_paid, status, version
             FROM invoices
             WHERE id = :id
+            FOR UPDATE
+            """;
+
+    private static final String LOCK_OWN = """
+            SELECT id, invoice_ref, amount_due, amount_paid, status, version
+            FROM invoices
+            WHERE id = :id
+              AND account_id = :accountId
             FOR UPDATE
             """;
 
@@ -77,6 +86,17 @@ class InvoiceRepository {
     /** Locks the invoice for a credit (always after its payment row, see {@code PaymentRepository#lockByReference}). */
     Optional<InvoiceBalance> lockBalance(long id) {
         return jdbc.query(LOCK_BALANCE, new MapSqlParameterSource("id", id),
+                (rs, i) -> new InvoiceBalance(rs.getLong("id"), rs.getString("invoice_ref"),
+                        rs.getBigDecimal("amount_due"), rs.getBigDecimal("amount_paid"), rs.getString("status"),
+                        rs.getInt("version"))).stream().findFirst();
+    }
+
+    /**
+     * Locks the account's invoice for an initiate (R12, erratum E1): every payment insert of an invoice runs under this
+     * lock. Empty when absent or another account's.
+     */
+    Optional<InvoiceBalance> lockOwn(long accountId, long id) {
+        return jdbc.query(LOCK_OWN, new MapSqlParameterSource().addValue("id", id).addValue("accountId", accountId),
                 (rs, i) -> new InvoiceBalance(rs.getLong("id"), rs.getString("invoice_ref"),
                         rs.getBigDecimal("amount_due"), rs.getBigDecimal("amount_paid"), rs.getString("status"),
                         rs.getInt("version"))).stream().findFirst();

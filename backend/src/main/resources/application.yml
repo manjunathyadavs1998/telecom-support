@@ -58,6 +58,7 @@ app:
     plan-change:
       apply-cron: "0 5 0 * * *"   # daily 00:05 in app.display-time-zone (02 backend R6)
   payment:                        # hosted payment gateway (02 backend §6, §8, §3.1)
+    return-url-base: http://localhost:${server.port:8080}   # SPA origin (the JAR serves the SPA); E15 builds returnUrl from it
     gateway:
       timeout: 5s                 # client timeout; past it the outcome is unknown and reconciled by reference
       webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}   # HMAC key of X-Gateway-Signature; blank = random per-process key

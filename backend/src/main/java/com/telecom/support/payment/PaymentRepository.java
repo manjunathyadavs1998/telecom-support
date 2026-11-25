@@ -8,15 +8,18 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 /**
  * {@code payments} reads of the customer portal (design 02-customer backend §2, R1, R11, R15; CUS-07, CUS-08.3–08.5).
  * Every portal query filters by the principal's {@code account_id}. Times are UTC. Status is written only by
- * {@link #transition}, the guarded statement of §3.1, which only {@link PaymentTransitionService} calls.
+ * {@link #transition}, the guarded statement of §3.1, which only {@link PaymentTransitionService} calls; initiate
+ * (R12) inserts the PENDING row and fills its session or {@code gateway_timeout} reason without changing the status.
  */
 @Repository
 class PaymentRepository {
@@ -29,6 +32,9 @@ class PaymentRepository {
     /** What a §3.1 transition needs of a payment (system read, not scoped to an account). */
     record PaymentState(long id, String reference, long invoiceId, BigDecimal amount, String currency, String status,
                         String gatewaySessionId) {}
+
+    /** A payment of one invoice, as initiate (R12, erratum E1) checks it. */
+    record InvoicePayment(String reference, String status, Instant completedAt) {}
 
     /** Fixed ORDER BY fragments, chosen by a whitelisted sort key (never from the request text). */
     enum Order {
@@ -67,6 +73,41 @@ class PaymentRepository {
             FROM payments
             WHERE reference = :reference
             FOR UPDATE
+            """;
+
+    private static final String BY_INVOICE = """
+            SELECT reference, status, completed_at
+            FROM payments
+            WHERE invoice_id = :invoiceId
+            ORDER BY id
+            """;
+
+    private static final String INSERT_PENDING = """
+            INSERT INTO payments (reference, account_id, invoice_id, amount, currency, status, initiated_by_user_id,
+                                  initiated_at, created_at, updated_at)
+            VALUES (:reference, :accountId, :invoiceId, :amount, :currency, 'PENDING', :userId, :now, :now, :now)
+            """;
+
+    /** Initiate tx2 after {@code createCheckout} answered: PENDING (no session) stays PENDING with the session (§3.1). */
+    private static final String STORE_CHECKOUT = """
+            UPDATE payments
+            SET gateway_session_id = :sessionId,
+                redirect_url = :redirectUrl,
+                version = version + 1,
+                updated_at = :now
+            WHERE id = :id
+              AND status = 'PENDING'
+              AND gateway_session_id IS NULL
+            """;
+
+    /** Initiate tx2 after the client timeout: stays PENDING, reason {@code gateway_timeout}, reconciled by reference. */
+    private static final String MARK_TIMEOUT = """
+            UPDATE payments
+            SET failure_reason = :reason,
+                version = version + 1,
+                updated_at = :now
+            WHERE id = :id
+              AND status = 'PENDING'
             """;
 
     /**
@@ -128,6 +169,50 @@ class PaymentRepository {
                 (rs, i) -> new PaymentState(rs.getLong("id"), rs.getString("reference"), rs.getLong("invoice_id"),
                         rs.getBigDecimal("amount"), rs.getString("currency"), rs.getString("status"),
                         rs.getString("gateway_session_id"))).stream().findFirst();
+    }
+
+    /** Every payment of the invoice (any status), oldest first. Callers hold the invoice lock (erratum E1). */
+    List<InvoicePayment> findByInvoice(long invoiceId) {
+        return jdbc.query(BY_INVOICE, new MapSqlParameterSource("invoiceId", invoiceId),
+                (rs, i) -> new InvoicePayment(rs.getString("reference"), rs.getString("status"),
+                        instant(rs, "completed_at")));
+    }
+
+    /**
+     * Inserts a PENDING payment (initiate tx1, §3.1); the one-open-payment key rejects a second PENDING payment of the
+     * invoice with {@code DuplicateKeyException}.
+     *
+     * @return the new payment id
+     */
+    long insertPending(String reference, long accountId, long invoiceId, BigDecimal amount, String currency,
+                       long userId, Instant now) {
+        GeneratedKeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update(INSERT_PENDING, new MapSqlParameterSource()
+                .addValue("reference", reference)
+                .addValue("accountId", accountId)
+                .addValue("invoiceId", invoiceId)
+                .addValue("amount", amount)
+                .addValue("currency", currency)
+                .addValue("userId", userId)
+                .addValue("now", utc(now)), keys, new String[] {"id"});
+        return Objects.requireNonNull(keys.getKey(), "generated payment id").longValue();
+    }
+
+    /** Stores the checkout session of a PENDING payment that has none yet; returns rows changed (0 or 1). */
+    int storeCheckout(long id, String sessionId, String redirectUrl, Instant now) {
+        return jdbc.update(STORE_CHECKOUT, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("sessionId", sessionId)
+                .addValue("redirectUrl", redirectUrl)
+                .addValue("now", utc(now)));
+    }
+
+    /** Records {@code reason} on a still PENDING payment (status unchanged); returns rows changed (0 or 1). */
+    int markPendingReason(long id, String reason, Instant now) {
+        return jdbc.update(MARK_TIMEOUT, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("reason", reason)
+                .addValue("now", utc(now)));
     }
 
     /**
