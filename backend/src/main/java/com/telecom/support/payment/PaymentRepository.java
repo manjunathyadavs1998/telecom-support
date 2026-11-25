@@ -36,6 +36,9 @@ class PaymentRepository {
     /** A payment of one invoice, as initiate (R12, erratum E1) checks it. */
     record InvoicePayment(String reference, String status, Instant completedAt) {}
 
+    /** A payment the reconciliation job polls the gateway for (system read, not scoped to an account). */
+    record ReconcileCandidate(String reference, Instant initiatedAt) {}
+
     /** Fixed ORDER BY fragments, chosen by a whitelisted sort key (never from the request text). */
     enum Order {
         INITIATED_AT_DESC("p.initiated_at DESC, p.id DESC"),
@@ -80,6 +83,26 @@ class PaymentRepository {
             FROM payments
             WHERE invoice_id = :invoiceId
             ORDER BY id
+            """;
+
+    /** Reconcile (§3.1): PENDING payments initiated at or before the cutoff, oldest first (index status, initiated_at). */
+    private static final String PENDING_BEFORE = """
+            SELECT reference, initiated_at
+            FROM payments
+            WHERE status = 'PENDING'
+              AND initiated_at <= :cutoff
+            ORDER BY initiated_at, id
+            LIMIT :limit
+            """;
+
+    /** Late-capture watch (§3.1): FAILED/EXPIRED payments completed at or after {@code :since}, newest first. */
+    private static final String FINISHED_SINCE = """
+            SELECT reference, initiated_at
+            FROM payments
+            WHERE status IN ('FAILED', 'EXPIRED')
+              AND completed_at >= :since
+            ORDER BY completed_at DESC, id DESC
+            LIMIT :limit
             """;
 
     private static final String INSERT_PENDING = """
@@ -178,6 +201,20 @@ class PaymentRepository {
                         instant(rs, "completed_at")));
     }
 
+    /** At most {@code limit} PENDING payments initiated at or before {@code cutoff}, oldest first (reconcile). */
+    List<ReconcileCandidate> findPendingInitiatedBefore(Instant cutoff, int limit) {
+        return jdbc.query(PENDING_BEFORE, new MapSqlParameterSource()
+                .addValue("cutoff", utc(cutoff))
+                .addValue("limit", limit), (rs, i) -> candidate(rs));
+    }
+
+    /** At most {@code limit} FAILED/EXPIRED payments completed at or after {@code since} (late-capture watch). */
+    List<ReconcileCandidate> findFailedOrExpiredSince(Instant since, int limit) {
+        return jdbc.query(FINISHED_SINCE, new MapSqlParameterSource()
+                .addValue("since", utc(since))
+                .addValue("limit", limit), (rs, i) -> candidate(rs));
+    }
+
     /**
      * Inserts a PENDING payment (initiate tx1, §3.1); the one-open-payment key rejects a second PENDING payment of the
      * invoice with {@code DuplicateKeyException}.
@@ -239,6 +276,10 @@ class PaymentRepository {
                 rs.getString("currency"), rs.getString("method"), rs.getString("status"),
                 rs.getString("failure_reason"), instant(rs, "initiated_at"), instant(rs, "completed_at"),
                 rs.getString("gateway_txn_id"));
+    }
+
+    private static ReconcileCandidate candidate(ResultSet rs) throws SQLException {
+        return new ReconcileCandidate(rs.getString("reference"), instant(rs, "initiated_at"));
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {
