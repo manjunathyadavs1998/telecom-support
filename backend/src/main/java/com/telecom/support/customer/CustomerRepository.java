@@ -37,6 +37,26 @@ class CustomerRepository {
             WHERE id = :customerId AND version = :version
             """;
 
+    /** Serialises contact verification starts of one customer (R3 rate limit, supersede). */
+    private static final String LOCK_CUSTOMER = """
+            SELECT id FROM customers WHERE id = :customerId FOR UPDATE
+            """;
+
+    /** R3: a verified email replaces the current one (always lower-cased by the caller). */
+    private static final String UPDATE_VERIFIED_EMAIL = """
+            UPDATE customers
+            SET email = :value, email_verified_at = :verifiedAt, version = version + 1, updated_at = :verifiedAt
+            WHERE id = :customerId
+            """;
+
+    /** R3: a verified secondary MSISDN replaces the current one. */
+    private static final String UPDATE_VERIFIED_SECONDARY_MSISDN = """
+            UPDATE customers
+            SET secondary_msisdn = :value, secondary_verified_at = :verifiedAt, version = version + 1,
+                updated_at = :verifiedAt
+            WHERE id = :customerId
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     CustomerRepository(NamedParameterJdbcTemplate jdbc) {
@@ -52,6 +72,17 @@ class CustomerRepository {
                         rs.getString("billing_address"), rs.getInt("version")))
                 .stream()
                 .findFirst();
+    }
+
+    /** Locks the customer row until the end of the current transaction; false when it does not exist. */
+    boolean lockForUpdate(long customerId) {
+        return !jdbc.queryForList(LOCK_CUSTOMER, Map.of("customerId", customerId), Long.class).isEmpty();
+    }
+
+    /** Writes a verified email ({@code emailChannel}) or secondary MSISDN; returns the number of rows updated. */
+    int updateVerifiedContact(long customerId, boolean emailChannel, String value, Instant verifiedAt) {
+        return jdbc.update(emailChannel ? UPDATE_VERIFIED_EMAIL : UPDATE_VERIFIED_SECONDARY_MSISDN, Map.of(
+                "customerId", customerId, "value", value, "verifiedAt", LocalDateTime.ofInstant(verifiedAt, ZoneOffset.UTC)));
     }
 
     /** Sets the alias when {@code version} is current; returns the number of rows updated (0 = stale). */

@@ -48,6 +48,13 @@ app:
   web:
     max-request-size: 1MB   # larger @RequestBody payloads get 413 payload-too-large
   display-time-zone: Asia/Kolkata
+  customer:
+    otp:                          # contact verification (02 backend R3, §3.2, §6)
+      ttl: 10m
+      max-attempts: 5
+      starts-per-hour: 5          # per customer per rolling hour -> 429
+      hmac-secret: ${OTP_HMAC_SECRET:}   # blank = random per-process key
+      dev-fixed-code: ""          # set only in dev; ProfileGuard refuses it with prod
   session:
     absolute-timeout: 12h
   idempotency:
