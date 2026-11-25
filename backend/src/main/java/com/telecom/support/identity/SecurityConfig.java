@@ -9,6 +9,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -38,6 +39,9 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
  *       {@code /actuator/**} need a session.</li>
  *   <li>Mock checkout {@code /mock-gateway/checkout/**} (02 backend §4): public (falls under {@code anyRequest}) and
  *       CSRF-exempt only when {@code app.payment.mock.enabled}; otherwise CSRF stays on and nothing serves it.</li>
+ *   <li>Payment gateway webhook {@code POST /api/v1/payment-gateway/webhooks} (02 backend §4, E18): public and
+ *       CSRF-exempt (server to server); authenticated only by its HMAC signature in {@code PaymentWebhookController}.
+ *       Only this exact path is opened.</li>
  *   <li>401 and 403 (URL-level and CSRF) are JSON problems from {@link ProblemDetailFactory}; never a redirect. Each
  *       403 here is reported once to the {@link AccessDeniedListener} (audit, §4.4, §7).</li>
  *   <li>Method security is on: every endpoint carries {@code @PreAuthorize} with a §3 permission (BR-10); its
@@ -51,6 +55,9 @@ public class SecurityConfig {
 
     /** Mock hosted checkout page (02 backend §4), registered only with {@code app.payment.mock.enabled}. */
     static final String MOCK_CHECKOUT_PATHS = "/mock-gateway/checkout/**";
+
+    /** Signed gateway webhook E18 (02 backend §4, §8): public, CSRF-exempt, HMAC-authenticated by its controller. */
+    static final String PAYMENT_WEBHOOK_PATH = "/api/v1/payment-gateway/webhooks";
 
     /**
      * {@code XSRF-TOKEN} cookie: SameSite=Lax, readable by the SPA. Secure always when {@code app.security.cookie-secure}
@@ -86,7 +93,8 @@ public class SecurityConfig {
         http
             .csrf(csrf -> {
                 csrf.csrfTokenRepository(csrfTokenRepository)
-                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler());
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                    .ignoringRequestMatchers(PAYMENT_WEBHOOK_PATH);
                 if (mockCheckoutEnabled) {
                     csrf.ignoringRequestMatchers(MOCK_CHECKOUT_PATHS);
                 }
@@ -97,6 +105,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/csrf", "/api/v1/auth/login").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.POST, PAYMENT_WEBHOOK_PATH).permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/**", "/actuator/**").authenticated()
                 .anyRequest().permitAll())

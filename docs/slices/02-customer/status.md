@@ -35,7 +35,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | B15 | Payment reads E13, E14, E16, E17 | `payment/InvoiceRepository.java`, `payment/PaymentRepository.java`, `payment/PaymentQueryService.java`, `payment/CustomerPaymentController.java`, `PaymentHistoryIT` | R11, R15 | CUS-07.1–07.4, CUS-08.1/08.5 | `PaymentHistoryIT` passes || ☑ |
 | B16 | Guarded payment transitions + credit | `payment/PaymentTransitionService.java`, `payment/PaymentRepository.java`, `payment/InvoiceRepository.java`, `PaymentTransitionIT` | §3.1, R13, R14 | CUS-07.5, BR-08, NFR-INTEG | `PaymentTransitionIT` passes (parallel SUCCEEDED → one credit, disallowed pairs IGNORED) | ☑ |
 | B17 | Initiate E15 | `payment/PaymentService.java`, `payment/CustomerPaymentController.java`, `PaymentInitiateIT` | R12, §3.1, §8 | CUS-08.1/08.2/08.4, NFR-REL, NFR-AVAIL | `PaymentInitiateIT` passes (tx1/tx2, refused 503 FAILED, timeout PENDING, recent EXPIRED re-check 409) | ☑ |
-| B18 | Signed webhook E18 | `payment/PaymentWebhookController.java`, `payment/GatewayEventRepository.java`, `payment/WebhookRateLimiter.java`, `identity/SecurityConfig.java`, `PaymentWebhookIT` | §3.1, §4, §7, §8 | CUS-08.3/08.4, CUS-07.5, BR-08 | `PaymentWebhookIT` passes (401 before 400, 429, sampling, two events one credit, REVIEW) | ☐ |
+| B18 | Signed webhook E18 | `payment/PaymentWebhookController.java`, `payment/GatewayEventRepository.java`, `payment/WebhookRateLimiter.java`, `identity/SecurityConfig.java`, `PaymentWebhookIT` | §3.1, §4, §7, §8 | CUS-08.3/08.4, CUS-07.5, BR-08 | `PaymentWebhookIT` passes (401 before 400, 429, sampling, two events one credit, REVIEW) | ☑ |
 | B19 | Mock checkout page + prod guard | `payment/MockCheckoutController.java`, `common/ProfileGuard.java`, `identity/SecurityConfig.java`, `MockCheckoutIT` | §4, §6, §8 | CUS-08.2, NFR-SEC | `MockCheckoutIT` passes | ☑ |
 | B20 | Reconciliation job | `payment/PaymentReconciliationJob.java`, `PaymentReconciliationJobIT` | §3.1 | CUS-07.5, CUS-08.4/08.5, NFR-AVAIL | `PaymentReconciliationJobIT` passes (late capture, never auto-EXPIRE, 24 h REVIEW, parallel runs) | ☐ |
 | B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests | ☐ |
@@ -46,8 +46,8 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B17, B19. B17: `PaymentService` (check under invoice lock → late-capture re-check outside tx → tx1 insert PENDING → `createCheckout` → tx2), E15 in `CustomerPaymentController`, `PaymentInitiateIT` 17 cases incl. E1 REVIEW 409.
-- B17 choices: re-check gateway PENDING → 409 with no transition (§3.1 has no EXPIRED→PENDING row); returnUrl = `return-url-base` + `/customer/payments/{ref}` (default base `http://localhost:${server.port}` in application.yml) — confirm in the FE design.
-- Test infra: `src/test/resources/spring.properties` caps cached test contexts at 8; no max-connections bump.
-- Gaps: B19's webhook post reaches nothing until B18; FE dev needs a Vite proxy for `/mock-gateway`.
-- Next: B18, B20, B21.
+- Done: B1–B19. B18: `PaymentWebhookController` (IP limit → raw bytes → HMAC/stale 401 → parse 400 → event-row dedupe → `PaymentTransitionService`, one tx), `GatewayEventRepository`, `WebhookRateLimiter` (60/min/IP + rejected-audit sampling), SecurityConfig opens only `POST /api/v1/payment-gateway/webhooks` (permitAll + CSRF-exempt); `PaymentWebhookIT` 17 cases.
+- B18 choices: unknown payment → 204 + event REJECTED + `PAYMENT_WEBHOOK_REJECTED unknown_payment`; event row inserted before the payment lock and linked after (no S→X deadlock); mock `webhook-url` default already targets E18.
+- Test infra: `spring.properties` caps cached contexts at 8; `PaymentTestClock` is the shared `@TestBean` clock factory for the webhook and reconciliation ITs (one context).
+- Gaps: FE dev needs a Vite proxy for `/mock-gateway`.
+- Next: B20, B21.
