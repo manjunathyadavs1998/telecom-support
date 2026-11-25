@@ -45,7 +45,7 @@ then become `Designed`. Code/Tests fill in on `slice/02-customer-be`. Section re
 | CUS-06 | Create request: categories, auto contact, unique ref, no duplicates | R10, E10, E12 — **partial: CUS-06.3 attachment deferred to 03/04 (OQ 4)** · FE: frontend.md §3 Create request, §6 (no attachment field) | | | Designed (partial) · FE Proposed |
 | CUS-06.3 | Optional attachment | not designed (OQ 4) | | | Deferred |
 | CUS-07 | Payment history: 3-month default, paging, receipt, reconciled | R11, R14, R15, §3.1, E13, E14, E17 · FE: frontend.md §3 Payment history, Receipt | | | Designed · FE Proposed |
-| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 · FE: frontend.md §3 Pay bill, Payment status, Receipt | | | Designed · FE Proposed |
+| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 · FE: frontend.md §2 (return path, backend E4), §3 Pay bill, Payment status, Receipt, §10 D1 | | | Designed · FE Proposed |
 | BR-01 | Unique, non-reusable reference IDs (SR, PAY) | R10, §3.1 (01 §6.2 generator) | | | Designed |
 | BR-02 | Case has account association and channel | §2 (cases), R10 | | | Designed |
 | BR-04 | Customer vs internal notes separate | §2 (`case_activity.visibility`) | | | Designed |
@@ -60,9 +60,10 @@ then become `Designed`. Code/Tests fill in on `slice/02-customer-be`. Section re
 | NFR-AVAIL | Degrade gracefully when payment/provisioning is down | §3.1, §8 | | | Designed |
 | NFR-INTEG | Ownership and payment results validated server-side | R1, R13, §3.1, `CustomerIdorIT` | | | Designed |
 | NFR-PRIV | Masked PII, no card data | §2, §7 · FE: frontend.md §3 Profile, §5 (nothing in localStorage) | | | Designed · FE Proposed |
-| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 · FE: frontend.md §4 `useIdempotencyKey` (E7, E9, E12, E15) | | | Designed · FE Proposed |
+| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 · FE: frontend.md §4 `useIdempotencyKey` (path-scoped; E15 key in sessionStorage), `useSubmitGuard` | | | Designed · FE Proposed |
 | NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 · FE: frontend.md §3 Profile (OTP), §6, OQ 12 | | | Designed · FE Proposed |
-| XC-03 | Loading, success, empty, validation, failure states | FE: frontend.md §3 (every page), §6 | | | FE Proposed |
+| XC-02 | Restricted routes denied; APIs enforce authz | FE: frontend.md §2 (nested guarded child routes), §8 `RequirePermission.test`, e2e `forbidden.spec` | | | FE Proposed |
+| XC-03 | Loading, success, empty, validation, failure states | FE: frontend.md §3 (every page, 403 rule), §6 (common error row) | | | FE Proposed |
 | XC-08 | Keyboard-operable; desktop/tablet/mobile | FE: frontend.md §3, §4 `DataTable`, §8 e2e at 3 viewports | | | FE Proposed |
 | NFR-A11Y | Accessible controls and validation | FE: frontend.md §3 (dialogs, disclosures, live regions), §6 | | | FE Proposed |
 | NFR-RESP | Responsive customer experience | FE: frontend.md §3 Dashboard grid, §4 `DataTable` cards < md | | | FE Proposed |
