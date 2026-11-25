@@ -317,3 +317,14 @@ can then be scheduled.
 **Change.** `returnUrl = {app.payment.return-url-base}/customer/payments/{reference}` (as built in B17).
 `return-url-base` must equal the origin the user started from (Vite dev `http://localhost:5173`; e2e = the e2e base URL;
 prod set explicitly — `ProfileGuard` refuses prod when blank). `MockCheckoutIT`/`PaymentInitiateIT` assert the path.
+
+### E5 — e2e profile: fresh database and seed data for the customer portal (frontend design D2) · Status: **Approved** (user, 2026-11-25)
+**Change.** The `e2e` profile sets `spring.flyway.clean-disabled=false` and runs Flyway clean → migrate at startup
+(fresh DB per e2e run); `ProfileGuard` refuses startup when `e2e` is combined with `prod`, or clean is enabled under `prod`.
+e2e seed (dev/e2e only, dates relative to `NOW()`): customer 1 has ≥ 21 cases and ≥ 21 payments in the last 3 months
+(incl. ≥ 1 SUCCEEDED) and ≥ 1 OPEN invoice; new customer 5 (`+919800000005`, linked user) has exactly 2 OPEN invoices
+and nothing else. A test asserts the guard.
+
+### E6 — promotion claim state per subscription (frontend design D3) · Status: **Approved** (user, 2026-11-25)
+**Change.** E8 response adds `claimedSubscriptionIds`; `eligibleSubscriptionIds` excludes subscriptions that already
+claimed; `claimed` = claimed on at least one subscription. openapi.yaml + `PromotionIT` updated.
