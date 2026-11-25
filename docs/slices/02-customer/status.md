@@ -2,7 +2,7 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/02-customer/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D23 addressed) | ☐ `docs/design/02-customer/frontend.md` |
+| Design | ☑ `docs/design/02-customer/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D23 addressed) | ☐ `docs/design/02-customer/frontend.md` — **Proposed** (branch `design/02-customer-fe`) |
 | Approved by user | ☑ 2026-11-25 (also 00-overview §1 rev 3; OQ defaults kept) | ☐ |
 | Tasks planned | ☐ draft below, confirmed after approval | ☐ |
 | Built | ☐ branch `slice/02-customer-be` | ☐ branch `slice/02-customer-fe` |
@@ -40,10 +40,33 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | B20 | Reconciliation job | `payment/PaymentReconciliationJob.java`, `PaymentReconciliationJobIT` | §3.1 | CUS-07.5, CUS-08.4/08.5, NFR-AVAIL | `PaymentReconciliationJobIT` passes (late capture, never auto-EXPIRE, 24 h REVIEW, parallel runs) | ☐ |
 | B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests | ☐ |
 
-## Tasks — frontend
+## Tasks — frontend (draft; refs are `frontend.md` sections; confirmed after approval)
+
+Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2e/`). Every task: `bash scripts/check-frontend.sh` green
+(typecheck, lint, test, gen:api:check). Each page task registers its page in `src/app/pageRegistry.ts` and adds MSW handlers it needs.
+
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| F1 | (planned after the frontend design is approved) | | | | | ☐ |
+| F1 | Slice 02 API types + dev proxy | `scripts/gen-api.mjs`, `src/types/api/02-customer.ts` (generated), `src/types/api/index.ts`, `vite.config.ts` | §7 | NFR-MAINT, CUS-08.2 | `gen:api:check` and `typecheck` pass; `/mock-gateway` proxied | ☐ |
+| F2 | Formatting + date window | `src/lib/format.ts`, `src/lib/format.test.ts`, `src/lib/dateWindow.ts`, `src/lib/dateWindow.test.ts` | §4, §6 | XC-05, BR-05 | `format.test`, `dateWindow.test` pass | ☐ |
+| F3 | Idempotency hook + customer test fixtures | `src/services/api/idempotency.ts`, `idempotency.test.ts`, `src/test/fixtures/customer.ts`, `src/test/msw/customerHandlers.ts`, `src/test/msw/handlers.ts` | §4, §8 | NFR-REL, CUS-06.6 | `idempotency.test` passes | ☐ |
+| F4 | shadcn primitives (1) | `src/components/ui/{dialog,alert-dialog,select,checkbox,radio-group}.tsx` (CLI-generated) | §4 | XC-08 | typecheck + lint green | ☐ |
+| F5 | shadcn primitives (2) + DataTable | `src/components/ui/{textarea,table,tabs}.tsx`, `src/components/data/DataTable.tsx`, `DataTable.test.tsx` | §4 | NFR-RESP, XC-08 | `DataTable.test` passes (table ≥ md, cards < md, caption, `aria-busy`) | ☐ |
+| F6 | List controls | `src/components/data/{DateRangeFilter,Pagination,StatusBadge}.tsx`, `useListParams.ts`, `listControls.test.tsx` | §3 lists, §4, §6 | XC-04, XC-05, CUS-05.1/05.3, CUS-07.2/07.3 | `listControls.test` passes | ☐ |
+| F7 | Child routes + page registry | `src/permissions/navConfig.ts`, `src/app/pageRegistry.ts`, `src/app/routes.tsx`, `navConfig.test.ts`, `RequirePermission.test.tsx` | §2 | XC-02, BR-10, NFR-PERF | extended `navConfig.test` + `RequirePermission.test` pass (IN001 → 403 on child routes, no customer API call) | ☐ |
+| F8 | Profile view + alias edit | `src/features/customer/profile/{queries.ts,ProfilePage.tsx,AliasForm.tsx,profile.test.tsx}`, `pageRegistry.ts` | §3 Profile, §6 | CUS-02.1/02.3/02.4, XC-07 | `profile.test` passes | ☐ |
+| F9 | Contact verification dialog | `src/features/customer/profile/{ContactChangeDialog.tsx,contactSchemas.ts,contactVerification.test.tsx,ProfilePage.tsx,queries.ts}` | §3 Profile, §6 | CUS-02.2, NFR-SEC | `contactVerification.test` passes | ☐ |
+| F10 | My plan page | `src/features/customer/plan/{queries.ts,PlanPage.tsx,SubscriptionCard.tsx,plan.test.tsx}`, `pageRegistry.ts` | §3 My plan | CUS-03.1–03.3 | `plan.test` passes | ☐ |
+| F11 | Upgrade options + plan change | `src/features/customer/plan/{UpgradeOptions.tsx,PlanChangeDialog.tsx,planChange.test.tsx,SubscriptionCard.tsx,queries.ts}` | §3 My plan | CUS-03.4/03.5, XC-06, NFR-REL | `planChange.test` passes | ☐ |
+| F12 | Promotions + claim | `src/features/customer/promotions/{queries.ts,PromotionsPage.tsx,ClaimDialog.tsx,promotions.test.tsx}`, `pageRegistry.ts` | §3 Promotions, §6 | CUS-04 | `promotions.test` passes | ☐ |
+| F13 | Service request list | `src/features/customer/requests/{queries.ts,RequestListPage.tsx,requestList.test.tsx}`, `pageRegistry.ts` | §3 Service requests | CUS-05, BR-05/06, XC-04 | `requestList.test` passes | ☐ |
+| F14 | Create service request | `src/features/customer/requests/{CreateRequestPage.tsx,createRequestSchema.ts,createRequest.test.tsx,queries.ts}`, `pageRegistry.ts` | §3 Create request, §6 | CUS-06.1/06.2/06.4–06.6, NFR-REL | `createRequest.test` passes | ☐ |
+| F15 | Payment history | `src/features/customer/payments/{queries.ts,PaymentHistoryPage.tsx,paymentHistory.test.tsx}`, `pageRegistry.ts` | §3 Payment history | CUS-07.1–07.3/07.5 | `paymentHistory.test` passes | ☐ |
+| F16 | Pay bill + gateway redirect | `src/features/customer/payments/{PayBillPage.tsx,redirect.ts,payBill.test.tsx,queries.ts}`, `pageRegistry.ts` | §3 Pay bill | CUS-08.1/08.2/08.4, NFR-REL | `payBill.test` passes | ☐ |
+| F17 | Payment status (poll) | `src/features/customer/payments/{PaymentStatusPage.tsx,paymentPolling.ts,paymentStatus.test.tsx}`, `pageRegistry.ts` | §3 Payment status | CUS-08.3–08.5, XC-07 | `paymentStatus.test` passes | ☐ |
+| F18 | Printable receipt | `src/features/customer/payments/{ReceiptPage.tsx,receipt.test.tsx}`, `src/components/layout/{Sidebar,Header}.tsx` (`print:hidden`), `pageRegistry.ts` | §3 Receipt | CUS-07.4, CUS-08.5 | `receipt.test` passes | ☐ |
+| F19 | Dashboard | `src/features/customer/dashboard/{DashboardPage.tsx,DashboardCards.tsx,dashboard.test.tsx}`, `pageRegistry.ts` | §3 Dashboard | CUS-01 | `dashboard.test` passes | ☐ |
+| F20 | e2e + traceability | `e2e/customer-portal.spec.ts`, `e2e/payment.spec.ts`, `e2e/forbidden.spec.ts`, `scripts/check-frontend.sh` (fresh DB, D2), `docs/requirements/traceability.md` | §7, §8, §10 | XC-02, XC-08, CUS-01..08 | `check-frontend.sh e2e` green against the JAR; slice 02 rows show FE code + tests | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Done: backend design rev 2 approved by user 2026-11-25 (OQ defaults kept; review D1–D23 dispositioned); 00-overview §1 rev 3 approved; check-docs green.
