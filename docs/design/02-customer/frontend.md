@@ -1,6 +1,6 @@
 # 02 Customer portal — frontend design
 
-- Status: **Proposed** (awaiting approval), revision 2 (review F1–F24) · Date: 2026-11-25
+- Status: **Approved** (revision 2, review F1–F24 addressed) · Date: 2026-11-25 · approved by user 2026-11-25 with OQ defaults; depends on backend errata E4–E6 (approved, merge with the BE PR)
 - BRD: CUS-01..CUS-08, BR-05, BR-06, BR-10, XC-02..XC-05, XC-07, XC-08, NFR-A11Y, NFR-RESP, NFR-PERF, NFR-PRIV, NFR-REL, NFR-SEC, §14 #4, §16 (customer rows)
 - Backend contract: [`openapi.yaml`](openapi.yaml), [`backend.md`](backend.md) (Approved rev 2) + errata on `slice/02-customer-be` (merge with the BE PR):
   **E1** (approved: initiate → 409 while a PENDING or REVIEW payment exists), **E4** (returnUrl path, awaiting approval), and the FE-driven
