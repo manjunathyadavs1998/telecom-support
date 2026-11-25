@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -14,8 +15,8 @@ import org.springframework.stereotype.Repository;
 
 /**
  * {@code payments} reads of the customer portal (design 02-customer backend §2, R1, R11, R15; CUS-07, CUS-08.3–08.5).
- * Every query filters by the principal's {@code account_id}. Times are UTC. Status writes are not here: they belong to
- * the guarded transitions of §3.1.
+ * Every portal query filters by the principal's {@code account_id}. Times are UTC. Status is written only by
+ * {@link #transition}, the guarded statement of §3.1, which only {@link PaymentTransitionService} calls.
  */
 @Repository
 class PaymentRepository {
@@ -24,6 +25,10 @@ class PaymentRepository {
     record PaymentRow(String reference, String invoiceRef, BigDecimal amount, String currency, String method,
                       String status, String failureReason, Instant initiatedAt, Instant completedAt,
                       String gatewayTxnId) {}
+
+    /** What a §3.1 transition needs of a payment (system read, not scoped to an account). */
+    record PaymentState(long id, String reference, long invoiceId, BigDecimal amount, String currency, String status,
+                        String gatewaySessionId) {}
 
     /** Fixed ORDER BY fragments, chosen by a whitelisted sort key (never from the request text). */
     enum Order {
@@ -57,6 +62,32 @@ class PaymentRepository {
               AND p.reference = :reference
             """;
 
+    private static final String LOCK_BY_REFERENCE = """
+            SELECT id, reference, invoice_id, amount, currency, status, gateway_session_id
+            FROM payments
+            WHERE reference = :reference
+            FOR UPDATE
+            """;
+
+    /**
+     * The one guarded status write (§3.1). {@code method} and {@code gateway_txn_id} are only overwritten by a non-null
+     * value, the session id only fills an empty column, and {@code completed_at} is kept when {@code :completedAt} is
+     * null (REVIEW).
+     */
+    private static final String TRANSITION = """
+            UPDATE payments
+            SET status = :to,
+                failure_reason = :failureReason,
+                method = COALESCE(:method, method),
+                gateway_txn_id = COALESCE(:gatewayTxnId, gateway_txn_id),
+                gateway_session_id = COALESCE(gateway_session_id, :sessionId),
+                completed_at = COALESCE(:completedAt, completed_at),
+                version = version + 1,
+                updated_at = :now
+            WHERE id = :id
+              AND status IN (:from)
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     PaymentRepository(NamedParameterJdbcTemplate jdbc) {
@@ -86,6 +117,36 @@ class PaymentRepository {
                 .addValue("accountId", accountId)
                 .addValue("reference", reference);
         return jdbc.query(SELECT + FROM + BY_REFERENCE, params, (rs, i) -> map(rs)).stream().findFirst();
+    }
+
+    /**
+     * Locks the payment with this reference (any account) for a §3.1 transition; empty when unknown. Callers lock the
+     * payment before its invoice, so concurrent transitions cannot deadlock.
+     */
+    Optional<PaymentState> lockByReference(String reference) {
+        return jdbc.query(LOCK_BY_REFERENCE, new MapSqlParameterSource("reference", reference),
+                (rs, i) -> new PaymentState(rs.getLong("id"), rs.getString("reference"), rs.getLong("invoice_id"),
+                        rs.getBigDecimal("amount"), rs.getString("currency"), rs.getString("status"),
+                        rs.getString("gateway_session_id"))).stream().findFirst();
+    }
+
+    /**
+     * {@code UPDATE payments SET status = :to … WHERE id = :id AND status IN (:from)} (§3.1).
+     *
+     * @return rows changed: 1 when this call won the transition, 0 when the payment was not in an allowed state
+     */
+    int transition(long id, Collection<String> from, String to, String failureReason, String method,
+                   String gatewayTxnId, String sessionId, Instant completedAt, Instant now) {
+        return jdbc.update(TRANSITION, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("from", from)
+                .addValue("to", to)
+                .addValue("failureReason", failureReason)
+                .addValue("method", method)
+                .addValue("gatewayTxnId", gatewayTxnId)
+                .addValue("sessionId", sessionId)
+                .addValue("completedAt", completedAt == null ? null : utc(completedAt))
+                .addValue("now", utc(now)));
     }
 
     private static PaymentRow map(ResultSet rs) throws SQLException {
