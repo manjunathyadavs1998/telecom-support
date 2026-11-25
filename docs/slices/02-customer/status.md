@@ -4,14 +4,14 @@
 |---|---|---|
 | Design | ☑ `docs/design/02-customer/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D23 addressed) | ☐ `docs/design/02-customer/frontend.md` |
 | Approved by user | ☑ 2026-11-25 (also 00-overview §1 rev 3; OQ defaults kept) | ☐ |
-| Tasks planned | ☐ draft below, confirmed after approval | ☐ |
+| Tasks planned | ☑ B1–B21 confirmed 2026-11-25 | ☐ |
 | Built | ☐ branch `slice/02-customer-be` | ☐ branch `slice/02-customer-fe` |
 | Checks green | ☐ | ☐ |
 | Review clean (no open High) | ☐ `review.md` (design review: `review-backend-design.md`) | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
-## Tasks — backend (draft; refs are `backend.md` sections / rules / endpoints)
+## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
 
 Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/seed under `backend/src/main/resources/db/`, tests under
 `backend/src/test/…`. Every task that adds an endpoint also adds its anonymous (401) and forbidden-role (403) case in its IT.
