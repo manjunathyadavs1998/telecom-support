@@ -8,11 +8,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mock.env.MockEnvironment;
 
 /**
  * C4: the limiter maps are really bounded (01 backend §4.1 "bounded, expiring in-memory maps"; NFR-SEC). A new key that
  * does not fit after the idle sweep is throttled (429 {@code capacity}); existing keys keep their counters.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class LoginRateLimiterTest {
 
     private static final int CAPACITY = 3;
@@ -87,5 +92,91 @@ class LoginRateLimiterTest {
 
         assertThat(limiter.acquire("198.51.100.99", "late")).isEmpty();
         assertThat(java.util.Arrays.stream(limiter.trackedKeys()).max().orElseThrow()).isLessThanOrEqualTo(CAPACITY);
+    }
+
+    @Test
+    void configuredIpLimitIsApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(3, null, null, null));
+        for (int i = 0; i < 3; i++) {
+            assertThat(custom.acquire("192.0.2.50", "user-" + i)).as("attempt %d", i + 1).isEmpty();
+        }
+
+        assertThat(custom.acquire("192.0.2.50", "user-x")).get().extracting(Throttled::limit).isEqualTo("L1");
+    }
+
+
+    @Test
+    void configuredPairLimitAndBlockDurationAreApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(null, 2, Duration.ofMinutes(1), null));
+        for (int i = 0; i < 2; i++) {
+            assertThat(custom.acquire("192.0.2.60", "victim")).as("attempt %d", i + 1).isEmpty();
+            custom.recordFailure("192.0.2.60", "victim");
+        }
+
+        assertThat(custom.acquire("192.0.2.60", "victim")).get().extracting(Throttled::limit).isEqualTo("L2");
+        assertThat(custom.acquire("192.0.2.60", "victim")).get().extracting(Throttled::retryAfterSeconds)
+                .isEqualTo(60L);
+
+        clock.set(clock.instant().plus(Duration.ofMinutes(1)));
+
+        assertThat(custom.acquire("192.0.2.60", "victim")).isEmpty();
+    }
+
+    @Test
+    void configuredUsernameAnomalyThresholdIsApplied() {
+        LoginRateLimiter custom = new LoginRateLimiter(clock, new LoginLimitProperties(null, null, null, 3));
+        for (int i = 0; i < 3; i++) {
+            assertThat(custom.recordFailure("192.0.2.7" + i, "target")).as("failure %d", i + 1).isEmpty();
+        }
+
+        assertThat(custom.recordFailure("192.0.2.74", "target")).hasValue(4);
+        assertThat(custom.recordFailure("192.0.2.75", "target")).as("reported once per window").isEmpty();
+    }
+
+    @Test
+    void nonPositiveLimitsAreRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new LoginLimitProperties(0, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new LoginLimitProperties(null, null, Duration.ZERO, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test
+    void unsetPropertiesKeepTheApprovedDefaults() {
+        assertThat(LoginLimitProperties.DEFAULTS).isEqualTo(
+                new LoginLimitProperties(20, 5, Duration.ofMinutes(15), 50));
+    }
+
+    @Test
+    void startupLogsTheEffectiveLimitsAtInfo(CapturedOutput output) {
+        new LoginRateLimiter(clock, LoginLimitProperties.DEFAULTS, new MockEnvironment());
+
+        assertThat(output).contains("Login limits: L1 ip-attempts-per-minute=20, L2 pair-max-failures=5 pair-block=PT15M, "
+                + "L3 username-anomaly-failures-per-hour=50");
+        assertThat(output).doesNotContain("WARN");
+    }
+
+    @Test
+    void looserLimitsWithTheProdProfileAreWarnedButStartupContinues(CapturedOutput output) {
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+
+        LoginRateLimiter loose = new LoginRateLimiter(clock,
+                new LoginLimitProperties(100_000, 6, Duration.ofMinutes(1), 51), prod);
+
+        assertThat(loose).isNotNull();
+        assertThat(output).contains("app.security.login.ip-attempts-per-minute=100000 is looser than the default 20")
+                .contains("app.security.login.pair-max-failures=6 is looser")
+                .contains("app.security.login.pair-block=PT1M is looser")
+                .contains("app.security.login.username-anomaly-failures-per-hour=51 is looser");
+    }
+
+    @Test
+    void stricterLimitsWithTheProdProfileAndLooserOnesOutsideProdAreNotWarned(CapturedOutput output) {
+        MockEnvironment prod = new MockEnvironment();
+        prod.setActiveProfiles("prod");
+        new LoginRateLimiter(clock, new LoginLimitProperties(10, 3, Duration.ofMinutes(30), 20), prod);
+        new LoginRateLimiter(clock, new LoginLimitProperties(100_000, null, null, null), new MockEnvironment());
+
+        assertThat(output).contains("Login limits:").doesNotContain("is looser");
     }
 }

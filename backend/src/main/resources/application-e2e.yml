@@ -1,0 +1,6 @@
+# e2e profile (01 backend §12 E2.4): used only together with dev (`dev,e2e`) for the Playwright run, which logs in more
+# often than L1 allows. Nothing else changes. ProfileGuard refuses to start when prod and e2e are both active (E2.5).
+app:
+  security:
+    login:
+      ip-attempts-per-minute: 100

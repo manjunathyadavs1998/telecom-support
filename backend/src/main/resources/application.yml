@@ -56,3 +56,8 @@ app:
   security:
     trusted-proxies: []   # CIDR list; empty = ignore X-Forwarded-* and use the remote address
     cookie-secure: false  # true (prod profile) = XSRF-TOKEN always Secure; false = Secure only over HTTPS
+    login:                # login throttling (01 backend §4.1, §12 E2.3); these are the approved defaults
+      ip-attempts-per-minute: 20              # L1: attempts per client IP per minute -> 429
+      pair-max-failures: 5                    # L2: failures of one (IP, username) within 15 min -> pair blocked
+      pair-block: 15m                         # L2: block duration
+      username-anomaly-failures-per-hour: 50  # L3: failures per username per rolling hour -> LOGIN_ANOMALY audit

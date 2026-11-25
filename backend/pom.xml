@@ -124,4 +124,82 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- E2.2: package the built SPA into the JAR (ADR 0001). No node in Maven (Windows blocks native npm
+             binaries). Build order: `bash scripts/check-frontend.sh build`, then `./mvnw -Pfrontend package`. -->
+        <profile>
+            <id>frontend</id>
+            <build>
+                <plugins>
+                    <!-- frontend.dist = <repo>/frontend/dist without "..": requireFilesExist rejects non-canonical paths -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>frontend-dist-path</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>regex-property</goal>
+                                </goals>
+                                <configuration>
+                                    <name>frontend.dist</name>
+                                    <value>${project.basedir}</value>
+                                    <regex>^(.*)[\\/][^\\/]+$</regex>
+                                    <replacement>$1/frontend/dist</replacement>
+                                    <failIfNoMatch>true</failIfNoMatch>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>require-frontend-dist</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireFilesExist>
+                                            <files>
+                                                <file>${frontend.dist}/index.html</file>
+                                            </files>
+                                            <message>frontend/dist/index.html is missing. Run `bash scripts/check-frontend.sh build` first.</message>
+                                        </requireFilesExist>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-frontend-dist</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${frontend.dist}</directory>
+                                            <filtering>false</filtering>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
