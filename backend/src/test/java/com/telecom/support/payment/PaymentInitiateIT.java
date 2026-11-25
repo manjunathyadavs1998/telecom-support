@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -60,6 +61,9 @@ class PaymentInitiateIT extends AbstractMySqlIT {
 
     @Autowired
     PaymentTransitionService transitions;
+
+    @Value("${app.payment.return-url-base}")
+    String returnUrlBase;
 
     @AfterEach
     void cleanUp() {
@@ -109,7 +113,8 @@ class PaymentInitiateIT extends AbstractMySqlIT {
         MockPaymentGateway.Session session = gateway.findSession((String) row.get("gateway_session_id")).orElseThrow();
         assertThat(session.paymentRef()).isEqualTo(reference);
         assertThat(session.amount()).isEqualByComparingTo("399.00");
-        assertThat(session.returnUrl()).endsWith("/customer/payments/" + reference).doesNotContain("evil");
+        // erratum E4: returnUrl = {app.payment.return-url-base}/customer/payments/{reference}
+        assertThat(session.returnUrl()).isEqualTo(returnUrlBase + "/customer/payments/" + reference);
 
         assertThat(auditCount("PAYMENT_INITIATED", reference, "SUCCESS")).isEqualTo(1);
         assertThat(auditDetails("PAYMENT_INITIATED", reference))

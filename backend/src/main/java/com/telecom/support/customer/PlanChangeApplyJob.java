@@ -29,7 +29,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>{@link PlanProvisioning#apply}; only when it returns is the change {@code APPLIED} + {@code PLAN_CHANGE_APPLIED}
  *       (success only on confirmation);</li>
  *   <li>a provider failure rolls the plan switch back; the change stays SCHEDULED with {@code apply_attempts + 1}, is
- *       retried next run and audited {@code PLAN_CHANGE_APPLY_FAILED} (FAILURE).</li>
+ *       retried next run and audited {@code PLAN_CHANGE_APPLY_FAILED} (FAILURE);</li>
+ *   <li>when that count reaches {@value #MAX_APPLY_ATTEMPTS} (erratum E3) the change becomes {@code CANCELLED}
+ *       {@code provisioning_failed} + {@code PLAN_CHANGE_CANCELLED} (FAILURE), which frees the subscription for a new
+ *       change.</li>
  * </ol>
  * Job audit rows have no actor.
  */
@@ -38,6 +41,8 @@ public class PlanChangeApplyJob {
 
     static final String GUARD_FAILED_REASON = "subscription_not_active_or_plan_changed";
     static final String PROVIDER_FAILED_REASON = "provisioning_failed";
+    /** Erratum E3: failed provisioning attempts after which a change is cancelled. */
+    static final int MAX_APPLY_ATTEMPTS = 3;
 
     private static final Logger log = LoggerFactory.getLogger(PlanChangeApplyJob.class);
 
@@ -137,16 +142,28 @@ public class PlanChangeApplyJob {
         return outcome;
     }
 
-    /** R6 provider failure: count the attempt and audit FAILURE, in a transaction of its own. */
+    /**
+     * R6 provider failure: count the attempt and audit FAILURE, in a transaction of its own. The attempt that reaches
+     * {@link #MAX_APPLY_ATTEMPTS} also cancels the change (erratum E3).
+     */
     private void recordFailure(long id) {
         tx.executeWithoutResult(status -> planChanges.lockScheduled(id).ifPresent(change -> {
-            planChanges.countFailedAttempt(id, clock.instant());
+            Instant now = clock.instant();
+            planChanges.countFailedAttempt(id, now);
             Map<Long, Plan> plans = catalog.plansByIds(List.of(change.fromPlanId(), change.toPlanId()));
+            Map<String, Object> details = PlanChangeService.details(plans.get(change.fromPlanId()).code(),
+                    plans.get(change.toPlanId()).code(), change.effectiveDate(), change.chargeAmount(),
+                    PROVIDER_FAILED_REASON);
+            String subscription = String.valueOf(change.subscriptionId());
             audit.recordIndependently(PlanChangeService.APPLY_FAILED, Outcome.FAILURE, null, null,
-                    PlanChangeService.ENTITY_SUBSCRIPTION, String.valueOf(change.subscriptionId()),
-                    PlanChangeService.details(plans.get(change.fromPlanId()).code(),
-                            plans.get(change.toPlanId()).code(), change.effectiveDate(), change.chargeAmount(),
-                            PROVIDER_FAILED_REASON));
+                    PlanChangeService.ENTITY_SUBSCRIPTION, subscription, details);
+            if (change.applyAttempts() + 1 >= MAX_APPLY_ATTEMPTS) {
+                planChanges.markCancelled(id, PROVIDER_FAILED_REASON, now);
+                log.warn("Plan change {} cancelled after {} failed provisioning attempts", id,
+                        change.applyAttempts() + 1);
+                audit.recordIndependently(PlanChangeService.CANCELLED, Outcome.FAILURE, null, null,
+                        PlanChangeService.ENTITY_SUBSCRIPTION, subscription, details);
+            }
         }));
     }
 }

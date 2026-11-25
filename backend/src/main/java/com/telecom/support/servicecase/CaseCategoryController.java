@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * {@code GET /api/v1/case-categories} — E10 (design 02-customer backend §4, §5, R10; CUS-06.2, BR-07): the active
- * customer-facing categories with their active subcategories, in display order. Needs {@code case.create}, so
- * INBOUND_AGENT (it holds {@code case.create.onbehalf} only) gets 403.
+ * customer-facing categories with their active subcategories, in display order. Needs {@code case.create} and a linked
+ * customer (erratum E2), so INBOUND_AGENT (it holds {@code case.create.onbehalf} only) and an unlinked CUSTOMER get 403.
  */
 @RestController
 public class CaseCategoryController {
@@ -31,7 +31,8 @@ public class CaseCategoryController {
     }
 
     @GetMapping("/api/v1/case-categories")
-    @PreAuthorize("hasAuthority(T(com.telecom.support.identity.Permissions).CASE_CREATE)")
+    @PreAuthorize("hasAuthority(T(com.telecom.support.identity.Permissions).CASE_CREATE)"
+            + " and @customerScope.isCustomer()")
     @Transactional(readOnly = true)
     public List<Category> listCaseCategories() {
         Map<Long, CategoryRow> topLevels = new LinkedHashMap<>();

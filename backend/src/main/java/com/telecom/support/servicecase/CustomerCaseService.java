@@ -152,7 +152,8 @@ public class CustomerCaseService {
 
     /**
      * E11 (R9): the account's cases created between {@code from} and {@code to} (inclusive Asia/Kolkata dates; default
-     * today minus 3 months .. today), newest first unless sorted otherwise. An exact {@code reference} is searched
+     * today minus 3 months .. today; only {@code to} given → the 3 months before it), newest first unless sorted
+     * otherwise. An exact {@code reference} is searched
      * inside that window only (OQ 6). {@code from > to} or a range over 366 days → 400. Reads are allowed in every
      * account state (R16).
      */
@@ -160,7 +161,7 @@ public class CustomerCaseService {
     public CasePage listMyCases(LocalDate from, LocalDate to, String reference, int page, int size, CaseSort sort) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), zone);
         LocalDate end = to != null ? to : today;
-        LocalDate start = from != null ? from : today.minusMonths(DEFAULT_WINDOW_MONTHS);
+        LocalDate start = from != null ? from : end.minusMonths(DEFAULT_WINDOW_MONTHS);
         if (start.isAfter(end)) {
             throw new BadRequestException("Case list from " + start + " after to " + end,
                     "The start date must not be after the end date.");

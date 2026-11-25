@@ -9,3 +9,5 @@ server:
 app:
   security:
     cookie-secure: true # XSRF-TOKEN (SecurityConfig's CSRF cookie repository)
+  payment:
+    return-url-base: ${PAYMENT_RETURN_URL_BASE:}  # SPA origin, no default in prod: ProfileGuard refuses blank (02 E4)

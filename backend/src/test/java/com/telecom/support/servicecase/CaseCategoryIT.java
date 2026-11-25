@@ -116,8 +116,8 @@ class CaseCategoryIT extends AbstractMySqlIT {
     @Test
     void needsAuthenticationAndCaseCreate() throws Exception {
         assertProblem(mvc.perform(get(PATH)).andReturn(), 401, "unauthenticated", PATH);
-        // INBOUND_AGENT holds case.create.onbehalf, not case.create (§8)
-        for (String username : List.of("T-IN", "T-OUT", "T-BUS")) {
+        // INBOUND_AGENT holds case.create.onbehalf, not case.create (§8); +919900000004 is an unlinked CUSTOMER (E2)
+        for (String username : List.of("T-IN", "T-OUT", "T-BUS", "+919900000004")) {
             assertProblem(mvc.perform(get(PATH).cookie(login(username))).andReturn(), 403, "forbidden", PATH);
         }
     }

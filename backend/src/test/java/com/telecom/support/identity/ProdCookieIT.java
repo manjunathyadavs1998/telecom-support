@@ -10,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
@@ -17,6 +18,9 @@ import org.springframework.test.web.servlet.MvcResult;
  * request (01 backend §4.3, §8 "Secure under prod"; NFR-SEC). The default-profile behaviour is in {@code AuthIT}.
  */
 @ActiveProfiles("prod")
+// the values ProfileGuard requires under prod (review C1, erratum E4)
+@TestPropertySource(properties = {"app.customer.otp.hmac-secret=it-otp-secret",
+        "app.payment.gateway.webhook-secret=it-webhook-secret", "app.payment.return-url-base=https://portal.example"})
 class ProdCookieIT extends AbstractMySqlIT {
 
     private static final String TOKEN = "prod-xsrf-token";

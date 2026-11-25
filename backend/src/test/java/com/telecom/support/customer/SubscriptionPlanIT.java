@@ -501,6 +501,50 @@ class SubscriptionPlanIT extends AbstractMySqlIT {
         assertThat(planCode(sub)).isEqualTo("PRE_449");
     }
 
+    @Test
+    void thirdProvisioningFailureCancelsTheChangeAndFreesTheSubscription() throws Exception {
+        long sub = subscriptionId("+919900000011");
+        long id = id(change(login("+919900000001"), sub, "k-fail3", "PRE_449", "2026-05-05", "0.00")
+                .andExpect(status().isCreated()).andReturn());
+        provisioning.setMode(Mode.FAIL);
+        long failedBefore = auditCount("PLAN_CHANGE_APPLY_FAILED", sub);
+        long cancelledBefore = auditCount("PLAN_CHANGE_CANCELLED", sub);
+
+        for (String day : List.of("2026-05-05", "2026-05-06")) {
+            CLOCK.set(Instant.parse(day + "T06:00:00Z"));
+            assertThat(job.run()).isEqualTo(new PlanChangeApplyJob.Result(0, 0, 1));
+            assertThat(changeStatus(id)).isEqualTo("SCHEDULED");
+        }
+        assertThat(auditCount("PLAN_CHANGE_CANCELLED", sub)).isEqualTo(cancelledBefore);
+
+        CLOCK.set(Instant.parse("2026-05-07T06:00:00Z"));
+        assertThat(job.run()).isEqualTo(new PlanChangeApplyJob.Result(0, 0, 1));
+
+        // erratum E3: the 3rd failed attempt cancels the change with provisioning_failed + PLAN_CHANGE_CANCELLED FAILURE
+        assertThat(changeStatus(id)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForMap("SELECT cancel_reason, apply_attempts FROM plan_changes WHERE id = :id",
+                Map.of("id", id))).containsEntry("cancel_reason", PlanChangeApplyJob.PROVIDER_FAILED_REASON)
+                .hasEntrySatisfying("apply_attempts", n -> assertThat(((Number) n).intValue()).isEqualTo(3));
+        assertThat(planCode(sub)).isEqualTo("PRE_199");
+        assertThat(auditCount("PLAN_CHANGE_APPLY_FAILED", sub)).isEqualTo(failedBefore + 3);
+        assertThat(auditCount("PLAN_CHANGE_CANCELLED", sub)).isEqualTo(cancelledBefore + 1);
+        Map<String, Object> audit = lastAudit("PLAN_CHANGE_CANCELLED", sub);
+        assertThat(audit.get("outcome")).isEqualTo("FAILURE");
+        assertThat(audit.get("actor_user_id")).isNull();
+        assertThat(details(audit)).containsEntry("reason", PlanChangeApplyJob.PROVIDER_FAILED_REASON);
+
+        // no further attempts, and the subscription can be quoted and changed again
+        CLOCK.set(Instant.parse("2026-05-08T06:00:00Z"));
+        assertThat(job.run()).isEqualTo(new PlanChangeApplyJob.Result(0, 0, 0));
+        CLOCK.set(T0);
+        Cookie session = login("+919900000001");
+        assertThat(json(mvc.perform(get(options(sub)).cookie(session)).andExpect(status().isOk()).andReturn()))
+                .isNotEmpty();
+        long next = id(change(session, sub, "k-fail3-new", "PRE_449", "2026-05-05", "0.00")
+                .andExpect(status().isCreated()).andReturn());
+        assertThat(changeStatus(next)).isEqualTo("SCHEDULED");
+    }
+
     // ------------------------------------------------------------------ helpers
 
     @SuppressWarnings("unchecked")

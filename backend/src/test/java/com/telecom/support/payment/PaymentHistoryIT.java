@@ -192,6 +192,17 @@ class PaymentHistoryIT extends AbstractMySqlIT {
     }
 
     @Test
+    void onlyToGivenListsTheThreeMonthsBeforeIt() throws Exception {
+        // review C11: a missing from is anchored to the given to, so an old to is not a 400 the user did not cause
+        LocalDate today = LocalDate.now(IST);
+        Map<String, Object> page = jsonObject(mvc.perform(get(PAYMENTS).cookie(login("+919900000001"))
+                        .param("to", today.minusDays(100).toString()))
+                .andExpect(status().isOk()).andReturn());
+
+        assertThat(items(page)).extracting(i -> i.get("reference")).containsExactly(ref("900001"));
+    }
+
+    @Test
     void pagesAndSortsByInitiatedAtOnly() throws Exception {
         LocalDate today = LocalDate.now(IST);
         Cookie session = login("+919900000001");

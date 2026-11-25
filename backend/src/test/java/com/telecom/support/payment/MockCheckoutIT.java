@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import com.telecom.support.SupportApplication;
 import com.telecom.support.payment.PaymentGateway.CheckoutSession;
@@ -17,10 +19,12 @@ import com.telecom.support.payment.PaymentGateway.GatewayEvent;
 import com.telecom.support.payment.PaymentGateway.GatewayStatus;
 import com.telecom.support.payment.PaymentGateway.Method;
 import com.telecom.support.support.AbstractMySqlIT;
+import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -30,15 +34,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * The dev/test-only mock checkout page and its prod guard (design 02-customer backend §4, §6, §8, §9; CUS-08.2, NFR-SEC).
@@ -53,6 +60,7 @@ class MockCheckoutIT extends AbstractMySqlIT {
 
     private static final String RETURN_URL = "http://localhost:5173/payments/return";
     private static final AtomicInteger SEQ = new AtomicInteger();
+    private static final String XSRF = "mock-checkout-xsrf-token";
     private static final BlockingQueue<Captured> WEBHOOKS = new LinkedBlockingQueue<>();
     private static final HttpServer CAPTURE = startCapture();
 
@@ -71,6 +79,15 @@ class MockCheckoutIT extends AbstractMySqlIT {
 
     @Autowired
     MockPaymentGateway gateway;
+
+    @Autowired
+    NamedParameterJdbcTemplate jdbc;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @Value("${app.payment.return-url-base}")
+    String returnUrlBase;
 
     @BeforeEach
     void clearWebhooks() {
@@ -180,6 +197,45 @@ class MockCheckoutIT extends AbstractMySqlIT {
     }
 
     @Test
+    void e15CheckoutReturnsTheBrowserToTheCustomerPaymentPage() throws Exception {
+        // erratum E4: the page sends the browser to {app.payment.return-url-base}/customer/payments/{reference}
+        String invoiceRef = "INV-T-M" + String.format("%05d", SEQ.incrementAndGet());
+        jdbc.update("""
+                INSERT INTO invoices (account_id, invoice_ref, period_start, period_end, issue_date, due_date,
+                                      amount_due, amount_paid, status, created_at, updated_at)
+                SELECT a.id, :ref, CURRENT_DATE - INTERVAL 30 DAY, CURRENT_DATE - INTERVAL 1 DAY, CURRENT_DATE,
+                       CURRENT_DATE + INTERVAL 15 DAY, 399.00, 0.00, 'OPEN', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+                FROM accounts a WHERE a.account_ref = 'ACC-T-0001'
+                """, Map.of("ref", invoiceRef));
+        try {
+            long invoiceId = jdbc.queryForObject("SELECT id FROM invoices WHERE invoice_ref = :ref",
+                    Map.of("ref", invoiceRef), Long.class);
+            MvcResult created = mvc.perform(post("/api/v1/customers/me/payments")
+                            .cookie(login("+919900000001"), new Cookie("XSRF-TOKEN", XSRF))
+                            .header("X-XSRF-TOKEN", XSRF)
+                            .header("Idempotency-Key", "k-mock-return-" + System.nanoTime())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    Map.of("invoiceId", invoiceId, "expectedAmount", "399.00"))))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            Map<String, Object> body = objectMapper.readValue(created.getResponse().getContentAsString(),
+                    new TypeReference<Map<String, Object>>() { });
+            String reference = (String) body.get("reference");
+
+            mvc.perform(post((String) body.get("redirectUrl")).param("outcome", "LEAVE_PENDING"))
+                    .andExpect(status().isSeeOther())
+                    .andExpect(header().string(HttpHeaders.LOCATION,
+                            returnUrlBase + "/customer/payments/" + reference));
+        } finally {
+            jdbc.update("""
+                    DELETE p FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE i.invoice_ref = :ref
+                    """, Map.of("ref", invoiceRef));
+            jdbc.update("DELETE FROM invoices WHERE invoice_ref = :ref", Map.of("ref", invoiceRef));
+        }
+    }
+
+    @Test
     void prodWithMockEnabledFailsToStart() {
         SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class)
                 .web(WebApplicationType.SERVLET)
@@ -228,6 +284,29 @@ class MockCheckoutIT extends AbstractMySqlIT {
 
     private CheckoutSession open(String prefix) {
         return gateway.createCheckout(prefix, new BigDecimal("399.00"), "INR", RETURN_URL);
+    }
+
+    /** Logs in like the SPA (XSRF cookie echoed in the header) from a fresh client IP; returns the session cookie. */
+    private Cookie login(String username) throws Exception {
+        int n = SEQ.incrementAndGet();
+        String ip = "10.29." + (n / 250) + "." + (n % 250 + 1);
+        MvcResult result = mvc.perform(post("/api/v1/auth/login")
+                        .with(r -> {
+                            r.setRemoteAddr(ip);
+                            return r;
+                        })
+                        .cookie(new Cookie("XSRF-TOKEN", XSRF))
+                        .header("X-XSRF-TOKEN", XSRF)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("username", username, "password", TEST_PASSWORD))))
+                .andExpect(status().isOk())
+                .andReturn();
+        for (Cookie c : result.getResponse().getCookies()) {
+            if (c.getName().equals("SESSION")) {
+                return new Cookie("SESSION", c.getValue());
+            }
+        }
+        throw new AssertionError("no session cookie");
     }
 
     private static HttpServer startCapture() {

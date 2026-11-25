@@ -16,13 +16,19 @@ import org.springframework.util.StringUtils;
  *   <li>{@code app.customer.otp.dev-fixed-code} is set: every contact verification code would be known
  *       (design 02-customer backend §6, §8, OQ 11);</li>
  *   <li>{@code app.payment.mock.enabled} is true: the public mock checkout page would let anyone settle a payment
- *       (design 02-customer backend §4, §6).</li>
+ *       (design 02-customer backend §4, §6);</li>
+ *   <li>{@code app.customer.otp.hmac-secret} or {@code app.payment.gateway.webhook-secret} is blank: each instance would
+ *       make its own random key, so codes and signed webhooks fail across instances (review C1; NFR-AVAIL, NFR-SEC);</li>
+ *   <li>{@code app.payment.return-url-base} is blank: E15 builds the gateway return URL from it (erratum E4).</li>
  * </ul>
  */
 public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
 
     static final String OTP_DEV_FIXED_CODE = "app.customer.otp.dev-fixed-code";
     static final String PAYMENT_MOCK_ENABLED = "app.payment.mock.enabled";
+    static final String OTP_HMAC_SECRET = "app.customer.otp.hmac-secret";
+    static final String PAYMENT_WEBHOOK_SECRET = "app.payment.gateway.webhook-secret";
+    static final String PAYMENT_RETURN_URL_BASE = "app.payment.return-url-base";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -40,6 +46,16 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
         if (Boolean.TRUE.equals(environment.getProperty(PAYMENT_MOCK_ENABLED, Boolean.class, Boolean.FALSE))) {
             throw new IllegalStateException("Property '" + PAYMENT_MOCK_ENABLED + "' must not be true with the 'prod' "
                     + "profile: the mock checkout page is public and settles payments (02 backend §4, §6)");
+        }
+        for (String secret : new String[] {OTP_HMAC_SECRET, PAYMENT_WEBHOOK_SECRET}) {
+            if (!StringUtils.hasText(environment.getProperty(secret))) {
+                throw new IllegalStateException("Property '" + secret + "' must be set with the 'prod' profile: a "
+                        + "blank value makes a random key per instance, which other instances cannot verify");
+            }
+        }
+        if (!StringUtils.hasText(environment.getProperty(PAYMENT_RETURN_URL_BASE))) {
+            throw new IllegalStateException("Property '" + PAYMENT_RETURN_URL_BASE + "' must be set with the 'prod' "
+                    + "profile: it is the SPA origin the payment gateway returns to (02 backend erratum E4)");
         }
     }
 

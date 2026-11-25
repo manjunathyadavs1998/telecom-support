@@ -118,14 +118,15 @@ public class PaymentQueryService {
 
     /**
      * E14 (R11): the account's payments initiated between {@code from} and {@code to} (inclusive Asia/Kolkata dates;
-     * default today minus 3 months .. today), newest first unless sorted otherwise. {@code from > to} or a range over 366
+     * default today minus 3 months .. today; only {@code to} given → 3 months before it), newest first unless sorted
+     * otherwise. {@code from > to} or a range over 366
      * days → 400.
      */
     @Transactional(readOnly = true)
     public PaymentPage myPayments(LocalDate from, LocalDate to, int page, int size, PaymentSort sort) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), zone);
         LocalDate end = to != null ? to : today;
-        LocalDate start = from != null ? from : today.minusMonths(DEFAULT_WINDOW_MONTHS);
+        LocalDate start = from != null ? from : end.minusMonths(DEFAULT_WINDOW_MONTHS);
         if (start.isAfter(end)) {
             throw new BadRequestException("Payment list from " + start + " after to " + end,
                     "The start date must not be after the end date.");

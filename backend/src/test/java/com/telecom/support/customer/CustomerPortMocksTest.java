@@ -93,7 +93,11 @@ class CustomerPortMocksTest {
     void devFixedCodeIsAllowedOutsideProdAndProdWithoutItStarts() {
         MockEnvironment dev = new MockEnvironment().withProperty("app.customer.otp.dev-fixed-code", "123456");
         dev.setActiveProfiles("dev");
-        MockEnvironment prod = new MockEnvironment().withProperty("app.customer.otp.dev-fixed-code", "");
+        MockEnvironment prod = new MockEnvironment().withProperty("app.customer.otp.dev-fixed-code", "")
+                // the other prod requirements of the guard (review C1, erratum E4)
+                .withProperty("app.customer.otp.hmac-secret", "otp-secret")
+                .withProperty("app.payment.gateway.webhook-secret", "webhook-secret")
+                .withProperty("app.payment.return-url-base", "https://portal.example");
         prod.setActiveProfiles("prod");
 
         assertThatCode(() -> new ProfileGuard().postProcessEnvironment(dev, null)).doesNotThrowAnyException();
