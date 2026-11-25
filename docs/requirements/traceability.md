@@ -32,32 +32,39 @@ Code paths are relative to `backend/src/main/java/com/telecom/support/` unless t
 ## Slice 02 — Customer portal
 
 Design: `02-customer/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-25). Rows use `Proposed` until the user approves the design,
-then become `Designed`. Code/Tests fill in on `slice/02-customer-be`. Section refs are to `02-customer/backend.md`.
+then become `Designed`. Code/Tests fill in on `slice/02-customer-be`. Section refs are to `02-customer/backend.md`; `FE:` refs are to
+`02-customer/frontend.md` (**Approved** 2026-11-25); FE code/tests fill in on `slice/02-customer-fe`.
 
 | BRD ID | Requirement (short) | Design | Code | Tests | Status |
 |---|---|---|---|---|---|
-| CUS-01 | Dashboard: identity, plan, promotions, recent requests/payments; own data only | §1, §4, R1, R2 (no aggregate endpoint; cards use E1, E5, E8, E11, E13, E14) | | | Designed |
-| CUS-02 | Profile: alias edit, verified contact change, read-only billing address, audit | R2, R3, §3.2, §7, E1–E4 | | | Designed |
-| CUS-03 | Plan summary, benefits, eligible upgrades, confirmed plan change | R4–R6, §8 `PlanProvisioning`, E5–E7 (charge rule = OQ 10, user decision) | | | Designed |
-| CUS-04 | Eligible active promotions, confirmed claim | R7, R8, E8, E9 | | | Designed |
-| CUS-05 | Request list: 3-month default, date filter, paging, reference search | R9, E11 | | | Designed |
-| CUS-06 | Create request: categories, auto contact, unique ref, no duplicates | R10, E10, E12 — **partial: CUS-06.3 attachment deferred to 03/04 (OQ 4)** | | | Designed (partial) |
+| CUS-01 | Dashboard: identity, plan, promotions, recent requests/payments; own data only | §1, §4, R1, R2 (no aggregate endpoint; cards use E1, E5, E8, E11, E13, E14) · FE: frontend.md §3 Dashboard | | | Designed · FE Designed |
+| CUS-02 | Profile: alias edit, verified contact change, read-only billing address, audit | R2, R3, §3.2, §7, E1–E4 · FE: frontend.md §3 Profile, §6 | | | Designed · FE Designed |
+| CUS-03 | Plan summary, benefits, eligible upgrades, confirmed plan change | R4–R6, §8 `PlanProvisioning`, E5–E7 (charge rule = OQ 10, user decision) · FE: frontend.md §3 My plan | | | Designed · FE Designed |
+| CUS-04 | Eligible active promotions, confirmed claim | R7, R8, E8, E9 · FE: frontend.md §3 Promotions, §6 | | | Designed · FE Designed |
+| CUS-05 | Request list: 3-month default, date filter, paging, reference search | R9, E11 · FE: frontend.md §3 Service requests, §4 | | | Designed · FE Designed |
+| CUS-06 | Create request: categories, auto contact, unique ref, no duplicates | R10, E10, E12 — **partial: CUS-06.3 attachment deferred to 03/04 (OQ 4)** · FE: frontend.md §3 Create request, §6 (no attachment field) | | | Designed (partial) · FE Designed |
 | CUS-06.3 | Optional attachment | not designed (OQ 4) | | | Deferred |
-| CUS-07 | Payment history: 3-month default, paging, receipt, reconciled | R11, R14, R15, §3.1, E13, E14, E17 | | | Designed |
-| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 | | | Designed |
+| CUS-07 | Payment history: 3-month default, paging, receipt, reconciled | R11, R14, R15, §3.1, E13, E14, E17 · FE: frontend.md §3 Payment history, Receipt | | | Designed · FE Designed |
+| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 · FE: frontend.md §2 (return path, backend E4), §3 Pay bill, Payment status, Receipt, §10 D1 | | | Designed · FE Designed |
 | BR-01 | Unique, non-reusable reference IDs (SR, PAY) | R10, §3.1 (01 §6.2 generator) | | | Designed |
 | BR-02 | Case has account association and channel | §2 (cases), R10 | | | Designed |
 | BR-04 | Customer vs internal notes separate | §2 (`case_activity.visibility`) | | | Designed |
-| BR-05/06 | 3-month default views; bounded filters, server paging | R9, R11 | | | Designed |
+| BR-05/06 | 3-month default views; bounded filters, server paging | R9, R11 · FE: frontend.md §3 lists, §4 `DateRangeFilter` | | | Designed · FE Designed |
 | BR-07 | SLA configurable by category | §2 (`sla_policies`), R10 | | | Designed |
 | BR-08 | Payment/provisioning confirmed by provider | R6, R13, §3.1, §8 | | | Designed |
-| BR-10 | Server-side authorization, own-account scope | §4, R1, §9 `CustomerPortalAuthzIT`, `CustomerIdorIT` | | | Designed |
-| XC-04 | Server-side pagination, filters kept across pages | R9, R11, E11, E14 | | | Designed |
-| XC-05 | Validated date filters, documented timezone | R9, R11 (00-overview §3) | | | Designed |
-| XC-06 | High-risk actions confirmed and audited | R6, R8, §7 | | | Designed |
-| XC-07 | Success only when the backend confirms | R6, R13, §3.1 | | | Designed |
+| BR-10 | Server-side authorization, own-account scope | §4, R1, §9 `CustomerPortalAuthzIT`, `CustomerIdorIT` · FE: frontend.md §2 (child routes inherit the customer gate) | | | Designed · FE Designed |
+| XC-04 | Server-side pagination, filters kept across pages | R9, R11, E11, E14 · FE: frontend.md §3 lists, §4 `useListParams` (URL params) | | | Designed · FE Designed |
+| XC-05 | Validated date filters, documented timezone | R9, R11 (00-overview §3) · FE: frontend.md §4 `dateWindow`, §6 date range | | | Designed · FE Designed |
+| XC-06 | High-risk actions confirmed and audited | R6, R8, §7 · FE: frontend.md §3 plan change/claim confirm dialogs | | | Designed · FE Designed |
+| XC-07 | Success only when the backend confirms | R6, R13, §3.1 · FE: frontend.md §3 Payment status, §5 (no optimistic updates) | | | Designed · FE Designed |
 | NFR-AVAIL | Degrade gracefully when payment/provisioning is down | §3.1, §8 | | | Designed |
 | NFR-INTEG | Ownership and payment results validated server-side | R1, R13, §3.1, `CustomerIdorIT` | | | Designed |
-| NFR-PRIV | Masked PII, no card data | §2, §7 | | | Designed |
-| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 | | | Designed |
-| NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 | | | Designed |
+| NFR-PRIV | Masked PII, no card data | §2, §7 · FE: frontend.md §3 Profile, §5 (nothing in localStorage) | | | Designed · FE Designed |
+| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 · FE: frontend.md §4 `useIdempotencyKey` (path-scoped; E15 key in sessionStorage), `useSubmitGuard` | | | Designed · FE Designed |
+| NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 · FE: frontend.md §3 Profile (OTP), §6, OQ 12 | | | Designed · FE Designed |
+| XC-02 | Restricted routes denied; APIs enforce authz | FE: frontend.md §2 (nested guarded child routes), §8 `RequirePermission.test`, e2e `forbidden.spec` | | | FE Designed |
+| XC-03 | Loading, success, empty, validation, failure states | FE: frontend.md §3 (every page, 403 rule), §6 (common error row) | | | FE Designed |
+| XC-08 | Keyboard-operable; desktop/tablet/mobile | FE: frontend.md §3, §4 `DataTable`, §8 e2e at 3 viewports | | | FE Designed |
+| NFR-A11Y | Accessible controls and validation | FE: frontend.md §3 (dialogs, disclosures, live regions), §6 | | | FE Designed |
+| NFR-RESP | Responsive customer experience | FE: frontend.md §3 Dashboard grid, §4 `DataTable` cards < md | | | FE Designed |
+| NFR-PERF | Lazy-load modules, server paging | FE: frontend.md §2 (`route.lazy`), §3 independent dashboard cards | | | FE Designed |
