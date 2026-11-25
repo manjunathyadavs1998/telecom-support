@@ -1,6 +1,6 @@
 # 00 — System overview and cross-cutting conventions
 
-- Status: **Approved** (revision 2) · Date: 2026-11-24
+- Status: **Approved** (revision 3: §1 module dependencies, approved with `02-customer/backend.md`) · Date: 2026-11-25
 - Covers: BRD §2, §7, §8, §9, §11, §13, §15 · ADRs 0001–0003
 
 This document fixes the conventions that every slice design reuses. Slice designs reference it instead of repeating it.
@@ -10,17 +10,20 @@ This document fixes the conventions that every slice design reuses. Slice design
 One Spring Boot application with feature packages under `com.telecom.support`. A module may call another module's
 `*Service` (public API) but never its repository. External systems sit behind ports with mock adapters first (ADR 0001).
 
+*Rev 3:* module dependencies are one-way and cycle-free (`ArchitectureTest`): `servicecase → customer`,
+`payment → customer`, `customer → catalog`; every module may use `common` and `audit`.
+
 | Module | Package | Owns (tables) | BRD | Slice |
 |---|---|---|---|---|
-| Common | `common` | — (errors, paging, correlation id, clock) | XC-03..05, NFR-OBS | 01 |
+| Common | `common` | — (errors, paging, correlation id, clock); ports `common.security.ActorProvider`, `AccessDeniedListener`, *rev 3:* `CustomerScope` (implemented by `identity`) | XC-03..05, NFR-OBS, BR-10 | 01, 02 |
 | Identity & access | `identity` | users, teams, roles, permissions, role_permissions, user_roles, SPRING_SESSION* | §2, §8, BR-10 | 01 |
 | Audit | `audit` | audit_events | BR-03, XC-06 | 01 |
 | Idempotency | `common.idempotency` | idempotency_keys | NFR-REL | 01 |
 | References | `common.reference` | ref_sequences | BR-01 | 01 |
-| Customer | `customer` | customers, accounts, subscriptions, contact verification | CUS-01/02, INB-01 | 02, 03 |
-| Plans & promotions | `catalog` | plans, plan_benefits, promotions | CUS-03/04 | 02 |
+| Customer | `customer` | customers, accounts, subscriptions, contact_verifications; *rev 3:* plan_changes, promotion_claims (quotes, promotion eligibility and claims live here; ports `PlanProvisioning`, `VerificationCodeSender`) | CUS-01..04, INB-01 | 02, 03 |
+| Plans & promotions | `catalog` | plans, plan_benefits, promotions; *rev 3:* promotion_plans. Read-only data, no dependency on `customer` | CUS-03/04 | 02 |
 | Cases | `servicecase` | cases, case_activity, categories, sla_policies, bookmarks | CUS-05/06, INB-02/03, OUT-01..06 | 02–04 |
-| Payments | `payment` | invoices, payments (`PaymentGateway` port) | CUS-07/08 | 02 |
+| Payments | `payment` | invoices, payments, *rev 3:* payment_gateway_events (`PaymentGateway` port) | CUS-07/08 | 02 |
 | Reactivation | `reactivation` | reactivation_requests (`ProvisioningClient` port) | INB-04 | 03 |
 | Notifications | `notification` | notifications (`NotificationSender` port) | OUT-06, §14 #12 | 03–04 |
 | Analytics & reports | `analytics` | read-only queries, export log via audit | BUS-01..03 | 05 |
