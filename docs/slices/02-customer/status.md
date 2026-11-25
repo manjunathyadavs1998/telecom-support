@@ -18,8 +18,8 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| B1 | Catalog + customer schema | `V3__catalog.sql`, `V4__customer.sql`, test-data `R__test_users_02_customer.sql` (plans, customers, accounts, subs, `users.customer_id`), `SchemaV3toV6IT` | §2 | CUS-01.3, CUS-03, §14 #1 | `SchemaV3toV6IT` V3/V4 cases pass (UKs, FK, linked users) | ☐ |
-| B2 | Case + payment schema, reference data, dev seed | `V5__servicecase.sql`, `V6__payment.sql`, test-data `R__test_users_02_customer.sql`, `db/seed/R__02_customer.sql`, `SchemaV3toV6IT` | §2 | BR-04, BR-07, §12, §14 #6 | `SchemaV3toV6IT` passes (triggers, open-payment UK, money CHECKs, every leaf has an SLA row); dev app starts | ☐ |
+| B1 | Catalog + customer schema | `V3__catalog.sql`, `V4__customer.sql`, test-data `R__test_users_02_customer.sql` (plans, customers, accounts, subs, `users.customer_id`), `SchemaV3toV6IT` | §2 | CUS-01.3, CUS-03, §14 #1 | `SchemaV3toV6IT` V3/V4 cases pass (UKs, FK, linked users) | ☑ |
+| B2 | Case + payment schema, reference data, dev seed | `V5__servicecase.sql`, `V6__payment.sql`, test-data `R__test_users_02_customer.sql`, `db/seed/R__02_customer.sql`, `SchemaV3toV6IT` | §2 | BR-04, BR-07, §12, §14 #6 | `SchemaV3toV6IT` passes (triggers, open-payment UK, money CHECKs, every leaf has an SLA row); dev app starts | ☑ |
 | B3 | Customer scope + account lookup | `common/security/CustomerScope.java`, `identity/CustomerScopeImpl.java`, `customer/AccountRepository.java`, `customer/AccountLookup.java`, `CustomerScopeIT` | §4, R1 | CUS-01.3, BR-10 | `CustomerScopeIT` passes | ☐ |
 | B4 | Profile E1, E2 | `customer/CustomerRepository.java`, `customer/CustomerService.java`, `customer/CustomerProfileController.java`, `CustomerProfileIT` | R2, R16, §7 | CUS-01.1, CUS-02.1/02.3–02.5 | `CustomerProfileIT` passes (INBOUND_AGENT 403, null vs missing alias, stale 409, CLOSED 422) | ☐ |
 | B5 | Customer ports + mocks | `customer/VerificationCodeSender.java`, `customer/MockVerificationCodeSender.java`, `customer/PlanProvisioning.java`, `customer/MockPlanProvisioning.java`, `CustomerPortMocksTest` | §8 | CUS-02.2, BR-08 | `CustomerPortMocksTest` passes | ☐ |
@@ -46,6 +46,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: backend design rev 2 approved by user 2026-11-25 (OQ defaults kept; review D1–D23 dispositioned); 00-overview §1 rev 3 approved; check-docs green.
-- Next: merge design PR (user) → cut slice/02-customer-be from main → confirm task list → B1.
-- Blockers / open questions: none blocking; defaults in backend.md §10 apply until answered.
+- Done: B1+B2 — V3–V6 migrations, CUSTOMER placeholder categories + SLA rows in V5, test data `R__test_users_02_customer.sql` (+919900000002..04; 0004 unlinked; CUST-T-0003 CLOSED), dev seed `R__02_customer.sql` (verified: dev context starts, seed reruns idempotently); `SchemaV3toV6IT` 20 cases; suite 171/0.
+- SchemaIT (slice 01) expectations extended for the new scripts and test users.
+- Next: B3 (CustomerScope + account lookup).
+- Blockers / open questions: none. Note: `categories.case_type` is NOT NULL per §2, so R10's "case_type from the leaf (else parent)" fallback never applies.
