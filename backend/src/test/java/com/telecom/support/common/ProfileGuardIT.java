@@ -8,17 +8,21 @@ import com.telecom.support.identity.LoginLimitProperties;
 import com.telecom.support.support.AbstractMySqlIT;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * F3: the {@code e2e} profile relaxes only L1 (01 backend §12 E2.4), and {@code prod} + {@code e2e} never start together
  * (E2.5; NFR-SEC). This class's own context runs as {@code dev,e2e}.
  */
 @ActiveProfiles({"dev", "e2e"})
+// the shared test database must not be wiped by this context (erratum E5 clean is proven on its own schema below)
+@TestPropertySource(properties = "spring.flyway.clean-disabled=true")
 class ProfileGuardIT extends AbstractMySqlIT {
 
     @Autowired
@@ -83,6 +87,20 @@ class ProfileGuardIT extends AbstractMySqlIT {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("'prod'")
                 .hasMessageContaining("app.customer.otp.hmac-secret");
+    }
+
+    @Test
+    void prodWithFlywayCleanEnabledFailsToStart() {
+        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class)
+                .web(WebApplicationType.SERVLET)
+                .profiles("prod");
+        String[] withClean = Stream.concat(Arrays.stream(args()), Stream.of("--spring.flyway.clean-disabled=false"))
+                .toArray(String[]::new);
+
+        assertThatThrownBy(() -> app.run(withClean))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'prod'")
+                .hasMessageContaining("spring.flyway.clean-disabled");
     }
 
     /**

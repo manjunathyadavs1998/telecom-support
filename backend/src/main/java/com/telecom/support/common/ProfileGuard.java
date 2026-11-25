@@ -12,7 +12,9 @@ import org.springframework.util.StringUtils;
  * after the config data has resolved the active profiles, so it fails before any bean, connection or port is opened.
  * The {@code prod} profile refuses to start when
  * <ul>
- *   <li>{@code e2e} is also active: it relaxes the L1 login limit (design 01-foundation backend §12 E2.5);</li>
+ *   <li>{@code e2e} is also active: it relaxes the L1 login limit (design 01-foundation backend §12 E2.5) and wipes the
+ *       database at startup (design 02-customer backend erratum E5);</li>
+ *   <li>{@code spring.flyway.clean-disabled} is false: Flyway clean would drop every table (erratum E5);</li>
  *   <li>{@code app.customer.otp.dev-fixed-code} is set: every contact verification code would be known
  *       (design 02-customer backend §6, §8, OQ 11);</li>
  *   <li>{@code app.payment.mock.enabled} is true: the public mock checkout page would let anyone settle a payment
@@ -29,6 +31,7 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
     static final String OTP_HMAC_SECRET = "app.customer.otp.hmac-secret";
     static final String PAYMENT_WEBHOOK_SECRET = "app.payment.gateway.webhook-secret";
     static final String PAYMENT_RETURN_URL_BASE = "app.payment.return-url-base";
+    static final String FLYWAY_CLEAN_DISABLED = "spring.flyway.clean-disabled";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -37,7 +40,12 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
         }
         if (environment.acceptsProfiles(Profiles.of("e2e"))) {
             throw new IllegalStateException("Profiles 'prod' and 'e2e' must not be active together: 'e2e' relaxes the "
-                    + "login rate limit and is for local end-to-end tests only (01 backend §12 E2.5)");
+                    + "login rate limit, wipes the database at startup and is for local end-to-end tests only "
+                    + "(01 backend §12 E2.5, 02 backend erratum E5)");
+        }
+        if (Boolean.FALSE.equals(environment.getProperty(FLYWAY_CLEAN_DISABLED, Boolean.class, Boolean.TRUE))) {
+            throw new IllegalStateException("Property '" + FLYWAY_CLEAN_DISABLED + "' must not be false with the "
+                    + "'prod' profile: Flyway clean drops every table (02 backend erratum E5)");
         }
         if (StringUtils.hasText(environment.getProperty(OTP_DEV_FIXED_CODE))) {
             throw new IllegalStateException("Property '" + OTP_DEV_FIXED_CODE + "' must not be set with the 'prod' "
