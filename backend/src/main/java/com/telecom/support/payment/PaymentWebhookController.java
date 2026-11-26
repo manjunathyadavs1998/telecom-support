@@ -20,12 +20,15 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +36,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.unit.DataSize;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,7 +47,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Public, no session, CSRF-exempt ({@code SecurityConfig}); authenticated only by the HMAC. The §8 order is kept:
  * <ol>
- *   <li>per-client-IP limit ({@link WebhookRateLimiter}) → 429 with {@code Retry-After}, before the body is read;</li>
+ *   <li>per-client-IP limit ({@link WebhookRateLimiter}) → 429 with {@code Retry-After}, before the body is read
+ *       and before the content type is checked (not {@code application/json} → 415), so every call counts;</li>
  *   <li>the raw body bytes are read (over {@code app.web.max-request-size} → 413), never parsed yet;</li>
  *   <li>{@link PaymentGateway#verifyWebhook}: signature over the raw bytes + timestamp tolerance → 401, so a forged
  *       call gets 401 even when its body is malformed; then parse/validate → 400 ({@code payment.succeeded} needs
@@ -90,15 +95,18 @@ class PaymentWebhookController {
         this.maxBytes = maxRequestSize.toBytes();
     }
 
-    @PostMapping(path = PATH, consumes = MediaType.APPLICATION_JSON_VALUE)
+    // no "consumes": Spring would answer 415 before the limiter, so other content types would not count (review C21)
+    @PostMapping(path = PATH)
     @PreAuthorize("permitAll()")
     ResponseEntity<?> receiveGatewayWebhook(HttpServletRequest request,
-                                          @RequestHeader HttpHeaders headers) throws IOException {
+                                          @RequestHeader HttpHeaders headers)
+            throws IOException, HttpMediaTypeNotSupportedException {
         String clientIp = ClientIp.resolve(request);
         OptionalLong retryAfter = limiter.acquire(clientIp);
         if (retryAfter.isPresent()) {
             throw new TooManyRequestsException("Webhook limit reached for a client IP", retryAfter.getAsLong());
         }
+        requireJson(request);
         byte[] raw = readRaw(request);
 
         GatewayEvent event;
@@ -125,6 +133,21 @@ class PaymentWebhookController {
                     details("reason", REASON_UNKNOWN_PAYMENT, "eventType", event.type().wireName()));
         }
         return ResponseEntity.noContent().build();
+    }
+
+    /** 415 unless the body is {@code application/json} (checked after the IP limit, §8 step 1). */
+    private static void requireJson(HttpServletRequest request) throws HttpMediaTypeNotSupportedException {
+        String contentType = request.getContentType();
+        MediaType type;
+        try {
+            type = contentType == null ? null : MediaType.parseMediaType(contentType);
+        } catch (InvalidMediaTypeException e) {
+            type = null;
+        }
+        if (type == null || !MediaType.APPLICATION_JSON.includes(type)) {
+            throw new HttpMediaTypeNotSupportedException(type, List.of(MediaType.APPLICATION_JSON),
+                    HttpMethod.POST);
+        }
     }
 
     /** Dedupe + §3.1 transition in one transaction. Returns true when the payment is unknown. */

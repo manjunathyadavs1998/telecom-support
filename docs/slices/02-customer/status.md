@@ -48,5 +48,5 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Done: B1–B21 + errata E1–E6. E6: E8 adds `claimedSubscriptionIds` (openapi updated). E5: `dev,e2e` cleans + migrates at start (`common/E2eDatabaseReset`), seed `db/seed/R__02_customer_e2e.sql` (customer 1 ≥ 21 cases/payments; customer 5 `+919800000005`, 1 sub, 2 OPEN invoices); e2e `return-url-base` = `${E2E_BASE_URL:http://host.docker.internal:8080}`.
 - B21: `CustomerPortalAuthzIT` (E1–E17 × anonymous/6 staff/unlinked + ACCESS_DENIED), `CustomerIdorIT`, `ArchitectureTest` one-way rules, `E2eProfileIT`; traceability slice 02 rows Built.
-- Open: review C5, C6, C8–C10, C12, C13 doc follow-ups; C4 approval record on `main`/PR. FE dev needs a Vite proxy for `/mock-gateway`.
-- Next: reviewer pass on the full branch, then merge-steward PR.
+- Review part 2 C15, C17–C22 fixed (keyset-paged reconcile + 50 s run budget, prod refuses disabled reconcile crons, e2e needs dev, cancel audit in-tx, webhook IP limit before 415, exemption/concurrent-dup tests); dispositions in `review.md`.
+- Open: C4/C16 approval record on `main`/PR; doc follow-ups C5, C6, C8–C10, C12, C13, C18 (§6 cron line), C20 (E5 wording). FE dev needs a Vite proxy for `/mock-gateway`. Next: reviewer pass on the full branch, then merge-steward PR.

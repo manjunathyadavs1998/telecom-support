@@ -67,7 +67,7 @@ app:
       late-capture-window: 24h
     webhook:
       ip-requests-per-minute: 60
-    reconcile:                    # PaymentReconciliationJob (02 backend §3.1); "-" disables a schedule
+    reconcile:                    # PaymentReconciliationJob (02 backend §3.1); "-" disables a schedule (tests only; refused in prod)
       pending-cron: "0 * * * * *"         # every 60 s: PENDING older than 2 min
       late-capture-cron: "0 */15 * * * *" # every 15 min: FAILED/EXPIRED completed within late-capture-window
     mock:

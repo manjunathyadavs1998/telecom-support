@@ -9,6 +9,8 @@ import com.telecom.support.payment.PaymentTransitionService.Source;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,8 +36,13 @@ import org.springframework.stereotype.Component;
  * else, or an unreachable gateway, leaves them unchanged.
  *
  * <p>Gateway calls run outside any transaction; each payment is handled on its own, so one failure does not stop a run.
- * The schedules are {@code app.payment.reconcile.pending-cron} and {@code app.payment.reconcile.late-capture-cron}
- * ({@code -} disables one, as the tests do).
+ * A run pages through <em>all</em> eligible payments in keyset order ({@link #BATCH_SIZE} per page), so none is starved
+ * by a full first page. A run also stops once it has used {@link #RUN_BUDGET}: Spring's scheduler has one thread, and a
+ * slow or timing-out gateway (5 s per call) must not hold it, and with it the other scheduled jobs, for long. Payments
+ * not reached are handled by the next run.
+ *
+ * <p>The schedules are {@code app.payment.reconcile.pending-cron} and {@code app.payment.reconcile.late-capture-cron}
+ * ({@code -} disables one, as the tests do; {@code ProfileGuard} refuses a disabled schedule under {@code prod}).
  */
 @Component
 public class PaymentReconciliationJob {
@@ -44,6 +51,8 @@ public class PaymentReconciliationJob {
     static final Duration NOT_FOUND_AGE = Duration.ofMinutes(10);
     static final Duration UNRECONCILED_AGE = Duration.ofHours(24);
     static final int BATCH_SIZE = 500;
+    /** Longest a run keeps starting gateway calls; below the 60 s pending schedule so runs never pile up. */
+    static final Duration RUN_BUDGET = Duration.ofSeconds(50);
 
     private static final Logger log = LoggerFactory.getLogger(PaymentReconciliationJob.class);
 
@@ -55,6 +64,9 @@ public class PaymentReconciliationJob {
     private final PaymentTransitionService transitions;
     private final Clock clock;
     private final Duration lateCaptureWindow;
+    /** Test seams (package-private): page size and run budget. */
+    int batchSize = BATCH_SIZE;
+    Duration runBudget = RUN_BUDGET;
 
     PaymentReconciliationJob(PaymentRepository payments, PaymentGateway gateway, PaymentTransitionService transitions,
                              Clock clock, PaymentGatewayProperties properties) {
@@ -69,42 +81,65 @@ public class PaymentReconciliationJob {
     @Scheduled(cron = "${app.payment.reconcile.pending-cron:0 * * * * *}")
     public RunResult reconcilePending() {
         Instant now = clock.instant();
-        Counter counter = new Counter();
-        for (ReconcileCandidate payment : payments.findPendingInitiatedBefore(now.minus(PENDING_MIN_AGE), BATCH_SIZE)) {
+        Instant cutoff = now.minus(PENDING_MIN_AGE);
+        return run("Reconciliation", after -> payments.findPendingInitiatedBefore(cutoff, after, batchSize), payment -> {
             try {
-                counter.add(reconcile(payment, now));
+                return reconcile(payment, now);
             } catch (RuntimeException e) {
-                counter.unreachable++;
                 log.error("Payment reconciliation of {} failed", payment.reference(), e);
+                return Outcome.UNREACHABLE;
             }
-        }
-        return counter.result();
+        });
     }
 
     /** Re-checks FAILED/EXPIRED payments completed within the late-capture window for a capture (§3.1). */
     @Scheduled(cron = "${app.payment.reconcile.late-capture-cron:0 */15 * * * *}")
     public RunResult recheckLateCaptures() {
-        Instant now = clock.instant();
-        Counter counter = new Counter();
-        for (ReconcileCandidate payment : payments.findFailedOrExpiredSince(now.minus(lateCaptureWindow), BATCH_SIZE)) {
-            try {
-                GatewayPaymentStatus status = gateway.getStatus(payment.reference());
-                counter.add(status.status() == PaymentGateway.GatewayStatus.SUCCEEDED
-                        ? applied(transitions.succeeded(payment.reference(), capture(status), Source.RECONCILE))
-                        : Outcome.UNCHANGED);
-            } catch (GatewayException unreachable) {
-                counter.unreachable++;
-                log.warn("Late-capture check of {}: gateway unreachable ({}); retried next run", payment.reference(),
-                        unreachable.getClass().getSimpleName());
-            } catch (RuntimeException e) {
-                counter.unreachable++;
-                log.error("Late-capture check of {} failed", payment.reference(), e);
-            }
-        }
-        return counter.result();
+        Instant since = clock.instant().minus(lateCaptureWindow);
+        return run("Late-capture check", after -> payments.findFailedOrExpiredSince(since, after, batchSize),
+                payment -> {
+                    try {
+                        GatewayPaymentStatus status = gateway.getStatus(payment.reference());
+                        return status.status() == PaymentGateway.GatewayStatus.SUCCEEDED
+                                ? applied(transitions.succeeded(payment.reference(), capture(status), Source.RECONCILE))
+                                : Outcome.UNCHANGED;
+                    } catch (GatewayException unreachable) {
+                        log.warn("Late-capture check of {}: gateway unreachable ({}); retried next run",
+                                payment.reference(), unreachable.getClass().getSimpleName());
+                        return Outcome.UNREACHABLE;
+                    } catch (RuntimeException e) {
+                        log.error("Late-capture check of {} failed", payment.reference(), e);
+                        return Outcome.UNREACHABLE;
+                    }
+                });
     }
 
     private enum Outcome { APPLIED, UNCHANGED, UNREACHABLE }
+
+    /**
+     * Handles every candidate page by page (keyset: each page starts after the last row of the previous one) until a
+     * short page ends the run, or until {@link #runBudget} is used up (at least one payment is always handled).
+     */
+    private RunResult run(String name, Function<ReconcileCandidate, List<ReconcileCandidate>> page,
+                          Function<ReconcileCandidate, Outcome> handle) {
+        long deadline = System.nanoTime() + runBudget.toNanos();
+        Counter counter = new Counter();
+        ReconcileCandidate last = null;
+        while (true) {
+            List<ReconcileCandidate> batch = page.apply(last);
+            for (ReconcileCandidate payment : batch) {
+                counter.add(handle.apply(payment));
+                if (System.nanoTime() - deadline >= 0) {
+                    log.warn("{} run stopped after its {} budget; the rest is handled next run", name, runBudget);
+                    return counter.result();
+                }
+            }
+            if (batch.size() < batchSize) {
+                return counter.result();
+            }
+            last = batch.get(batch.size() - 1);
+        }
+    }
 
     private Outcome reconcile(ReconcileCandidate payment, Instant now) {
         String reference = payment.reference();

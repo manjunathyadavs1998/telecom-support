@@ -36,8 +36,12 @@ class PaymentRepository {
     /** A payment of one invoice, as initiate (R12, erratum E1) checks it. */
     record InvoicePayment(String reference, String status, Instant completedAt) {}
 
-    /** A payment the reconciliation job polls the gateway for (system read, not scoped to an account). */
-    record ReconcileCandidate(String reference, Instant initiatedAt) {}
+    /**
+     * A payment the reconciliation job polls the gateway for (system read, not scoped to an account). {@code pageAt} and
+     * {@code id} are its keyset position: {@code initiated_at} for the PENDING poll, {@code completed_at} for the
+     * late-capture watch.
+     */
+    record ReconcileCandidate(long id, String reference, Instant initiatedAt, Instant pageAt) {}
 
     /** Fixed ORDER BY fragments, chosen by a whitelisted sort key (never from the request text). */
     enum Order {
@@ -85,23 +89,31 @@ class PaymentRepository {
             ORDER BY id
             """;
 
-    /** Reconcile (§3.1): PENDING payments initiated at or before the cutoff, oldest first (index status, initiated_at). */
+    /**
+     * Reconcile (§3.1): one keyset page of PENDING payments initiated at or before the cutoff and after the position
+     * {@code (:afterAt, :afterId)}, oldest first (index status, initiated_at).
+     */
     private static final String PENDING_BEFORE = """
-            SELECT reference, initiated_at
+            SELECT id, reference, initiated_at, initiated_at AS page_at
             FROM payments
             WHERE status = 'PENDING'
               AND initiated_at <= :cutoff
+              AND (initiated_at > :afterAt OR (initiated_at = :afterAt AND id > :afterId))
             ORDER BY initiated_at, id
             LIMIT :limit
             """;
 
-    /** Late-capture watch (§3.1): FAILED/EXPIRED payments completed at or after {@code :since}, newest first. */
+    /**
+     * Late-capture watch (§3.1): one keyset page of FAILED/EXPIRED payments completed after the position
+     * {@code (:afterAt, :afterId)}, oldest first. The first page starts at {@code (since, 0)}, i.e. completed at or
+     * after {@code since}.
+     */
     private static final String FINISHED_SINCE = """
-            SELECT reference, initiated_at
+            SELECT id, reference, initiated_at, completed_at AS page_at
             FROM payments
             WHERE status IN ('FAILED', 'EXPIRED')
-              AND completed_at >= :since
-            ORDER BY completed_at DESC, id DESC
+              AND (completed_at > :afterAt OR (completed_at = :afterAt AND id > :afterId))
+            ORDER BY completed_at, id
             LIMIT :limit
             """;
 
@@ -201,17 +213,26 @@ class PaymentRepository {
                         instant(rs, "completed_at")));
     }
 
-    /** At most {@code limit} PENDING payments initiated at or before {@code cutoff}, oldest first (reconcile). */
-    List<ReconcileCandidate> findPendingInitiatedBefore(Instant cutoff, int limit) {
+    /**
+     * At most {@code limit} PENDING payments initiated at or before {@code cutoff}, oldest first, strictly after the
+     * keyset position {@code after} ({@code null} = first page) (reconcile).
+     */
+    List<ReconcileCandidate> findPendingInitiatedBefore(Instant cutoff, ReconcileCandidate after, int limit) {
         return jdbc.query(PENDING_BEFORE, new MapSqlParameterSource()
                 .addValue("cutoff", utc(cutoff))
+                .addValue("afterAt", utc(after == null ? Instant.EPOCH : after.pageAt()))
+                .addValue("afterId", after == null ? 0L : after.id())
                 .addValue("limit", limit), (rs, i) -> candidate(rs));
     }
 
-    /** At most {@code limit} FAILED/EXPIRED payments completed at or after {@code since} (late-capture watch). */
-    List<ReconcileCandidate> findFailedOrExpiredSince(Instant since, int limit) {
+    /**
+     * At most {@code limit} FAILED/EXPIRED payments completed at or after {@code since}, oldest first, strictly after
+     * the keyset position {@code after} ({@code null} = first page) (late-capture watch).
+     */
+    List<ReconcileCandidate> findFailedOrExpiredSince(Instant since, ReconcileCandidate after, int limit) {
         return jdbc.query(FINISHED_SINCE, new MapSqlParameterSource()
-                .addValue("since", utc(since))
+                .addValue("afterAt", utc(after == null ? since : after.pageAt()))
+                .addValue("afterId", after == null ? 0L : after.id())
                 .addValue("limit", limit), (rs, i) -> candidate(rs));
     }
 
@@ -279,7 +300,8 @@ class PaymentRepository {
     }
 
     private static ReconcileCandidate candidate(ResultSet rs) throws SQLException {
-        return new ReconcileCandidate(rs.getString("reference"), instant(rs, "initiated_at"));
+        return new ReconcileCandidate(rs.getLong("id"), rs.getString("reference"), instant(rs, "initiated_at"),
+                instant(rs, "page_at"));
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {

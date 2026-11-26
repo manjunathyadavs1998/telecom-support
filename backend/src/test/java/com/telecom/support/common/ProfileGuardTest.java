@@ -78,6 +78,33 @@ class ProfileGuardTest {
         assertThatCode(() -> new ProfileGuard().postProcessEnvironment(dev, null)).doesNotThrowAnyException();
     }
 
+    @Test
+    void e2eWithoutDevIsRefused() {
+        // review C20: e2e wipes the database at startup; only the local dev database may be wiped
+        MockEnvironment env = new MockEnvironment().withProperty("spring.flyway.clean-disabled", "false");
+        env.setActiveProfiles("e2e");
+
+        assertThatThrownBy(() -> new ProfileGuard().postProcessEnvironment(env, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'e2e'")
+                .hasMessageContaining("'dev'");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"app.payment.reconcile.pending-cron", "app.payment.reconcile.late-capture-cron"})
+    void prodRefusesADisabledReconcileSchedule(String property) {
+        // review C18: with reconciliation off, PENDING payments never reach REVIEW and late captures are never applied
+        assertThatThrownBy(() -> new ProfileGuard().postProcessEnvironment(prod().withProperty(property, "-"), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'" + property + "'")
+                .hasMessageContaining("'prod'");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(
+                prod().withProperty(property, "0 * * * * *"), null)).doesNotThrowAnyException();
+        MockEnvironment dev = new MockEnvironment().withProperty(property, "-");
+        dev.setActiveProfiles("dev");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(dev, null)).doesNotThrowAnyException();
+    }
+
     private static MockEnvironment prod() {
         MockEnvironment env = new MockEnvironment()
                 .withProperty("app.customer.otp.hmac-secret", "otp-secret")

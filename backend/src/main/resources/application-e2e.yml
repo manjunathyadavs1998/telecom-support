@@ -1,7 +1,8 @@
 # e2e profile (01 backend §12 E2.4, 02 backend erratum E5): used only together with dev (`dev,e2e`) for the Playwright
 # run. It logs in more often than L1 allows, starts every run from a fresh database (Flyway clean -> migrate with the
 # dev seed, see common.E2eDatabaseReset) and returns from the mock gateway to the e2e base origin (erratum E4).
-# ProfileGuard refuses to start when prod and e2e are both active, or clean is enabled under prod (E2.5, E5).
+# ProfileGuard refuses to start when e2e is active without dev, prod and e2e are both active, or clean is enabled
+# under prod (E2.5, E5, review C20).
 app:
   security:
     login:

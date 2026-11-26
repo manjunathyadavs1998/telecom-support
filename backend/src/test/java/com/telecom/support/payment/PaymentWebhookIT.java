@@ -2,7 +2,11 @@ package com.telecom.support.payment;
 
 import static com.telecom.support.support.ProblemAssert.assertProblem;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.telecom.support.payment.PaymentGateway.EventType;
@@ -192,6 +196,24 @@ class PaymentWebhookIT extends AbstractMySqlIT {
     }
 
     @Test
+    void sameEventDeliveredConcurrentlyIsProcessedOnce() throws Exception {
+        // review C22(b): the second delivery waits on the event id's unique key, then no-ops
+        for (int round = 0; round < 3; round++) {
+            Pay pay = payment("PENDING");
+            MockPaymentGateway.SignedWebhook webhook = sign(succeeded(pay, "evt_tw_" + SEQ.incrementAndGet()));
+
+            List<Integer> statuses = inParallel(
+                    () -> send(webhook, ip()).andReturn().getResponse().getStatus(),
+                    () -> send(webhook, ip()).andReturn().getResponse().getStatus());
+
+            assertThat(statuses).containsOnly(204);
+            assertThat(invoiceAmountPaid(pay)).isEqualByComparingTo("399.00");
+            assertThat(auditCount("PAYMENT_SUCCEEDED", pay.ref)).isEqualTo(1);
+            assertThat(events(pay)).containsExactly("APPLIED");
+        }
+    }
+
+    @Test
     void failedAfterSucceededIsIgnored() throws Exception {
         Pay pay = payment("PENDING");
         send(sign(succeeded(pay, "evt_tw_" + SEQ.incrementAndGet())), ip()).andExpect(status().isNoContent());
@@ -326,7 +348,38 @@ class PaymentWebhookIT extends AbstractMySqlIT {
                 "unsupported-media-type", PATH);
     }
 
+    @Test
+    void publicAndCsrfExemptionCoversOnlyPostOnTheWebhookPath() throws Exception {
+        // review C22(a), §4: only POST on exactly this path is public and CSRF-exempt
+        Pay pay = payment("PENDING");
+        byte[] body = sign(succeeded(pay, "evt_tw_" + SEQ.incrementAndGet())).body();
+
+        mvc.perform(get(PATH)).andExpect(status().isUnauthorized());
+        for (var request : List.of(put(PATH), delete(PATH), patch(PATH), post(PATH + "/x"),
+                post("/api/v1/payment-gateway/other"), post("/api/v1/customers/me/payments"))) {
+            int status = mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andReturn().getResponse().getStatus();
+            assertThat(status).as(request.toString()).isIn(401, 403);
+        }
+        assertThat(paymentRow(pay.ref).get("status")).isEqualTo("PENDING");
+    }
+
     // ------------------------------------------------------------------ abuse controls
+
+    @Test
+    void nonJsonCallsCountTowardTheIpLimit() throws Exception {
+        // review C21: the IP limit runs before the content-type check (§8 order)
+        String ip = ip();
+        for (int i = 0; i < 60; i++) {
+            mvc.perform(post(PATH).with(r -> {
+                r.setRemoteAddr(ip);
+                return r;
+            }).contentType(MediaType.TEXT_PLAIN).content("x")).andExpect(status().isUnsupportedMediaType());
+        }
+        Pay pay = payment("PENDING");
+        assertProblem(send(sign(succeeded(pay, "evt_tw_" + SEQ.incrementAndGet())), ip).andReturn(), 429,
+                "too-many-requests", PATH);
+    }
 
     @Test
     void rejectedAuditIsSampledOncePerIpPerMinute() throws Exception {

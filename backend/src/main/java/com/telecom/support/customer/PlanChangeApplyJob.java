@@ -161,7 +161,8 @@ public class PlanChangeApplyJob {
                 planChanges.markCancelled(id, PROVIDER_FAILED_REASON, now);
                 log.warn("Plan change {} cancelled after {} failed provisioning attempts", id,
                         change.applyAttempts() + 1);
-                audit.recordIndependently(PlanChangeService.CANCELLED, Outcome.FAILURE, null, null,
+                // same transaction as markCancelled (review C19): the audit commits or rolls back with the cancel
+                audit.record(PlanChangeService.CANCELLED, Outcome.FAILURE, null, null,
                         PlanChangeService.ENTITY_SUBSCRIPTION, subscription, details);
             }
         }));

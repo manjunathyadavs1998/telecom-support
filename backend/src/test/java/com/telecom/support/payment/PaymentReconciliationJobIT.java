@@ -64,6 +64,8 @@ class PaymentReconciliationJobIT extends AbstractMySqlIT {
     void cleanUp() {
         PaymentTestClock.CLOCK.set(T0);
         gateway.reset();
+        job.batchSize = PaymentReconciliationJob.BATCH_SIZE;
+        job.runBudget = PaymentReconciliationJob.RUN_BUDGET;
         jdbc.update("""
                 DELETE p FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE i.invoice_ref LIKE 'INV-T-R%'
                 """, Map.of());
@@ -218,6 +220,59 @@ class PaymentReconciliationJobIT extends AbstractMySqlIT {
 
         assertThat(paymentRow(notPaid).get("status")).isEqualTo("FAILED");
         assertThat(auditCount(notPaid)).isZero();
+    }
+
+    // ------------------------------------------------------------------ paging and run budget (review C15, C17)
+
+    @Test
+    void runsPageThroughMoreCandidatesThanOneBatch() {
+        job.batchSize = 2;
+        // the oldest PENDING stays PENDING at the gateway: keyset paging must move past it, not re-read it
+        Pay stillPending = pendingWithSession(Duration.ofMinutes(14)); // session TTL 15 min: still open
+        List<Pay> pending = new ArrayList<>();
+        List<Pay> expired = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            Pay p = pendingWithSession(Duration.ofMinutes(13 - i));
+            gateway.complete(p.session, GatewayStatus.SUCCEEDED, Method.UPI);
+            pending.add(p);
+            Pay e = finished("EXPIRED", Duration.ofHours(10 - i));
+            gateway.complete(e.session, GatewayStatus.SUCCEEDED, Method.UPI);
+            expired.add(e);
+        }
+
+        job.reconcilePending();
+        job.recheckLateCaptures();
+
+        assertThat(paymentRow(stillPending).get("status")).isEqualTo("PENDING");
+        for (Pay pay : pending) {
+            assertThat(paymentRow(pay).get("status")).isEqualTo("SUCCEEDED");
+        }
+        for (Pay pay : expired) {
+            assertThat(paymentRow(pay).get("status")).isEqualTo("SUCCEEDED");
+            assertThat(invoiceStatus(pay)).isEqualTo("PAID");
+        }
+    }
+
+    @Test
+    void runStopsOnceItsBudgetIsUsedAndTheNextRunContinues() {
+        List<Pay> pays = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            Pay p = pendingWithSession(Duration.ofMinutes(10 - i));
+            gateway.complete(p.session, GatewayStatus.SUCCEEDED, Method.UPI);
+            pays.add(p);
+        }
+        job.runBudget = Duration.ZERO;
+
+        PaymentReconciliationJob.RunResult first = job.reconcilePending();
+        PaymentReconciliationJob.RunResult late = job.recheckLateCaptures();
+
+        assertThat(first.applied() + first.unchanged() + first.unreachable()).isEqualTo(1);
+        assertThat(late.applied() + late.unchanged() + late.unreachable()).isLessThanOrEqualTo(1);
+        job.runBudget = PaymentReconciliationJob.RUN_BUDGET;
+        job.reconcilePending();
+        for (Pay pay : pays) {
+            assertThat(paymentRow(pay).get("status")).isEqualTo("SUCCEEDED");
+        }
     }
 
     // ------------------------------------------------------------------ races
