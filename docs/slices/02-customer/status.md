@@ -57,7 +57,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | F8 | Shell: breadcrumbs + active nav for child routes | `src/components/layout/Breadcrumbs.tsx`, `src/components/layout/NavList.tsx`, `src/components/layout/AppShell.test.tsx` | §2 | XC-08, NFR-A11Y | `AppShell.test` passes (crumbs "Payment history › PAY-… › Receipt", parent item `aria-current` on child routes) | ☑ |
 | F9 | Profile view + alias edit | `src/features/customer/profile/{queries.ts,ProfilePage.tsx,AliasForm.tsx,profile.test.tsx}`, `pageRegistry.ts` | §3 Profile, §6 | CUS-02.1/02.3/02.4, XC-07 | `profile.test` passes (cache `version` at submit) | ☑ |
 | F10 | Contact verification dialog | `src/features/customer/profile/{ContactChangeDialog.tsx,contactSchemas.ts (incl. attemptsRemaining),contactVerification.test.tsx,ProfilePage.tsx,queries.ts}` | §3 Profile, §4, §6 | CUS-02.2, NFR-SEC | `contactVerification.test` passes; `profile.test` "confirm then alias save" passes | ☑ |
-| F11 | My plan page | `src/features/customer/plan/{queries.ts,PlanPage.tsx,SubscriptionCard.tsx,plan.test.tsx}`, `pageRegistry.ts` | §3 My plan | CUS-03.1–03.3 | `plan.test` passes | ☐ |
+| F11 | My plan page | `src/features/customer/plan/{queries.ts,PlanPage.tsx,SubscriptionCard.tsx,plan.test.tsx}`, `pageRegistry.ts` | §3 My plan | CUS-03.1–03.3 | `plan.test` passes | ☑ |
 | F12 | Upgrade options + plan change | `src/features/customer/plan/{UpgradeOptions.tsx,PlanChangeDialog.tsx,planChange.test.tsx,SubscriptionCard.tsx,queries.ts}` | §3 My plan, §6 | CUS-03.4/03.5, XC-06, NFR-REL | `planChange.test` passes | ☐ |
 | F13 | Promotions + per-number claim | `src/features/customer/promotions/{queries.ts,PromotionsPage.tsx,ClaimDialog.tsx,promotions.test.tsx}`, `pageRegistry.ts` | §3 Promotions, §6, §10 D3 | CUS-04 | `promotions.test` passes | ☐ |
 | F14 | Service request list | `src/features/customer/requests/{queries.ts,RequestListPage.tsx,requestList.test.tsx}`, `pageRegistry.ts` | §3 Service requests | CUS-05, BR-05/06, XC-04 | `requestList.test` passes | ☐ |
@@ -72,7 +72,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - F1–F8: see git log; `components/data/` list controls (labels/schema in `statusLabel.ts`, `dateRangeSchema.ts`); scope DataTable queries with `within(...)`; pages register `id → import()` (module exporting `Component`) in `app/pageRegistry.ts`.
-- F9/F10: `features/customer/profile/` — `queries.ts` (profile query + alias/contact mutations; contact mutations `gcTime: 0` + `reset()` after settle), `AliasForm` (cache `version` at submit), `ContactChangeDialog` (E3 → code → E4; 30 s resend cooldown, 429 countdown, expiry announcements, locked state), `contactSchemas.ts` (`attemptsRemaining`, `normaliseMsisdn`). `FormField` accepts RHF's transformed-values generic.
-- Pattern for countdowns: one `setInterval` clock + deadlines; tests fake only `Date`/`setInterval` (`vi.useFakeTimers({ toFake: [...] })`).
+- F9/F10: `features/customer/profile/` — `queries.ts` (profile query + alias/contact mutations; contact mutations `gcTime: 0` + `reset()` after settle), `AliasForm` (cache `version` at submit), `ContactChangeDialog` (E3 → code → E4; 30 s resend cooldown, 429 countdown, expiry announcements, locked state), `contactSchemas.ts` (`attemptsRemaining`, `normaliseMsisdn`). `FormField` accepts RHF's transformed-values generic. Countdowns: one `setInterval` clock + deadlines; tests fake only `Date`/`setInterval`.
 - Open: `clearIdempotencyRecords()` not yet called on logout.
-- Next: F11.
+- F11: `features/customer/plan/` — `queries.ts` (`['customer','subscriptions']`, `primaryFirst`), `SubscriptionCard` (disclosure, benefit groups, pending-change alert, `children` slot for upgrade), `planFormat.ts`. Find cards via their h2 (Sonner's toaster is also a `region`).
+- Next: F12.
