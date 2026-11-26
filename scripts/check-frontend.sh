@@ -8,6 +8,14 @@
 # Usage: scripts/check-frontend.sh [steps…]   (default: ci typecheck lint test gen:api:check)
 #   opt-in: install (npm install: the only way to create/update package-lock.json), build (→ frontend/dist),
 #           e2e (Playwright image matching @playwright/test; E2E_BASE_URL, E2E_PASSWORD passed through)
+# e2e precondition (02 frontend.md §7, §10 D2): start a FRESH JAR before EVERY e2e run. The `e2e` profile runs Flyway
+#   clean + migrate (dev seed incl. R__02_customer_e2e.sql) when the JAR starts, so each run begins from the same data and
+#   the payment spec finds customer 5's two OPEN invoices again. Never point it at a database you want to keep:
+#     scripts/check-frontend.sh build && (cd backend && ./mvnw -Pfrontend -DskipTests package)
+#     java -jar backend/target/*.jar --spring.profiles.active=dev,e2e   (DB_* env → a throwaway database, port 8080)
+#     E2E_PASSWORD=… scripts/check-frontend.sh e2e    then stop the JAR; restart it before the next e2e run.
+#   The JAR's E2E_BASE_URL (default http://host.docker.internal:8080) must match the browser origin used here, because the
+#   mock gateway returns to `{E2E_BASE_URL}/customer/payments/{reference}` (backend erratum E4).
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT/.logs"; mkdir -p "$LOG_DIR"

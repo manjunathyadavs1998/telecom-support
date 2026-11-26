@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { SEED_USERS, storageStateFor, type SeedUserKey } from './helpers/users.ts'
 
-// frontend.md §10 e2e `forbidden.spec.ts` (XC-02, BR-10): a direct URL to a route the role lacks renders the 403 page at
+// 01 frontend.md §10 / 02 frontend.md §8 e2e `forbidden.spec.ts` (XC-02, BR-10): a direct URL to a route the role lacks renders the 403 page at
 // that URL (no redirect), also after a reload; an unknown route renders the 404 page inside the shell. Setup storageState
 // only (read-only): no logins here.
 
@@ -9,6 +9,9 @@ const CASES: { user: SeedUserKey; path: string }[] = [
   { user: 'customer', path: '/outbound' },
   { user: 'inbound', path: '/analytics' },
   { user: 'inbound', path: '/customer/plan' },
+  // 02 child routes inherit the customer gate (frontend.md §2): staff get the 403 page, not the form.
+  { user: 'inbound', path: '/customer/requests/new' },
+  { user: 'inbound', path: '/customer/payments/pay' },
 ]
 
 async function expectSystemPage(page: Page, path: string, title: string) {
