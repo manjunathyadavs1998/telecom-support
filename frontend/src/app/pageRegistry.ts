@@ -12,4 +12,5 @@ export const PAGE_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
   'customer-profile': () => import('@/features/customer/profile/ProfilePage'),
   'customer-plan': () => import('@/features/customer/plan/PlanPage'),
   'customer-promotions': () => import('@/features/customer/promotions/PromotionsPage'),
+  'customer-requests': () => import('@/features/customer/requests/RequestListPage'),
 }

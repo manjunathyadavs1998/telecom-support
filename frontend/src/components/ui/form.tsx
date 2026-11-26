@@ -57,15 +57,12 @@ export function FormLabel(props: ComponentProps<typeof Label>) {
   return <Label htmlFor={formItemId} {...props} />
 }
 
-export function FormControl(props: ComponentProps<typeof Slot.Root>) {
+/** A caller's `aria-describedby` (e.g. a hint or counter) is kept and the error message id is appended while it shows. */
+export function FormControl({ 'aria-describedby': describedBy, ...props }: ComponentProps<typeof Slot.Root>) {
   const { error, formItemId, formMessageId } = useFormField()
+  const ids = [describedBy, error ? formMessageId : undefined].filter(Boolean).join(' ')
   return (
-    <Slot.Root
-      id={formItemId}
-      aria-invalid={error ? true : undefined}
-      aria-describedby={error ? formMessageId : undefined}
-      {...props}
-    />
+    <Slot.Root id={formItemId} aria-invalid={error ? true : undefined} aria-describedby={ids || undefined} {...props} />
   )
 }
 
