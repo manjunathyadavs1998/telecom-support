@@ -43,6 +43,7 @@ function serveProfile(initial: Profile = profile) {
     changeOnServer: (change: Partial<Profile>) => {
       current = { ...current, ...change, version: current.version + 1 }
     },
+    current: () => current,
   }
 }
 
@@ -292,5 +293,33 @@ describe('Alias form (frontend.md §3 Profile, §6; CUS-02.1/02.4, XC-07)', () =
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(aliasInput()).toHaveValue('')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('contact confirm then alias save → one PATCH with the new version, no 409 (frontend.md §8)', async () => {
+    const backend = serveProfile()
+    server.use(
+      http.post('*/api/v1/customers/me/contact-verifications/:id/confirm', () => {
+        backend.changeOnServer({ email: 'ravi@example.com', emailVerified: true })
+        return HttpResponse.json(backend.current())
+      }),
+    )
+    const user = userEvent.setup()
+    renderProfile()
+    await loaded()
+    await user.type(aliasInput(), 'Ravi')
+
+    await user.click(screen.getByRole('button', { name: 'Add email' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add email' })
+    await user.type(within(dialog).getByLabelText('New email address'), 'ravi@example.com')
+    await user.click(within(dialog).getByRole('button', { name: 'Send code' }))
+    await user.type(await within(dialog).findByLabelText('6-digit code'), '482913')
+    await user.click(within(dialog).getByRole('button', { name: 'Verify' }))
+    await screen.findByText('Email verified')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(aliasInput()).toHaveValue('Ravi')
+
+    await user.click(saveButton())
+    await screen.findByText('Profile saved')
+    expect(patches).toEqual([{ aliasName: 'Ravi', version: 4 }])
   })
 })

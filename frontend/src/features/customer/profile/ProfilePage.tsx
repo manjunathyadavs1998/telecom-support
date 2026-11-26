@@ -9,8 +9,9 @@ import { cn } from '@/lib/utils'
 import { ForbiddenPage } from '@/pages/ForbiddenPage'
 import { Can } from '@/permissions/Can'
 import { ApiError } from '@/services/api/errors'
-import type { BillingAddress, Profile } from '@/types/api'
+import type { BillingAddress, ContactChannel, Profile } from '@/types/api'
 import { AliasForm } from './AliasForm'
+import { ContactChangeDialog } from './ContactChangeDialog'
 import { useProfileQuery } from './queries'
 
 export const BILLING_ADDRESS_NOTICE = "You can't change your billing address here. Contact customer support to change it."
@@ -59,6 +60,33 @@ function ContactValue({ value, verified }: { value: string | null | undefined; v
   )
 }
 
+/** A contact row: value + verification state, and "Change" / "Add" with `customer.profile.update` (CUS-02.2). */
+function ContactRow({
+  label,
+  channel,
+  value,
+  verified,
+  primaryMsisdn,
+}: {
+  label: string
+  channel: ContactChannel
+  value: string | null | undefined
+  verified: boolean
+  primaryMsisdn: string
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="flex flex-wrap items-center justify-between gap-2 text-foreground">
+        <ContactValue value={value} verified={verified} />
+        <Can allOf={['customer.profile.update']}>
+          <ContactChangeDialog channel={channel} hasValue={Boolean(value)} primaryMsisdn={primaryMsisdn} />
+        </Can>
+      </dd>
+    </div>
+  )
+}
+
 function AddressLines({ address }: { address: BillingAddress }) {
   const lines = [
     address.line1,
@@ -100,12 +128,20 @@ function ProfileDetails({ profile }: { profile: Profile }) {
       </Section>
       <Section title="Contact details">
         <dl className="flex flex-col gap-4">
-          <Field label="Email">
-            <ContactValue value={profile.email} verified={profile.emailVerified} />
-          </Field>
-          <Field label="Secondary mobile">
-            <ContactValue value={profile.secondaryMsisdn} verified={profile.secondaryMsisdnVerified} />
-          </Field>
+          <ContactRow
+            label="Email"
+            channel="EMAIL"
+            value={profile.email}
+            verified={profile.emailVerified}
+            primaryMsisdn={profile.primaryMsisdn}
+          />
+          <ContactRow
+            label="Secondary mobile"
+            channel="SECONDARY_MSISDN"
+            value={profile.secondaryMsisdn}
+            verified={profile.secondaryMsisdnVerified}
+            primaryMsisdn={profile.primaryMsisdn}
+          />
         </dl>
       </Section>
       <Section title="Billing address">

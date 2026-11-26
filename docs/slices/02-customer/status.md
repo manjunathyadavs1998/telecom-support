@@ -56,7 +56,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | F7 | Nested guarded routes + page registry | `src/permissions/navConfig.ts`, `src/app/pageRegistry.ts`, `src/app/routes.tsx`, `navConfig.test.ts`, `RequirePermission.test.tsx` | §2 | XC-02, BR-10, NFR-PERF | extended `navConfig.test` + `RequirePermission.test` pass (IN001 → 403 on every §2 route, no customer API call; lazy page under the guard) | ☑ |
 | F8 | Shell: breadcrumbs + active nav for child routes | `src/components/layout/Breadcrumbs.tsx`, `src/components/layout/NavList.tsx`, `src/components/layout/AppShell.test.tsx` | §2 | XC-08, NFR-A11Y | `AppShell.test` passes (crumbs "Payment history › PAY-… › Receipt", parent item `aria-current` on child routes) | ☑ |
 | F9 | Profile view + alias edit | `src/features/customer/profile/{queries.ts,ProfilePage.tsx,AliasForm.tsx,profile.test.tsx}`, `pageRegistry.ts` | §3 Profile, §6 | CUS-02.1/02.3/02.4, XC-07 | `profile.test` passes (cache `version` at submit) | ☑ |
-| F10 | Contact verification dialog | `src/features/customer/profile/{ContactChangeDialog.tsx,contactSchemas.ts (incl. attemptsRemaining),contactVerification.test.tsx,ProfilePage.tsx,queries.ts}` | §3 Profile, §4, §6 | CUS-02.2, NFR-SEC | `contactVerification.test` passes; `profile.test` "confirm then alias save" passes | ☐ |
+| F10 | Contact verification dialog | `src/features/customer/profile/{ContactChangeDialog.tsx,contactSchemas.ts (incl. attemptsRemaining),contactVerification.test.tsx,ProfilePage.tsx,queries.ts}` | §3 Profile, §4, §6 | CUS-02.2, NFR-SEC | `contactVerification.test` passes; `profile.test` "confirm then alias save" passes | ☑ |
 | F11 | My plan page | `src/features/customer/plan/{queries.ts,PlanPage.tsx,SubscriptionCard.tsx,plan.test.tsx}`, `pageRegistry.ts` | §3 My plan | CUS-03.1–03.3 | `plan.test` passes | ☐ |
 | F12 | Upgrade options + plan change | `src/features/customer/plan/{UpgradeOptions.tsx,PlanChangeDialog.tsx,planChange.test.tsx,SubscriptionCard.tsx,queries.ts}` | §3 My plan, §6 | CUS-03.4/03.5, XC-06, NFR-REL | `planChange.test` passes | ☐ |
 | F13 | Promotions + per-number claim | `src/features/customer/promotions/{queries.ts,PromotionsPage.tsx,ClaimDialog.tsx,promotions.test.tsx}`, `pageRegistry.ts` | §3 Promotions, §6, §10 D3 | CUS-04 | `promotions.test` passes | ☐ |
@@ -72,7 +72,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - F1–F8: see git log; `components/data/` list controls (labels/schema in `statusLabel.ts`, `dateRangeSchema.ts`); scope DataTable queries with `within(...)`; pages register `id → import()` (module exporting `Component`) in `app/pageRegistry.ts`.
-- F9: `features/customer/profile/{queries.ts (PROFILE_QUERY_KEY, useProfileQuery, useUpdateProfileMutation → setQueryData), ProfilePage.tsx, AliasForm.tsx}`; AliasForm reads `version` from the cache at submit and re-baselines a clean form when `profile.version` changes. `FormField` now accepts RHF's transformed-values generic.
-- F9 left for F10: contact rows render value/"Not set" + Verified badge but no Change/Add button yet; `clearIdempotencyRecords()` still not called on logout.
-- Step 0 fixed the 5 F6 lint warnings and the flaky `listControls.test` (awaits the async RHF submit).
-- Next: F10.
+- F9/F10: `features/customer/profile/` — `queries.ts` (profile query + alias/contact mutations; contact mutations `gcTime: 0` + `reset()` after settle), `AliasForm` (cache `version` at submit), `ContactChangeDialog` (E3 → code → E4; 30 s resend cooldown, 429 countdown, expiry announcements, locked state), `contactSchemas.ts` (`attemptsRemaining`, `normaliseMsisdn`). `FormField` accepts RHF's transformed-values generic.
+- Pattern for countdowns: one `setInterval` clock + deadlines; tests fake only `Date`/`setInterval` (`vi.useFakeTimers({ toFake: [...] })`).
+- Open: `clearIdempotencyRecords()` not yet called on logout.
+- Next: F11.

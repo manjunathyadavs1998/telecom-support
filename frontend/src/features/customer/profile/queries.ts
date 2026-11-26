@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, apiClient } from '@/services/api/client'
-import type { Profile, ProfileUpdate } from '@/types/api'
+import type { ContactVerification, ContactVerificationStart, Profile, ProfileUpdate } from '@/types/api'
 
 /** The own profile (frontend.md §5): one cache entry, also the source of the alias form's `version` at submit (§3 Profile). */
 export const PROFILE_QUERY_KEY = ['customer', 'profile'] as const
@@ -27,5 +27,41 @@ export function useUpdateProfileMutation() {
   return useMutation({
     mutationFn: patchProfile,
     onSuccess: (saved) => client.setQueryData(PROFILE_QUERY_KEY, saved),
+  })
+}
+
+/** E3 `POST /customers/me/contact-verifications` (CUS-02.2): sends a code; nothing changes until E4. */
+export async function postContactVerification(body: ContactVerificationStart): Promise<ContactVerification> {
+  return api.call(apiClient.POST('/api/v1/customers/me/contact-verifications', { body }))
+}
+
+/** E4 `POST /customers/me/contact-verifications/{id}/confirm` (CUS-02.2): applies the change and returns the new profile. */
+export async function postContactConfirm({ verificationId, code }: { verificationId: number; code: string }): Promise<Profile> {
+  return api.call(
+    apiClient.POST('/api/v1/customers/me/contact-verifications/{verificationId}/confirm', {
+      params: { path: { verificationId } },
+      body: { code },
+    }),
+  )
+}
+
+/** Contact start; `gcTime: 0` so the new contact value leaves the MutationCache once settled and reset (NFR-SEC, §6). */
+export function useStartContactVerification() {
+  return useMutation({ mutationFn: postContactVerification, gcTime: 0 })
+}
+
+/**
+ * Contact confirm; `gcTime: 0` so the code leaves the MutationCache once settled and reset (NFR-SEC). The 200 `Profile` goes
+ * into the cache (its new `version` re-baselines the alias form) and the profile is invalidated (§3 Profile).
+ */
+export function useConfirmContactVerification() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: postContactConfirm,
+    gcTime: 0,
+    onSuccess: (saved) => {
+      client.setQueryData(PROFILE_QUERY_KEY, saved)
+      void client.invalidateQueries({ queryKey: PROFILE_QUERY_KEY, exact: true })
+    },
   })
 }
