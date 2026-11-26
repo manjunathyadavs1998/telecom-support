@@ -15,6 +15,17 @@ export const IDEMPOTENCY_RECORD_TTL_MS = 24 * 60 * 60 * 1000
 /** Statuses after which the server will not replay the request, so the next attempt needs a fresh key. */
 const DROP_KEY_STATUSES = new Set([400, 404, 422])
 
+/**
+ * A 422 whose problem `type` ends in `idempotency-mismatch` (frontend.md §6 common rule, F7): the key was used for another
+ * body. The caller shows "Please try again" (never business copy); `failed()` has already dropped the key.
+ */
+export function isIdempotencyMismatch(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 422 && (error.problem?.type.endsWith('idempotency-mismatch') ?? false)
+}
+
+/** Shown after an idempotency-mismatch 422 (frontend.md §6). */
+export const IDEMPOTENCY_MISMATCH_MESSAGE = 'Please try again.'
+
 /** JSON with object keys sorted at every level, so equal bodies serialise equally whatever their key order. */
 export function stableStringify(value: unknown): string {
   if (value === undefined) return 'null'
