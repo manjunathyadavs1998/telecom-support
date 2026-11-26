@@ -5,11 +5,12 @@ import { LOOKS, type Look, type StatusBadgeProps, type Tone } from './statusLabe
 
 export type { StatusBadgeProps } from './statusLabel'
 
+// Text one step darker than the token on its 10 % tint: small badge text needs 4.5:1 (axe color-contrast, NFR-A11Y).
 const TONES: Record<Tone, string> = {
   neutral: 'border-slate-300 bg-slate-100 text-foreground',
   info: 'border-primary/30 bg-primary/10 text-primary',
-  success: 'border-success/30 bg-success/10 text-success',
-  warning: 'border-warning/30 bg-warning/10 text-warning',
+  success: 'border-success/30 bg-success/10 text-green-800',
+  warning: 'border-warning/30 bg-warning/10 text-amber-800',
   danger: 'border-destructive/30 bg-destructive/10 text-destructive',
 }
 
