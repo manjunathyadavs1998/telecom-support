@@ -57,6 +57,14 @@ app:
       dev-fixed-code: ""          # set only in dev; ProfileGuard refuses it with prod
     plan-change:
       apply-cron: "0 5 0 * * *"   # daily 00:05 in app.display-time-zone (02 backend R6)
+  inbound:                        # inbound workspace (03 backend §6); the identity check OTP reuses app.customer.otp.*
+    searches-per-minute: 30       # customer searches per agent per minute -> 429 (per instance, OQ 15)
+    lookup-token-ttl: 15m         # a search hit's lookup token (R1, R2)
+    identity-check:
+      validity: 30m               # VERIFIED window per agent + customer, never extended (R5)
+    kba-customer-per-hour: 3      # KBA attempts (CHECKING|FAILED) per customer per rolling hour -> 429 (R4)
+    kba-agent-per-hour: 10        # KBA attempts (CHECKING|FAILED) per agent per rolling hour -> 429 (R4)
+    related-window: 30d           # possible duplicates +/- around a case (R10)
   payment:                        # hosted payment gateway (02 backend §6, §8, §3.1)
     return-url-base: ${PAYMENT_RETURN_URL_BASE:http://localhost:${server.port:8080}}   # SPA origin; E15 returnUrl = base + /customer/payments/{ref} (E4); required in prod
     gateway:
