@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import type { ListApiQuery } from '@/components/data/useListParams'
 import { api, apiClient } from '@/services/api/client'
-import type { Invoice, Payment, PaymentInitiated, PaymentInitiateRequest, PaymentPage } from '@/types/api'
+import type { Invoice, Payment, PaymentInitiated, PaymentInitiateRequest, PaymentPage, Receipt } from '@/types/api'
 
 /** Own payments (frontend.md §5): `['customer','payments',params]`; a terminal payment status invalidates the whole prefix. */
 export const PAYMENTS_QUERY_KEY = ['customer', 'payments'] as const
@@ -78,4 +78,16 @@ export async function postPayment({ idempotencyKey, body }: InitiatePaymentVaria
 /** Initiate: never optimistic (XC-07); the result is never taken from the browser return (the status page polls E16). */
 export function useInitiatePayment() {
   return useMutation({ mutationFn: postPayment })
+}
+
+/** One receipt (frontend.md §5): `['customer','receipt',ref]`. */
+export const receiptQueryKey = (reference: string) => ['customer', 'receipt', reference] as const
+
+/** E17 `GET /customers/me/payments/{reference}/receipt` (CUS-07.4, CUS-08.5): only for a SUCCEEDED payment, else 422. */
+export async function fetchReceipt(reference: string): Promise<Receipt> {
+  return api.call(apiClient.GET('/api/v1/customers/me/payments/{reference}/receipt', { params: { path: { reference } } }))
+}
+
+export function useReceiptQuery(reference: string) {
+  return useQuery({ queryKey: receiptQueryKey(reference), queryFn: () => fetchReceipt(reference) })
 }

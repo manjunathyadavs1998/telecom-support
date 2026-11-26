@@ -111,6 +111,13 @@ describe('AppShell breadcrumbs and active nav on child routes (frontend.md §2; 
     expect(within(mainNav()).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
   })
 
+  it('receipt printing: the header and the sidebar are hidden in print (frontend.md §3 Receipt)', async () => {
+    renderShell(meFixtures.customer, `/customer/payments/${REF}/receipt`)
+    await h1('Receipt')
+    expect(screen.getByRole('banner')).toHaveClass('print:hidden')
+    expect(mainNav().closest('.bg-sidebar')).toHaveClass('print:hidden')
+  })
+
   it.each([
     ['/customer/requests/new', 'New request', ['Service requests', 'New request'], 'Service requests'],
     ['/customer/payments/pay', 'Pay bill', ['Payment history', 'Pay bill'], 'Payment history'],
