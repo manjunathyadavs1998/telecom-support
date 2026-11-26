@@ -32,7 +32,8 @@ Code paths are relative to `backend/src/main/java/com/telecom/support/` unless t
 ## Slice 02 — Customer portal
 
 Design: `02-customer/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-25). Rows use `Proposed` until the user approves the design,
-then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1–B21, errata E1–E6); frontend columns follow on `slice/02-customer-fe`. Section refs are to `02-customer/backend.md`.
+then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1–B21, errata E1–E6). Section refs are to `02-customer/backend.md`; `FE:` refs are to
+`02-customer/frontend.md` (**Approved** 2026-11-25); FE code/tests fill in on `slice/02-customer-fe`.
 
 | BRD ID | Requirement (short) | Design | Code | Tests | Status |
 |---|---|---|---|---|---|
@@ -62,3 +63,9 @@ then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1�
 | NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 | `common/idempotency/IdempotencyService` (path-aware hash) in E7, E9, E12, E15 | SubscriptionPlanIT, PromotionIT, CustomerCaseIT, PaymentInitiateIT | Built |
 | NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 | `customer/ContactVerificationService`, `payment/{PaymentWebhookController,WebhookRateLimiter}`, `common/ProfileGuard` (prod refuses mock, fixed OTP, blank secrets, e2e, Flyway clean) | ContactVerificationIT, PaymentWebhookIT, MockCheckoutIT, ProfileGuardIT, ProfileGuardTest | Built |
 | NFR-MAINT | One-way module dependencies (customer → catalog; servicecase, payment → customer) | §1, §9 | package-by-feature `catalog`, `customer`, `servicecase`, `payment` | ArchitectureTest (catalog ↛ customer/servicecase/payment, customer ↛ servicecase/payment, no cycles, module repositories) | Built |
+| XC-02 | Restricted routes denied; APIs enforce authz | FE: frontend.md §2 (nested guarded child routes), §8 `RequirePermission.test`, e2e `forbidden.spec` | | | FE Designed |
+| XC-03 | Loading, success, empty, validation, failure states | FE: frontend.md §3 (every page, 403 rule), §6 (common error row) | | | FE Designed |
+| XC-08 | Keyboard-operable; desktop/tablet/mobile | FE: frontend.md §3, §4 `DataTable`, §8 e2e at 3 viewports | | | FE Designed |
+| NFR-A11Y | Accessible controls and validation | FE: frontend.md §3 (dialogs, disclosures, live regions), §6 | | | FE Designed |
+| NFR-RESP | Responsive customer experience | FE: frontend.md §3 Dashboard grid, §4 `DataTable` cards < md | | | FE Designed |
+| NFR-PERF | Lazy-load modules, server paging | FE: frontend.md §2 (`route.lazy`), §3 independent dashboard cards | | | FE Designed |
