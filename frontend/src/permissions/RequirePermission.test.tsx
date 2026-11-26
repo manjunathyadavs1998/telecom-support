@@ -6,9 +6,9 @@ import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-rout
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createQueryClient, ME_QUERY_KEY, queryClient } from '@/app/queryClient'
 import { registerRouter } from '@/app/router'
-import { appRoutes } from '@/app/routes'
+import { appRoutes, buildAppRoutes } from '@/app/routes'
 import { resetCsrfBootstrap } from '@/features/authentication/meQuery'
-import { meAnalyst, meCustomer, meInbound, meInboundApprover, meOutbound, meSupervisor } from '@/test/fixtures/me'
+import { meAnalyst, meCustomer, meFixtures, meInbound, meInboundApprover, meOutbound, meSupervisor } from '@/test/fixtures/me'
 import { clearXsrfCookie } from '@/test/msw/handlers'
 import { server } from '@/test/msw/server'
 import type { Me } from '@/types/api'
@@ -221,5 +221,92 @@ describe('routes and guards (frontend.md §2 guard order; XC-02, BR-10)', () => 
     const router = renderAt('/no-such-page')
     expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
     expect(url(router)).toBe('/no-such-page')
+  })
+
+  // frontend.md §2 route table: every customer route, child routes included.
+  const REF = 'PAY-20261125-000007'
+  const CUSTOMER_ROUTES = [
+    '/customer',
+    '/customer/profile',
+    '/customer/plan',
+    '/customer/promotions',
+    '/customer/requests',
+    '/customer/requests/new',
+    '/customer/payments',
+    '/customer/payments/pay',
+    `/customer/payments/${REF}`,
+    `/customer/payments/${REF}/receipt`,
+  ]
+
+  it.each(CUSTOMER_ROUTES)('IN001 (holds plan.read, payment.read, …) on %s → ForbiddenPage, no API request', async (path) => {
+    queryClient.setQueryData(ME_QUERY_KEY, meFixtures.IN001)
+    const router = renderAt(path)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Access denied' })).toBeInTheDocument()
+    expect(url(router)).toBe(path)
+    expect(requests).toEqual([])
+  })
+
+  it.each([
+    ['/customer/requests/new', 'New request'],
+    ['/customer/payments/pay', 'Pay bill'],
+    [`/customer/payments/${REF}`, REF],
+    [`/customer/payments/${REF}/receipt`, 'Receipt'],
+  ])('a customer on the child route %s gets its page (%s)', async (path, title) => {
+    queryClient.setQueryData(ME_QUERY_KEY, meCustomer)
+    const router = renderAt(path)
+    expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+    expect(url(router)).toBe(path)
+  })
+
+  it.each([
+    ['/customer/payments/pay', 'payment.initiate'],
+    ['/customer/requests/new', 'case.create'],
+  ])('a child route adds its own permissions: %s without %s → ForbiddenPage', async (path, missing) => {
+    queryClient.setQueryData(ME_QUERY_KEY, { ...meCustomer, permissions: meCustomer.permissions.filter((p) => p !== missing) })
+    renderAt(path)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Access denied' })).toBeInTheDocument()
+    expect(requests).toEqual([])
+  })
+
+  it.each(['/customer/payments/PAY-1', '/customer/payments/pay-20261125-000007', '/customer/payments/nope/receipt'])(
+    'a malformed :reference (%s) → NotFoundPage with no API call',
+    async (path) => {
+      queryClient.setQueryData(ME_QUERY_KEY, meCustomer)
+      const router = renderAt(path)
+      expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
+      expect(url(router)).toBe(path)
+      expect(requests).toEqual([])
+    },
+  )
+
+  describe('a lazy registry page sits under the guard (NFR-PERF)', () => {
+    function PaymentData() {
+      const { data } = useQuery({
+        queryKey: ['customer', 'payment', REF],
+        queryFn: () => fetch(`/api/v1/customer/payments/${REF}`).then((r) => r.json() as Promise<{ status: string }>),
+      })
+      return <h1>Status {data?.status ?? '…'}</h1>
+    }
+    const routes = () => buildAppRoutes({ 'customer-payment-status': () => Promise.resolve({ Component: PaymentData }) })
+
+    beforeEach(() => {
+      server.use(http.get('*/api/v1/customer/payments/:reference', () => HttpResponse.json({ status: 'PENDING' })))
+    })
+
+    it('a customer gets the lazy page', async () => {
+      queryClient.setQueryData(ME_QUERY_KEY, meCustomer)
+      renderAt(`/customer/payments/${REF}`, routes())
+      expect(await screen.findByRole('heading', { level: 1, name: 'Status PENDING' })).toBeInTheDocument()
+      expect(requests).toEqual([`/api/v1/customer/payments/${REF}`])
+    })
+
+    it('IN001 gets ForbiddenPage; the lazy page never mounts and makes no request', async () => {
+      queryClient.setQueryData(ME_QUERY_KEY, meFixtures.IN001)
+      renderAt(`/customer/payments/${REF}`, routes())
+      expect(await screen.findByRole('heading', { level: 1, name: 'Access denied' })).toBeInTheDocument()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(screen.queryByRole('heading', { name: /^Status/ })).not.toBeInTheDocument()
+      expect(requests).toEqual([])
+    })
   })
 })
