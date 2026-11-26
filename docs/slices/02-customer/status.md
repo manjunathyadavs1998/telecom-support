@@ -38,7 +38,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | B18 | Signed webhook E18 | `payment/PaymentWebhookController.java`, `payment/GatewayEventRepository.java`, `payment/WebhookRateLimiter.java`, `identity/SecurityConfig.java`, `PaymentWebhookIT` | §3.1, §4, §7, §8 | CUS-08.3/08.4, CUS-07.5, BR-08 | `PaymentWebhookIT` passes (401 before 400, 429, sampling, two events one credit, REVIEW) | ☑ |
 | B19 | Mock checkout page + prod guard | `payment/MockCheckoutController.java`, `common/ProfileGuard.java`, `identity/SecurityConfig.java`, `MockCheckoutIT` | §4, §6, §8 | CUS-08.2, NFR-SEC | `MockCheckoutIT` passes | ☑ |
 | B20 | Reconciliation job | `payment/PaymentReconciliationJob.java`, `PaymentReconciliationJobIT` | §3.1 | CUS-07.5, CUS-08.4/08.5, NFR-AVAIL | `PaymentReconciliationJobIT` passes (late capture, never auto-EXPIRE, 24 h REVIEW, parallel runs) | ☑ |
-| B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests | ☐ |
+| B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests || ☑ |
 
 ## Tasks — frontend
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
@@ -46,7 +46,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B20 + review fixes `39c8894`: E2 (E10 needs a linked customer), E3 (3rd provisioning failure → CANCELLED `provisioning_failed`), E4 (returnUrl path asserted; prod has no default `return-url-base`), C1 (prod refuses blank OTP/webhook secrets), C11 (`to`-only window).
-- Review: `review.md` Disposition. C5, C6, C8–C10, C12, C13 and the reconcile FAILED reason are Accepted as doc/design follow-ups; C4 is process (record E1–E4 approval on `main`/PR).
-- Prod now needs `OTP_HMAC_SECRET`, `PAYMENT_WEBHOOK_SECRET` and `PAYMENT_RETURN_URL_BASE`. Full suite green (395).
-- Gaps: FE dev needs a Vite proxy for `/mock-gateway`. Next: B21.
+- Done: B1–B21 + errata E1–E6. E6: E8 adds `claimedSubscriptionIds` (openapi updated). E5: `dev,e2e` cleans + migrates at start (`common/E2eDatabaseReset`), seed `db/seed/R__02_customer_e2e.sql` (customer 1 ≥ 21 cases/payments; customer 5 `+919800000005`, 1 sub, 2 OPEN invoices); e2e `return-url-base` = `${E2E_BASE_URL:http://host.docker.internal:8080}`.
+- B21: `CustomerPortalAuthzIT` (E1–E17 × anonymous/6 staff/unlinked + ACCESS_DENIED), `CustomerIdorIT`, `ArchitectureTest` one-way rules, `E2eProfileIT`; traceability slice 02 rows Built.
+- Open: review C5, C6, C8–C10, C12, C13 doc follow-ups; C4 approval record on `main`/PR. FE dev needs a Vite proxy for `/mock-gateway`.
+- Next: reviewer pass on the full branch, then merge-steward PR.

@@ -32,32 +32,33 @@ Code paths are relative to `backend/src/main/java/com/telecom/support/` unless t
 ## Slice 02 — Customer portal
 
 Design: `02-customer/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-25). Rows use `Proposed` until the user approves the design,
-then become `Designed`. Code/Tests fill in on `slice/02-customer-be`. Section refs are to `02-customer/backend.md`.
+then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1–B21, errata E1–E6); frontend columns follow on `slice/02-customer-fe`. Section refs are to `02-customer/backend.md`.
 
 | BRD ID | Requirement (short) | Design | Code | Tests | Status |
 |---|---|---|---|---|---|
-| CUS-01 | Dashboard: identity, plan, promotions, recent requests/payments; own data only | §1, §4, R1, R2 (no aggregate endpoint; cards use E1, E5, E8, E11, E13, E14) | | | Designed |
-| CUS-02 | Profile: alias edit, verified contact change, read-only billing address, audit | R2, R3, §3.2, §7, E1–E4 | | | Designed |
-| CUS-03 | Plan summary, benefits, eligible upgrades, confirmed plan change | R4–R6, §8 `PlanProvisioning`, E5–E7 (charge rule = OQ 10, user decision) | | | Designed |
-| CUS-04 | Eligible active promotions, confirmed claim | R7, R8, E8, E9 | | | Designed |
-| CUS-05 | Request list: 3-month default, date filter, paging, reference search | R9, E11 | | | Designed |
-| CUS-06 | Create request: categories, auto contact, unique ref, no duplicates | R10, E10, E12 — **partial: CUS-06.3 attachment deferred to 03/04 (OQ 4)** | | | Designed (partial) |
+| CUS-01 | Dashboard: identity, plan, promotions, recent requests/payments; own data only | §1, §4, R1, R2 (no aggregate endpoint; cards use E1, E5, E8, E11, E13, E14) | `customer/{CustomerProfileController,SubscriptionController,PromotionController}`, `servicecase/CustomerCaseController`, `payment/CustomerPaymentController`, `common/security/CustomerScope`, `identity/CustomerScopeImpl`, `customer/AccountLookup`; e2e seed `db/seed/R__02_customer_e2e.sql` (E5) | CustomerScopeIT, CustomerProfileIT, SubscriptionPlanIT, PromotionIT, CustomerCaseIT, PaymentHistoryIT, CustomerIdorIT, E2eProfileIT | Built |
+| CUS-02 | Profile: alias edit, verified contact change, read-only billing address, audit | R2, R3, §3.2, §7, E1–E4 | `customer/{CustomerRepository,CustomerService,CustomerProfileController,ContactVerificationRepository,ContactVerificationService,ContactVerificationController,OtpProperties,VerificationCodeSender,MockVerificationCodeSender}` | CustomerProfileIT, ContactVerificationIT, CustomerPortMocksTest | Built |
+| CUS-03 | Plan summary, benefits, eligible upgrades, confirmed plan change | R4–R6, §8 `PlanProvisioning`, E5–E7 (charge rule = OQ 10, user decision) | `catalog/{PlanRepository,CatalogService}`, `customer/{SubscriptionRepository,SubscriptionService,PlanQuoteService,PlanChangeRepository,PlanChangeService,PlanChangeApplyJob,SubscriptionController,PlanProvisioning,MockPlanProvisioning}` | SubscriptionPlanIT, CatalogServiceIT, CustomerPortMocksTest | Built |
+| CUS-04 | Eligible active promotions, confirmed claim | R7, R8, E8, E9 | `catalog/PromotionRepository`, `customer/{PromotionClaimRepository,PromotionEligibilityService,PromotionController}` (E6 `claimedSubscriptionIds`) | PromotionIT, CatalogServiceIT | Built |
+| CUS-05 | Request list: 3-month default, date filter, paging, reference search | R9, E11 | `servicecase/{CaseRepository,CustomerCaseService,CustomerCaseController}` | CustomerCaseIT | Built |
+| CUS-06 | Create request: categories, auto contact, unique ref, no duplicates | R10, E10, E12 — **partial: CUS-06.3 attachment deferred to 03/04 (OQ 4)** | `servicecase/{CategoryRepository,SlaPolicyRepository,CaseRepository,CaseActivityRepository,CustomerCaseService,CaseCategoryController,CustomerCaseController}` | CaseCategoryIT, CustomerCaseIT | Built (partial: CUS-06.3 deferred) |
 | CUS-06.3 | Optional attachment | not designed (OQ 4) | | | Deferred |
-| CUS-07 | Payment history: 3-month default, paging, receipt, reconciled | R11, R14, R15, §3.1, E13, E14, E17 | | | Designed |
-| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 | | | Designed |
-| BR-01 | Unique, non-reusable reference IDs (SR, PAY) | R10, §3.1 (01 §6.2 generator) | | | Designed |
-| BR-02 | Case has account association and channel | §2 (cases), R10 | | | Designed |
-| BR-04 | Customer vs internal notes separate | §2 (`case_activity.visibility`) | | | Designed |
-| BR-05/06 | 3-month default views; bounded filters, server paging | R9, R11 | | | Designed |
-| BR-07 | SLA configurable by category | §2 (`sla_policies`), R10 | | | Designed |
-| BR-08 | Payment/provisioning confirmed by provider | R6, R13, §3.1, §8 | | | Designed |
-| BR-10 | Server-side authorization, own-account scope | §4, R1, §9 `CustomerPortalAuthzIT`, `CustomerIdorIT` | | | Designed |
-| XC-04 | Server-side pagination, filters kept across pages | R9, R11, E11, E14 | | | Designed |
-| XC-05 | Validated date filters, documented timezone | R9, R11 (00-overview §3) | | | Designed |
-| XC-06 | High-risk actions confirmed and audited | R6, R8, §7 | | | Designed |
-| XC-07 | Success only when the backend confirms | R6, R13, §3.1 | | | Designed |
-| NFR-AVAIL | Degrade gracefully when payment/provisioning is down | §3.1, §8 | | | Designed |
-| NFR-INTEG | Ownership and payment results validated server-side | R1, R13, §3.1, `CustomerIdorIT` | | | Designed |
-| NFR-PRIV | Masked PII, no card data | §2, §7 | | | Designed |
-| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 | | | Designed |
-| NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 | | | Designed |
+| CUS-07 | Payment history: 3-month default, paging, receipt, reconciled | R11, R14, R15, §3.1, E13, E14, E17 | `payment/{InvoiceRepository,PaymentRepository,PaymentQueryService,PaymentTransitionService,PaymentReconciliationJob,CustomerPaymentController}` | PaymentHistoryIT, PaymentTransitionIT, PaymentReconciliationJobIT | Built |
+| CUS-08 | Make payment: invoice shown, hosted gateway, server-side verification, all outcomes | R12–R14, §3.1, §8, E15, E16, E18 | `payment/{PaymentService,PaymentGateway,MockPaymentGateway,PaymentGatewayProperties,MockCheckoutController,PaymentWebhookController,GatewayEventRepository,WebhookRateLimiter,PaymentTransitionService}` | PaymentInitiateIT, PaymentWebhookIT, MockCheckoutIT, MockPaymentGatewayTest, PaymentReconciliationJobIT | Built |
+| BR-01 | Unique, non-reusable reference IDs (SR, PAY) | R10, §3.1 (01 §6.2 generator) | `servicecase/CustomerCaseService`, `payment/PaymentService` (via `common/reference/ReferenceGenerator`) | CustomerCaseIT, PaymentInitiateIT | Built |
+| BR-02 | Case has account association and channel | §2 (cases), R10 | `V5__servicecase.sql`, `servicecase/CustomerCaseService` | SchemaV3toV6IT, CustomerCaseIT | Built |
+| BR-04 | Customer vs internal notes separate | §2 (`case_activity.visibility`) | `V5__servicecase.sql` (`case_activity.visibility`, append-only triggers) | SchemaV3toV6IT | Built |
+| BR-05/06 | 3-month default views; bounded filters, server paging | R9, R11 | `servicecase/CustomerCaseService`, `payment/PaymentQueryService` | CustomerCaseIT, PaymentHistoryIT | Built |
+| BR-07 | SLA configurable by category | §2 (`sla_policies`), R10 | `V5__servicecase.sql` (`sla_policies`), `servicecase/SlaPolicyRepository` | SchemaV3toV6IT, CaseCategoryIT, CustomerCaseIT | Built |
+| BR-08 | Payment/provisioning confirmed by provider | R6, R13, §3.1, §8 | `customer/PlanChangeApplyJob`, `payment/{PaymentTransitionService,PaymentWebhookController,PaymentReconciliationJob}` | SubscriptionPlanIT, PaymentTransitionIT, PaymentWebhookIT, PaymentReconciliationJobIT | Built |
+| BR-10 | Server-side authorization, own-account scope | §4, R1, §9 `CustomerPortalAuthzIT`, `CustomerIdorIT` | `@PreAuthorize` + `@customerScope.isCustomer()` on E1–E17, `common/security/CustomerScope`, `identity/CustomerScopeImpl`, `customer/AccountLookup` | CustomerPortalAuthzIT (E1–E17 × anonymous, 6 staff users, unlinked customer), CustomerIdorIT, CustomerScopeIT | Built |
+| XC-04 | Server-side pagination, filters kept across pages | R9, R11, E11, E14 | `servicecase/CustomerCaseService`, `payment/PaymentQueryService` (sort whitelist, paging) | CustomerCaseIT, PaymentHistoryIT | Built |
+| XC-05 | Validated date filters, documented timezone | R9, R11 (00-overview §3) | `servicecase/CustomerCaseService`, `payment/PaymentQueryService` (Asia/Kolkata windows) | CustomerCaseIT, PaymentHistoryIT | Built |
+| XC-06 | High-risk actions confirmed and audited | R6, R8, §7 | `audit/AuditService` from `customer/{CustomerService,ContactVerificationService,PlanChangeService,PlanChangeApplyJob,PromotionEligibilityService}`, `servicecase/CustomerCaseService`, `payment/{PaymentService,PaymentTransitionService,PaymentWebhookController}` | CustomerProfileIT, ContactVerificationIT, SubscriptionPlanIT, PromotionIT, CustomerCaseIT, PaymentWebhookIT, CustomerPortalAuthzIT (ACCESS_DENIED) | Built |
+| XC-07 | Success only when the backend confirms | R6, R13, §3.1 | `customer/PlanChangeApplyJob`, `payment/PaymentTransitionService` | SubscriptionPlanIT, PaymentWebhookIT, PaymentReconciliationJobIT | Built |
+| NFR-AVAIL | Degrade gracefully when payment/provisioning is down | §3.1, §8 | `payment/{PaymentService,PaymentReconciliationJob}`, `customer/PlanChangeApplyJob` | PaymentInitiateIT, PaymentReconciliationJobIT, SubscriptionPlanIT | Built |
+| NFR-INTEG | Ownership and payment results validated server-side | R1, R13, §3.1, `CustomerIdorIT` | `customer/AccountLookup`, `payment/PaymentTransitionService`, V6 guarded keys | CustomerIdorIT, PaymentTransitionIT, PaymentWebhookIT, SchemaV3toV6IT | Built |
+| NFR-PRIV | Masked PII, no card data | §2, §7 | audit details masking in `customer/{CustomerService,ContactVerificationService}`; no card data stored (V6) | ContactVerificationIT, CustomerProfileIT | Built |
+| NFR-REL | Idempotent create/payment; path-aware request hash | §5, R10, R12, §3.1 | `common/idempotency/IdempotencyService` (path-aware hash) in E7, E9, E12, E15 | SubscriptionPlanIT, PromotionIT, CustomerCaseIT, PaymentInitiateIT | Built |
+| NFR-SEC | OTP brute-force limits, signed webhook, rate limit | R3, §3.2, §4, §8 | `customer/ContactVerificationService`, `payment/{PaymentWebhookController,WebhookRateLimiter}`, `common/ProfileGuard` (prod refuses mock, fixed OTP, blank secrets, e2e, Flyway clean) | ContactVerificationIT, PaymentWebhookIT, MockCheckoutIT, ProfileGuardIT, ProfileGuardTest | Built |
+| NFR-MAINT | One-way module dependencies (customer → catalog; servicecase, payment → customer) | §1, §9 | package-by-feature `catalog`, `customer`, `servicecase`, `payment` | ArchitectureTest (catalog ↛ customer/servicecase/payment, customer ↛ servicecase/payment, no cycles, module repositories) | Built |
