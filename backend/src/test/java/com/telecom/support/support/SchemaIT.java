@@ -24,7 +24,8 @@ class SchemaIT extends AbstractMySqlIT {
 
         assertThat(applied).containsExactly(
                 "V1__baseline.sql", "V2__identity_rbac_audit.sql", "V3__catalog.sql", "V4__customer.sql",
-                "V5__servicecase.sql", "V6__payment.sql", "R__test_users.sql", "R__test_users_02_customer.sql");
+                "V5__servicecase.sql", "V6__payment.sql", "V7__account_suspension.sql", "R__test_users.sql",
+                "R__test_users_02_customer.sql");
         assertThat(count("SELECT COUNT(*) FROM users WHERE username = 'IN001'")).isZero();
     }
 

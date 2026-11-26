@@ -51,7 +51,7 @@ class PromotionIT extends AbstractMySqlIT {
                 JOIN subscriptions s ON s.id = pc.subscription_id
                 WHERE s.msisdn IN ('+919900000001', '+919900000011', '+919900000002', '+919900000003')
                 """, Map.of());
-        jdbc.update("UPDATE accounts SET status = 'ACTIVE' WHERE account_ref IN ('ACC-T-0001', 'ACC-T-0002')", Map.of());
+        reinstateAccount("ACC-T-0001", "ACC-T-0002");
     }
 
     // ------------------------------------------------------------------ E8
@@ -238,7 +238,7 @@ class PromotionIT extends AbstractMySqlIT {
         Cookie session = login("+919900000001");
         long sub = subscriptionId("+919900000001");
         String hash = sha256(terms("T_DATA_BOOST"));
-        jdbc.update("UPDATE accounts SET status = 'SUSPENDED' WHERE account_ref = 'ACC-T-0001'", Map.of());
+        suspendAccount("ACC-T-0001", "OTHER");
         assertProblem(claim(session, "T_DATA_BOOST", "k-susp", sub, true, hash).andReturn(), 422, "business-rule",
                 claims("T_DATA_BOOST"));
         assertThat(claimCount(sub)).isZero();

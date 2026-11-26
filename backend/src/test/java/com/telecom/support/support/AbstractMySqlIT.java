@@ -1,9 +1,12 @@
 package com.telecom.support.support;
 
+import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 
@@ -39,4 +42,29 @@ public abstract class AbstractMySqlIT {
 
     @Autowired
     protected MockMvc mvc;
+
+    @Autowired
+    private NamedParameterJdbcTemplate accountsJdbc;
+
+    /**
+     * Suspends an account with a reason (design 03-inbound backend §2): status, {@code suspension_reason} and
+     * {@code suspended_at} change in one statement, as the V7 CHECK requires.
+     */
+    protected void suspendAccount(String accountRef, String reason) {
+        accountsJdbc.update("""
+                UPDATE accounts
+                SET status = 'SUSPENDED', suspension_reason = :reason, suspended_at = UTC_TIMESTAMP(6),
+                    updated_at = UTC_TIMESTAMP(6)
+                WHERE account_ref = :ref
+                """, Map.of("ref", accountRef, "reason", reason));
+    }
+
+    /** Sets the accounts ACTIVE and clears their suspension reason and time in the same statement (V7 CHECK). */
+    protected void reinstateAccount(String... accountRefs) {
+        accountsJdbc.update("""
+                UPDATE accounts
+                SET status = 'ACTIVE', suspension_reason = NULL, suspended_at = NULL, updated_at = UTC_TIMESTAMP(6)
+                WHERE account_ref IN (:refs)
+                """, Map.of("refs", List.of(accountRefs)));
+    }
 }
