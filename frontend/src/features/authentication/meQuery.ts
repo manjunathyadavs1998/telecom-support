@@ -4,6 +4,7 @@ import { ME_QUERY_KEY } from '@/app/queryClient'
 import { api, apiClient } from '@/services/api/client'
 import { authChannel } from '@/services/api/authChannel'
 import { bootstrapCsrf } from '@/services/api/csrf'
+import { clearIdempotencyRecords } from '@/services/api/idempotency'
 import type { Me } from '@/types/api'
 
 let csrfBootstrap: Promise<void> | null = null
@@ -63,9 +64,13 @@ export function applySignedIn(client: QueryClient, me: Me): void {
   authChannel.post('login')
 }
 
-/** After logout (204 or 401, §7 Logout): drop everything cached and tell the other tabs. */
+/**
+ * After logout (204 or 401, §7 Logout): drop everything cached, with the persisted E15 idempotency records (02 frontend.md §5),
+ * and tell the other tabs.
+ */
 export function applySignedOut(client: QueryClient): void {
   client.clear()
+  clearIdempotencyRecords()
   authChannel.post('logout')
 }
 
