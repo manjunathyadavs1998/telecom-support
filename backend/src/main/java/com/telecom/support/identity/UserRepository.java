@@ -4,6 +4,8 @@ import com.telecom.support.identity.CurrentUser.UserType;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +62,25 @@ public class UserRepository {
             WHERE id = :id
             """;
 
+    /** Display names of users (03 R8, R9; {@code UserDirectory}). */
+    private static final String FIND_DISPLAY_NAMES = """
+            SELECT id, display_name
+            FROM users
+            WHERE id IN (:ids)
+            """;
+
+    /** Team names (03 R8; {@code UserDirectory}). */
+    private static final String FIND_TEAM_NAMES = """
+            SELECT id, name
+            FROM teams
+            WHERE id IN (:ids)
+            """;
+
+    /** Serialises an agent's reactivation creates (03 R14, agent-level limit). */
+    private static final String LOCK_USER = """
+            SELECT id FROM users WHERE id = :id FOR UPDATE
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public UserRepository(NamedParameterJdbcTemplate jdbc) {
@@ -96,6 +117,29 @@ public class UserRepository {
     /** Sets {@code last_login_at} (UTC) after a successful login (§4). */
     public void updateLastLoginAt(long id, Instant at) {
         jdbc.update(UPDATE_LAST_LOGIN, Map.of("id", id, "lastLoginAt", LocalDateTime.ofInstant(at, ZoneOffset.UTC)));
+    }
+
+    /** Id → display name of the given users; unknown ids are absent. {@code ids} must not be empty. */
+    Map<Long, String> findDisplayNames(Collection<Long> ids) {
+        return idToName(FIND_DISPLAY_NAMES, ids, "display_name");
+    }
+
+    /** Id → name of the given teams; unknown ids are absent. {@code ids} must not be empty. */
+    Map<Long, String> findTeamNames(Collection<Long> ids) {
+        return idToName(FIND_TEAM_NAMES, ids, "name");
+    }
+
+    /** Locks the user row until the end of the current transaction; false when it does not exist. */
+    boolean lockForUpdate(long id) {
+        return !jdbc.queryForList(LOCK_USER, Map.of("id", id), Long.class).isEmpty();
+    }
+
+    private Map<Long, String> idToName(String sql, Collection<Long> ids, String nameColumn) {
+        Map<Long, String> names = new HashMap<>();
+        jdbc.query(sql, Map.of("ids", ids), rs -> {
+            names.put(rs.getLong("id"), rs.getString(nameColumn));
+        });
+        return names;
     }
 
     /** Loads the row's roles and permissions (two queries) into the principal. */

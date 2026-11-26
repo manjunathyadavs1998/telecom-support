@@ -12,6 +12,8 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -74,6 +76,62 @@ class ArchitectureTest {
                 .should().dependOnClassesThat().resideInAnyPackage(ROOT + ".servicecase..", ROOT + ".payment..")
                 .because("02-customer backend §1: servicecase and payment depend on customer, one way only")
                 .check(productionClasses);
+    }
+
+    /**
+     * 00-overview rev 4 §1 / 03-inbound backend §1: the only allowed edges between feature modules. Every module may also
+     * use {@code common.*} and {@code audit} (except {@code notification}, see below); anything else is a violation.
+     */
+    private static final Map<String, Set<String>> ALLOWED_FEATURE_EDGES = Map.of(
+            "identity", Set.of(),
+            "catalog", Set.of(),
+            "customer", Set.of("catalog"),
+            "servicecase", Set.of("customer", "identity"),
+            "payment", Set.of("customer"),
+            "reactivation", Set.of("customer", "notification", "identity"),
+            "notification", Set.of());
+
+    @Test
+    void featureModulesUseOnlyTheListedEdges() {
+        classes()
+                .that().resideInAnyPackage(ALLOWED_FEATURE_EDGES.keySet().stream()
+                        .map(module -> ROOT + "." + module + "..").toArray(String[]::new))
+                .should(dependOnlyOnAllowedModules())
+                .because("00-overview rev 4 §1: one-way edges only (identity imports no feature module)")
+                .allowEmptyShould(true)
+                .check(productionClasses);
+    }
+
+    @Test
+    void notificationUsesOnlyCommon() {
+        noClasses()
+                .that().resideInAPackage(ROOT + ".notification..")
+                .should().dependOnClassesThat().resideInAPackage(ROOT + ".audit..")
+                .because("00-overview rev 4 §1: notification depends only on common")
+                .allowEmptyShould(true)
+                .check(productionClasses);
+    }
+
+    private static ArchCondition<JavaClass> dependOnlyOnAllowedModules() {
+        return new ArchCondition<>("depend only on common, audit, itself and its listed modules") {
+            @Override
+            public void check(JavaClass origin, ConditionEvents events) {
+                String module = moduleOf(origin);
+                Set<String> allowed = ALLOWED_FEATURE_EDGES.get(module);
+                for (Dependency dependency : origin.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (!target.getPackageName().startsWith(ROOT + ".")) {
+                        continue;
+                    }
+                    String targetModule = moduleOf(target);
+                    if (targetModule.equals(module) || targetModule.equals("audit")
+                            || targetModule.startsWith("common") || allowed.contains(targetModule)) {
+                        continue;
+                    }
+                    events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                }
+            }
+        };
     }
 
     private static ArchCondition<JavaClass> onlyBeAccessedFromTheirOwnModule() {
