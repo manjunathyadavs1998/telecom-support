@@ -47,7 +47,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| F1 | Slice 02 API types + dev proxy | `scripts/gen-api.mjs`, `src/types/api/02-customer.ts` (generated), `src/types/api/index.ts`, `vite.config.ts` | §7 | NFR-MAINT, CUS-08.2 | `gen:api:check` and `typecheck` pass; `/mock-gateway` proxied | ☐ |
+| F1 | Slice 02 API types + dev proxy | `scripts/gen-api.mjs`, `src/types/api/02-customer.ts` (generated), `src/types/api/index.ts`, `vite.config.ts` | §7 | NFR-MAINT, CUS-08.2 | `gen:api:check` and `typecheck` pass; `/mock-gateway` proxied | ☑ |
 | F2 | Formatting + date window | `src/lib/format.ts` (`formatInr`, `isPositiveMoney`, dates), `src/lib/format.test.ts`, `src/lib/dateWindow.ts`, `src/lib/dateWindow.test.ts` | §4, §6 | XC-05, BR-05, CUS-04.1 | `format.test`, `dateWindow.test` pass (incl. exclusive `validTo`, `"0.00"`) | ☐ |
 | F3 | Idempotency key + submit guard + test fixtures | `src/services/api/idempotency.ts` (`useIdempotencyKey`, `useSubmitGuard`), `idempotency.test.ts`, `src/test/fixtures/customer.ts`, `src/test/msw/customerHandlers.ts`, `src/test/msw/handlers.ts` | §4, §5, §8 | NFR-REL, CUS-06.6 | `idempotency.test` passes (path-scoped keys, sessionStorage record, one run on double call) | ☐ |
 | F4 | shadcn primitives (1) | `src/components/ui/{dialog,alert-dialog,select,checkbox,radio-group}.tsx` (CLI-generated) | §4 | XC-08 | typecheck + lint green | ☐ |
@@ -71,7 +71,6 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | F22 | e2e payment + traceability | `e2e/payment.spec.ts`, `scripts/check-frontend.sh` (documents the fresh-JAR precondition), `docs/requirements/traceability.md` | §7, §8, §10 | CUS-08, CUS-07.4 | needs backend D1, D2; `check-frontend.sh e2e` green twice in a row (JAR restarted between); slice 02 rows show FE code + tests | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B21 + errata E1–E6. E6: E8 adds `claimedSubscriptionIds` (openapi updated). E5: `dev,e2e` cleans + migrates at start (`common/E2eDatabaseReset`), seed `db/seed/R__02_customer_e2e.sql` (customer 1 ≥ 21 cases/payments; customer 5 `+919800000005`, 1 sub, 2 OPEN invoices); e2e `return-url-base` = `${E2E_BASE_URL:http://host.docker.internal:8080}`.
-- B21: `CustomerPortalAuthzIT` (E1–E17 × anonymous/6 staff/unlinked + ACCESS_DENIED), `CustomerIdorIT`, `ArchitectureTest` one-way rules, `E2eProfileIT`; traceability slice 02 rows Built.
-- Review part 2 C15, C17–C22 fixed (keyset-paged reconcile + 50 s run budget, prod refuses disabled reconcile crons, e2e needs dev, cancel audit in-tx, webhook IP limit before 415, exemption/concurrent-dup tests); dispositions in `review.md`.
-- Open: C4/C16 approval record on `main`/PR; doc follow-ups C5, C6, C8–C10, C12, C13, C18 (§6 cron line), C20 (E5 wording). FE dev needs a Vite proxy for `/mock-gateway`. Next: reviewer pass on the full branch, then merge-steward PR.
+- Backend B1–B21 + errata E1–E6 merged (PR #10); seed: customer 1 (`+919800000001`) ≥ 21 cases/payments, customer 5 (`+919800000005`) 2 OPEN invoices.
+- F1 done: `gen-api.mjs` also generates `src/types/api/02-customer.ts`; `src/types/api/index.ts` exports `paths = paths01 & paths02` + slice 02 schema aliases (`Profile`, `Subscription`, `Promotion`, `Invoice`, `Payment`, …); Vite proxies `/mock-gateway` beside `/api`.
+- Next: F2 (format + dateWindow helpers).
