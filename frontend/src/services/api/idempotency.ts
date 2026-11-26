@@ -123,6 +123,28 @@ export function clearIdempotencyRecords(): void {
   }
 }
 
+/**
+ * Removes the persisted records of `operation` on `path` (any scope) that point to `reference`: the payment status page drops
+ * the E15 record once its payment reaches a terminal status (frontend.md §3 Payment status, §4). E16 carries no invoice id,
+ * so the record is found by the reference it stored.
+ */
+export function dropIdempotencyRecordsFor(operation: IdempotentOperation, path: string, reference: string): void {
+  const store = storage()
+  if (!store) return
+  const prefix = idempotencyStorageKey(operation, path)
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i)
+      if (key?.startsWith(prefix)) keys.push(key)
+    }
+    // Read after collecting: reading removes an expired record, which would shift the indexes above.
+    for (const key of keys) if (readIdempotencyRecord(key)?.reference === reference) store.removeItem(key)
+  } catch {
+    // storage unavailable
+  }
+}
+
 export type IdempotencyKeyOptions = {
   /** E15 only: keep the key in sessionStorage under `idem:<operation>:<path>:<scope>` until a terminal status or 24 h. */
   persist?: boolean
