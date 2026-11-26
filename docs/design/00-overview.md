@@ -1,6 +1,7 @@
 # 00 — System overview and cross-cutting conventions
 
 - Status: **Approved** (revision 3: §1 module dependencies, approved with `02-customer/backend.md`) · Date: 2026-11-25
+- Revision 4: **Proposed with `03-inbound/backend.md`** (2026-11-26; approved and merged together with it): §1 modules, tables and edges for slice 03, §4 `verification-required`
 - Covers: BRD §2, §7, §8, §9, §11, §13, §15 · ADRs 0001–0003
 
 This document fixes the conventions that every slice design reuses. Slice designs reference it instead of repeating it.
@@ -12,20 +13,22 @@ One Spring Boot application with feature packages under `com.telecom.support`. A
 
 *Rev 3:* module dependencies are one-way and cycle-free (`ArchitectureTest`): `servicecase → customer`,
 `payment → customer`, `customer → catalog`; every module may use `common` and `audit`.
+*Rev 4 (proposed with 03):* adds `servicecase → identity`, `reactivation → customer`, `reactivation → notification`,
+`reactivation → identity` (identity's public `UserDirectory` only; `identity` imports no feature module); `notification` uses only `common`.
 
 | Module | Package | Owns (tables) | BRD | Slice |
 |---|---|---|---|---|
 | Common | `common` | — (errors, paging, correlation id, clock); ports `common.security.ActorProvider`, `AccessDeniedListener`, *rev 3:* `CustomerScope` (implemented by `identity`) | XC-03..05, NFR-OBS, BR-10 | 01, 02 |
-| Identity & access | `identity` | users, teams, roles, permissions, role_permissions, user_roles, SPRING_SESSION* | §2, §8, BR-10 | 01 |
+| Identity & access | `identity` | users, teams, roles, permissions, role_permissions, user_roles, SPRING_SESSION*; *rev 4:* `UserDirectory` (display/team names, user row lock) | §2, §8, BR-10 | 01, 03 |
 | Audit | `audit` | audit_events | BR-03, XC-06 | 01 |
 | Idempotency | `common.idempotency` | idempotency_keys | NFR-REL | 01 |
 | References | `common.reference` | ref_sequences | BR-01 | 01 |
-| Customer | `customer` | customers, accounts, subscriptions, contact_verifications; *rev 3:* plan_changes, promotion_claims (quotes, promotion eligibility and claims live here; ports `PlanProvisioning`, `VerificationCodeSender`) | CUS-01..04, INB-01 | 02, 03 |
+| Customer | `customer` | customers, accounts, subscriptions, contact_verifications; *rev 3:* plan_changes, promotion_claims (quotes, promotion eligibility and claims live here; ports `PlanProvisioning`, `VerificationCodeSender`); *rev 4:* customer_lookups, identity_checks, `accounts.suspension_reason` (`VerifiedCustomerAccess`) | CUS-01..04, INB-01 | 02, 03 |
 | Plans & promotions | `catalog` | plans, plan_benefits, promotions; *rev 3:* promotion_plans. Read-only data, no dependency on `customer` | CUS-03/04 | 02 |
 | Cases | `servicecase` | cases, case_activity, categories, sla_policies, bookmarks | CUS-05/06, INB-02/03, OUT-01..06 | 02–04 |
 | Payments | `payment` | invoices, payments, *rev 3:* payment_gateway_events (`PaymentGateway` port) | CUS-07/08 | 02 |
-| Reactivation | `reactivation` | reactivation_requests (`ProvisioningClient` port) | INB-04 | 03 |
-| Notifications | `notification` | notifications (`NotificationSender` port) | OUT-06, §14 #12 | 03–04 |
+| Reactivation | `reactivation` | reactivation_requests, *rev 4:* reactivation_policies (`ProvisioningClient` port) | INB-04 | 03 |
+| Notifications | `notification` | notifications (outbox, `NotificationSender` port) | INB-04.7, OUT-06, §14 #12 | 03–04 |
 | Analytics & reports | `analytics` | read-only queries, export log via audit | BUS-01..03 | 05 |
 
 ## 2. Slice roadmap (BRD §15)
@@ -64,6 +67,7 @@ Every error is an RFC 7807 `ProblemDetail` (`application/problem+json`):
 | 400 | `validation` / `bad-request` | Bean validation failed (`errors[]` filled) or a malformed request (unknown JSON fields are ignored) |
 | 401 | `unauthenticated` | No session, or bad credentials |
 | 403 | `forbidden` | Missing permission or out-of-scope record (also CSRF failure) |
+| 403 | `verification-required` | *Rev 4 (proposed with 03):* an inbound agent has no valid identity check for the customer in the path (03 backend R5) |
 | 404 | `not-found` | Unknown id **or** a record outside the caller's scope when existence must not leak |
 | 405 | `method-not-allowed` | HTTP method not supported on the path (`Allow` header set) |
 | 409 | `conflict` | Concurrency or state conflict (e.g. the case was already claimed, the idempotency key is in progress) |

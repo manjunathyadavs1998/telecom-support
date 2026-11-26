@@ -328,3 +328,9 @@ and nothing else. A test asserts the guard.
 ### E6 — promotion claim state per subscription (frontend design D3) · Status: **Approved** (user, 2026-11-25)
 **Change.** E8 response adds `claimedSubscriptionIds`; `eligibleSubscriptionIds` excludes subscriptions that already
 claimed; `claimed` = claimed on at least one subscription. openapi.yaml + `PromotionIT` updated.
+
+### E7 — ACCESS_DENIED wording matches the 01 §7 recorder (03 review D7) · Status: **Proposed** (with `03-inbound/backend.md`; approved together)
+**Problem.** §9 `CustomerPortalAuthzIT` says "each 403 writes `ACCESS_DENIED`", but `DeniedAccessRecorder` (01 §7) writes at most one
+row per (user + path) per minute (per client IP for anonymous callers).
+**Change (docs only, no code).** §9 `CustomerPortalAuthzIT` reads: "the first 403 of a user on a path writes one `ACCESS_DENIED` row; a
+repeat by the same user on the same path within 1 minute writes none". The built test already follows the sampling rule (it accepts a row for the same user + path from the last minute); only the doc changes.

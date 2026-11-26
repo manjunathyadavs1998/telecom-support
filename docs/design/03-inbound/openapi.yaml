@@ -3,7 +3,7 @@ info:
   title: Telecom Customer Support API — 03 Inbound assistant workspace
   version: 0.3.0
   description: |
-    Status: **Proposed** (awaiting approval). Contract-first spec for slice 03 (see backend.md).
+    Status: **Proposed** (awaiting approval), revision 2 (review D1–D22). Contract-first spec for slice 03 (see backend.md).
     Auth (session cookie, CSRF header) and the shared components (ProblemDetail, FieldViolation, CorrelationId,
     XsrfToken, IdempotencyKey, Problem, TooManyRequests) are **copied verbatim** from 01-foundation/openapi.yaml; the
     read models Subscription, PlanSummary, Benefit, PlanChange, Invoice, Payment and PaymentPage are copied from
@@ -29,17 +29,19 @@ tags:
   - name: Reactivation
     description: Temporary service reactivation (INB-04)
 paths:
-  /api/v1/agent/customers:
-    get:
+  /api/v1/agent/customer-searches:
+    post:
       tags: [Customer lookup]
-      operationId: lookupCustomer
-      summary: Find a customer by exact mobile number (masked result)
-      description: 'Permission customer.lookup. INB-01.1, INB-01.4. Exact E.164 match on a live (ACTIVE or SUSPENDED) subscription; 0 or 1 item. Every call is audited. 30 calls per agent per minute.'
+      operationId: searchCustomer
+      summary: Find a customer by exact mobile number (masked result + lookup token)
+      description: 'Permission customer.lookup. INB-01.1, INB-01.4. POST so the number never appears in URLs or access logs. Exact E.164 match on a live (ACTIVE or SUSPENDED) subscription; 0 or 1 item. A hit returns a lookupToken (15 min, this agent only) that starting an identity check requires. Every call is audited. 30 calls per agent per minute.'
       parameters:
-        - name: msisdn
-          in: query
-          required: true
-          schema: { $ref: '#/components/schemas/Msisdn' }
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerSearch' }
       responses:
         '200':
           description: Matches (empty when none)
@@ -54,6 +56,8 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/Problem' }
   /api/v1/agent/customers/{customerId}/identity-checks:
@@ -61,7 +65,7 @@ paths:
       tags: [Customer lookup]
       operationId: startIdentityCheck
       summary: Start an OTP identity check or submit KBA answers
-      description: 'Permission customer.verify. INB-01.2, §14 #2. OTP → 201 PENDING (code sent to the primary mobile); KBA → 201 VERIFIED or 422 (attemptsRemaining). Supersedes this agent''s earlier check for the customer. 5 OTP starts per customer per hour, 3 failed KBA per customer per hour → 429.'
+      description: 'Permission customer.verify. INB-01.1, INB-01.2, §14 #2. Requires the lookupToken of this agent''s search hit for this customer; an unknown id or a missing, expired or foreign token returns the same 404. OTP → 201 PENDING (code sent to the primary mobile); KBA → 201 VERIFIED or 422 (attemptsRemaining). Supersedes this agent''s earlier check for the customer. 5 OTP starts per customer per hour, 3 failed KBA per customer per hour → 429.'
       parameters:
         - $ref: '#/components/parameters/CustomerId'
         - $ref: '#/components/parameters/XsrfToken'
@@ -275,7 +279,7 @@ paths:
       tags: [Cases]
       operationId: createCaseOnBehalf
       summary: Raise a request on behalf of the verified customer
-      description: 'Permission case.create.onbehalf, verified, idempotent (operation CASE_CREATE_ONBEHALF). INB-03.1..03.5, BR-01/02/04/07. An INTERNAL category needs case.category.internal and a severity different from the derived one needs case.severity.override (else 403). Channel INBOUND_AGENT and the creating agent are set by the server. Inactive customer, closed account or no SLA row → 422.'
+      description: 'Permission case.create.onbehalf, verified, idempotent (operation CASE_CREATE_ONBEHALF). INB-03.1..03.5, BR-01/02/04/07. An INTERNAL category needs case.category.internal and a severity different from the derived one needs case.severity.override (else 403). Channel INBOUND_AGENT and the creating agent are set by the server. Inactive customer, closed account, EMAIL contact without a verified email, no primary mobile when no subscriptionId is given, or no SLA row → 422. A replay after the identity check expired → 403.'
       parameters:
         - $ref: '#/components/parameters/CustomerId'
         - $ref: '#/components/parameters/XsrfToken'
@@ -392,7 +396,7 @@ paths:
       tags: [Reactivation]
       operationId: requestReactivation
       summary: Request a temporary reactivation (up to 24 h) through provisioning
-      description: 'Permission service.reactivate, verified, idempotent (operation REACTIVATION_CREATE). INB-04.1..04.7, BR-08. 201 only after the provider confirms (status ACTIVE). Ineligible → 422 with reasons; open request → 409; provider refused → 422 (FAILED); provider unreachable → 503 (FAILED, retry allowed); outcome unknown → 503 (PENDING, reconciled; a retry gets 409).'
+      description: 'Permission service.reactivate, verified, idempotent (operation REACTIVATION_CREATE). INB-04.1..04.7, BR-08. 201 only after the provider confirms (status ACTIVE). Ineligible → 422 with reasons; open request → 409; provider refused → 422 (FAILED); provider unreachable → 503 (FAILED, retry allowed); outcome unknown → 503 (PENDING, reconciled; a retry gets 409). A replay after the identity check expired → 403.'
       parameters:
         - $ref: '#/components/parameters/CustomerId'
         - $ref: '#/components/parameters/XsrfToken'
@@ -520,10 +524,21 @@ components:
       type: string
       description: Placeholder set until operations approve it (backend.md OQ 2)
       enum: [NON_PAYMENT, CUSTOMER_REQUEST, KYC_PENDING, FRAUD, LEGAL, REGULATORY, OTHER]
+    CustomerSearch:
+      type: object
+      required: [msisdn]
+      properties:
+        msisdn: { $ref: '#/components/schemas/Msisdn' }
+    LookupToken:
+      type: string
+      description: Opaque token from a search hit; valid 15 min for the searching agent and this customer only
+      minLength: 16
+      maxLength: 64
     CustomerMatch:
       type: object
-      required: [customerId, customerRef, maskedName, maskedMsisdn, subscriptionStatus, customerStatus, accountStatus]
+      required: [customerId, customerRef, maskedName, maskedMsisdn, subscriptionStatus, customerStatus, accountStatus, lookupToken]
       properties:
+        lookupToken: { $ref: '#/components/schemas/LookupToken' }
         customerId: { type: integer, format: int64 }
         customerRef: { type: string }
         maskedName: { type: string, examples: ['R*** K***'] }
@@ -540,9 +555,10 @@ components:
       enum: [OTP, KBA]
     IdentityCheckStart:
       type: object
-      required: [method]
+      required: [method, lookupToken]
       description: For KBA both answers are required (else 400). Answers are never stored.
       properties:
+        lookupToken: { $ref: '#/components/schemas/LookupToken' }
         method: { $ref: '#/components/schemas/IdentityCheckMethod' }
         postalCode: { type: [string, 'null'], minLength: 3, maxLength: 12 }
         registeredContact: { type: [string, 'null'], minLength: 3, maxLength: 254, description: Verified email or secondary mobile on file }
@@ -814,7 +830,8 @@ components:
         channel: { $ref: '#/components/schemas/CaseChannel' }
     EligibilityReason:
       type: string
-      enum: [CUSTOMER_INACTIVE, NOT_SUSPENDED, PROHIBITED_REASON, REASON_NOT_ELIGIBLE, NO_SUSPENDED_SERVICE, OPEN_REQUEST, ACCOUNT_LIMIT_REACHED, AGENT_LIMIT_REACHED]
+      description: HOURS_EXCEED_POLICY appears only in a 422 of requestReactivation
+      enum: [CUSTOMER_INACTIVE, NOT_SUSPENDED, PROHIBITED_REASON, REASON_NOT_ELIGIBLE, NO_SUSPENDED_SERVICE, OPEN_REQUEST, ACCOUNT_LIMIT_REACHED, AGENT_LIMIT_REACHED, HOURS_EXCEED_POLICY]
     ReactivationEligibility:
       type: object
       required: [eligible, reasons]
@@ -835,19 +852,21 @@ components:
         openRequestReference: { type: [string, 'null'] }
     ReactivationRequest:
       type: object
-      required: [hours, reason]
+      required: [reason]
       properties:
-        hours: { type: integer, minimum: 1, maximum: 24, default: 24, description: Also capped by the policy maxHours (else 422) }
+        hours: { type: [integer, 'null'], minimum: 1, maximum: 24, description: 'Omitted or null = min(24, maxHours); above maxHours → 422 HOURS_EXCEED_POLICY' }
         reason: { type: string, minLength: 10, maxLength: 500 }
         approvalReference: { type: [string, 'null'], maxLength: 64 }
     ReactivationStatus:
       type: string
-      description: REVIEW = provider outcome unknown or expiry failed; held for operations and blocks new requests
-      enum: [PENDING, ACTIVE, EXPIRING, EXPIRED, ENDED, FAILED, REVIEW]
+      description: PENDING, ACTIVE and EXPIRING are open (block a new request); the jobs retry them without limit (backend.md §3.1)
+      enum: [PENDING, ACTIVE, EXPIRING, EXPIRED, ENDED, FAILED]
     Reactivation:
       type: object
-      required: [reference, status, suspensionReason, msisdns, requestedHours, reason, requestedByName, createdAt]
+      required: [reference, status, suspensionReason, msisdns, requestedHours, reason, requestedByName, createdAt, needsAttention]
       properties:
+        needsAttention: { type: boolean, description: Alert flag (unresolved restore or failing suspend); automation continues }
+        endReason: { type: [string, 'null'], enum: [account_reinstated, policy_prohibited, expired, null] }
         reference: { type: string, examples: [REA-20261126-000001] }
         status: { $ref: '#/components/schemas/ReactivationStatus' }
         suspensionReason: { $ref: '#/components/schemas/SuspensionReason' }
