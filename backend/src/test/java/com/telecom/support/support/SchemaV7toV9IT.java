@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Design 03-inbound backend §2, §9. B1: V7 account suspension CHECK and the {@link AbstractMySqlIT} suspension helpers.
  * B2: V8 identity_checks CHECKs, lookup token UK, INTERNAL placeholder categories, an SLA for every active leaf × 4
  * severities, the {@code case.severity.override} grant (01 §13 E3) and the slice 03 test data.
+ * B3: V9 reactivation policies (prohibited CHECK), the open-request UK, the 24 h CHECK, the notification outbox UK and
+ * the ENDED reactivation / INTERNAL cases of the test data.
  * Each test runs in a rolled-back transaction, so the rows it changes never reach other ITs.
  */
 @Transactional
@@ -223,7 +225,206 @@ class SchemaV7toV9IT extends AbstractMySqlIT {
                 "CUST-T-0008/INACTIVE/ACTIVE/-/ACTIVE");
     }
 
+    // ---------------------------------------------------------------- V9 reactivation and notification outbox
+
+    @Test
+    void onlyNonPaymentIsEligibleAndProhibitedReasonsNeverCanBe() {
+        assertThat(jdbc.queryForList("""
+                SELECT CONCAT(suspension_reason, '/', IF(eligible, 'true', 'false'), '/', max_hours)
+                FROM reactivation_policies ORDER BY suspension_reason
+                """, Map.of(), String.class)).containsExactly(
+                "CUSTOMER_REQUEST/false/24", "FRAUD/false/24", "KYC_PENDING/false/24", "LEGAL/false/24",
+                "NON_PAYMENT/true/24", "OTHER/false/24", "REGULATORY/false/24");
+
+        for (String reason : new String[] {"FRAUD", "LEGAL", "REGULATORY"}) {
+            assertThatThrownBy(() -> jdbc.update(
+                    "UPDATE reactivation_policies SET eligible = TRUE WHERE suspension_reason = :r", Map.of("r", reason)))
+                    .as(reason)
+                    .isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("ck_reactivation_policies_prohibited");
+        }
+        // any other reason may be made eligible
+        jdbc.update("UPDATE reactivation_policies SET eligible = TRUE WHERE suspension_reason = 'OTHER'", Map.of());
+        assertThatThrownBy(() -> jdbc.update(
+                "UPDATE reactivation_policies SET max_hours = 25 WHERE suspension_reason = 'OTHER'", Map.of()))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_reactivation_policies_max_hours");
+    }
+
+    @Test
+    void anAccountHasAtMostOneOpenReactivation() {
+        // ACC-T-0009 already has an ENDED request (test data); closed rows never block
+        insertReactivation("REA-T-1", "ACC-T-0009", "PENDING", 24, null, null);
+        assertThatThrownBy(() -> insertReactivation("REA-T-2", "ACC-T-0009", "PENDING", 24, null, null))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("uk_reactivation_requests_open_account");
+
+        for (String open : new String[] {"ACTIVE", "EXPIRING"}) {
+            jdbc.update("UPDATE reactivation_requests SET status = 'FAILED' WHERE account_id = (SELECT id FROM accounts "
+                    + "WHERE account_ref = 'ACC-T-0009') AND status <> 'ENDED'", Map.of());
+            insertReactivation("REA-T-" + open, "ACC-T-0009", open, 24, 0, 24);
+            assertThatThrownBy(() -> insertReactivation("REA-T-X" + open, "ACC-T-0009", "PENDING", 24, null, null))
+                    .as(open)
+                    .isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("uk_reactivation_requests_open_account");
+        }
+
+        // closing the open one frees the account; terminal rows may repeat
+        jdbc.update("""
+                UPDATE reactivation_requests SET status = 'EXPIRED', version = version + 1
+                WHERE reference = 'REA-T-EXPIRING' AND status = 'EXPIRING'
+                """, Map.of());
+        insertReactivation("REA-T-3", "ACC-T-0009", "FAILED", 24, null, null);
+        insertReactivation("REA-T-4", "ACC-T-0009", "PENDING", 24, null, null);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM reactivation_requests r JOIN accounts a ON a.id = r.account_id
+                WHERE a.account_ref = 'ACC-T-0009' AND r.status IN ('PENDING', 'ACTIVE', 'EXPIRING')
+                """, Map.of(), Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void aReactivationLastsAtMost24HoursAndAsksForOneTo24() {
+        insertReactivation("REA-T-24H", "ACC-T-0006", "ACTIVE", 24, 0, 24);
+        jdbc.update("UPDATE reactivation_requests SET status = 'ENDED' WHERE reference = 'REA-T-24H'", Map.of());
+
+        assertThatThrownBy(() -> insertReactivation("REA-T-25H", "ACC-T-0006", "ACTIVE", 24, 0, 25))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_reactivation_requests_max_24h");
+        // a late restore: activated in the past, window already over, still within 24 h of activation
+        insertReactivation("REA-T-LATE", "ACC-T-0006", "EXPIRING", 2, -180, 2);
+
+        for (int hours : new int[] {0, 25}) {
+            assertThatThrownBy(() -> insertReactivation("REA-T-H" + hours, "ACC-T-0007", "PENDING", hours, null, null))
+                    .as("%d h", hours)
+                    .isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("ck_reactivation_requests_hours");
+        }
+        assertThatThrownBy(() -> insertReactivation("REA-T-ST", "ACC-T-0007", "RESTORED", 24, null, null))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_reactivation_requests_status");
+    }
+
+    @Test
+    void reactivationRowsStartWithNoAttemptsNoAttentionAndVersionZero() {
+        insertReactivation("REA-T-NEW", "ACC-T-0006", "PENDING", 4, null, null);
+        assertThat(jdbc.queryForObject("""
+                SELECT CONCAT(attempts, '/', needs_attention, '/', version, '/', COALESCE(next_attempt_at, '-'), '/',
+                              COALESCE(attention_reason, '-'), '/', open_account_id = account_id)
+                FROM reactivation_requests WHERE reference = 'REA-T-NEW'
+                """, Map.of(), String.class)).isEqualTo("0/0/0/-/-/1");
+    }
+
+    @Test
+    void theOutboxHasOneRowPerSourceTemplateAndChannel() {
+        insertNotification("REA-T-1", "REACTIVATION_STARTED", "SMS", "PENDING");
+        insertNotification("REA-T-1", "REACTIVATION_STARTED", "EMAIL", "PENDING");
+        insertNotification("REA-T-1", "REACTIVATION_ENDED", "SMS", "PENDING");
+        assertThatThrownBy(() -> insertNotification("REA-T-1", "REACTIVATION_STARTED", "SMS", "PENDING"))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("uk_notifications_source");
+
+        // the claim state SENDING is allowed; unknown status, channel and template are not
+        jdbc.update("""
+                UPDATE notifications SET status = 'SENDING', claimed_at = UTC_TIMESTAMP(6)
+                WHERE source_ref = 'REA-T-1' AND channel = 'SMS' AND template = 'REACTIVATION_STARTED'
+                  AND status = 'PENDING' AND next_attempt_at <= UTC_TIMESTAMP(6)
+                """, Map.of());
+        assertThatThrownBy(() -> insertNotification("REA-T-2", "REACTIVATION_STARTED", "SMS", "QUEUED"))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_notifications_status");
+        assertThatThrownBy(() -> insertNotification("REA-T-2", "REACTIVATION_STARTED", "PUSH", "PENDING"))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_notifications_channel");
+        assertThatThrownBy(() -> insertNotification("REA-T-2", "PAYMENT_RECEIVED", "SMS", "PENDING"))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_notifications_template");
+        assertThat(jdbc.queryForList(
+                "SELECT status FROM notifications WHERE source_ref = 'REA-T-1' ORDER BY id", Map.of(), String.class))
+                .containsExactly("SENDING", "PENDING", "PENDING");
+    }
+
+    @Test
+    void inboundTestDataHasAnEndedReactivationTenDaysAgoAndInternalCases() {
+        assertThat(jdbc.queryForObject("""
+                SELECT CONCAT(a.status, '/', a.suspension_reason, '/', r.status, '/', r.end_reason, '/', u.username, '/',
+                              TIMESTAMPDIFF(DAY, r.created_at, UTC_TIMESTAMP(6)), '/', ic.status, '/',
+                              r.open_account_id IS NULL)
+                FROM reactivation_requests r
+                JOIN accounts a ON a.id = r.account_id
+                JOIN users u ON u.id = r.requested_by_user_id
+                JOIN identity_checks ic ON ic.id = r.identity_check_id AND ic.customer_id = a.customer_id
+                WHERE a.account_ref = 'ACC-T-0009'
+                """, Map.of(), String.class))
+                .isEqualTo("SUSPENDED/NON_PAYMENT/ENDED/account_reinstated/T-IN-REACT/10/VERIFIED/1");
+
+        // CUST-T-0006: two INTERNAL-category inbound cases, each with exactly one INTERNAL note; CUST-T-0001 has none
+        assertThat(jdbc.queryForList("""
+                SELECT CONCAT(cat.code, '/', p.audience, '/', c.channel, '/', u.username, '/',
+                              (SELECT COUNT(*) FROM case_activity x
+                               WHERE x.case_id = c.id AND x.activity_type = 'NOTE' AND x.visibility = 'INTERNAL'))
+                FROM cases c
+                JOIN accounts a ON a.id = c.account_id
+                JOIN categories cat ON cat.id = c.category_id
+                JOIN categories p ON p.id = COALESCE(cat.parent_id, cat.id)
+                JOIN users u ON u.id = c.created_by_user_id
+                WHERE a.account_ref = 'ACC-T-0006'
+                ORDER BY cat.code
+                """, Map.of(), String.class)).containsExactly(
+                "INT_BILL_ADJUST/INTERNAL/INBOUND_AGENT/T-IN/1", "INT_ESCALATION/INTERNAL/INBOUND_AGENT/T-IN/1");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM case_activity x JOIN cases c ON c.id = x.case_id
+                JOIN accounts a ON a.id = c.account_id
+                WHERE a.account_ref = 'ACC-T-0001' AND x.visibility = 'INTERNAL'
+                """, Map.of(), Long.class)).isZero();
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Inserts a reactivation of T-IN-REACT on the account, evidenced by a fresh VERIFIED KBA check. A null
+     * {@code activatedMinutesFromNow} leaves activated_at/expires_at NULL; otherwise expires_at = activated_at + hours.
+     */
+    private void insertReactivation(String reference, String accountRef, String status, int requestedHours,
+            Integer activatedMinutesFromNow, Integer expiresAfterHours) {
+        jdbc.update("""
+                INSERT INTO identity_checks (agent_user_id, customer_id, method, status, verified_at, valid_until,
+                                             created_at, updated_at)
+                SELECT u.id, a.customer_id, 'KBA', 'VERIFIED', UTC_TIMESTAMP(6), UTC_TIMESTAMP(6) + INTERVAL 30 MINUTE,
+                       UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+                FROM users u JOIN accounts a ON a.account_ref = :acc WHERE u.username = 'T-IN-REACT'
+                """, Map.of("acc", accountRef));
+        Map<String, Object> params = new HashMap<>();
+        params.put("ref", reference);
+        params.put("acc", accountRef);
+        params.put("s", status);
+        params.put("h", requestedHours);
+        params.put("act", activatedMinutesFromNow);
+        params.put("exp", expiresAfterHours);
+        jdbc.update("""
+                INSERT INTO reactivation_requests (reference, account_id, suspension_reason, msisdns, requested_hours,
+                                                   reason_text, identity_check_id, requested_by_user_id, status,
+                                                   activated_at, expires_at, created_at, updated_at)
+                SELECT :ref, a.id, 'NON_PAYMENT', JSON_ARRAY('+919900000009'), :h, 'Schema test reactivation',
+                       ic.id, ic.agent_user_id, :s,
+                       UTC_TIMESTAMP(6) + INTERVAL :act MINUTE,
+                       UTC_TIMESTAMP(6) + INTERVAL :act MINUTE + INTERVAL :exp HOUR,
+                       UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+                FROM accounts a
+                JOIN identity_checks ic ON ic.id = (SELECT MAX(x.id) FROM identity_checks x
+                                                    WHERE x.customer_id = a.customer_id)
+                WHERE a.account_ref = :acc
+                """, params);
+    }
+
+    private void insertNotification(String sourceRef, String template, String channel, String status) {
+        jdbc.update("""
+                INSERT INTO notifications (customer_id, channel, template, destination, params, source_ref, status,
+                                           next_attempt_at, created_at, updated_at)
+                SELECT c.id, :ch, :t, '+919900000006', JSON_OBJECT('reference', :src), :src, :s,
+                       UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+                FROM customers c WHERE c.customer_ref = 'CUST-T-0006'
+                """, Map.of("src", sourceRef, "t", template, "ch", channel, "s", status));
+    }
 
     private static final String HMAC = "a".repeat(64);
 
