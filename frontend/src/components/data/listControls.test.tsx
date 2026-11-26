@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import { MemoryRouter, useLocation } from 'react-router'
@@ -8,7 +8,8 @@ import { z } from 'zod'
 import { defaultWindow, minusMonths, todayIst } from '@/lib/dateWindow'
 import { DateRangeFilter, IST_HINT, type DateRangeFilterHandle } from './DateRangeFilter'
 import { Pagination } from './Pagination'
-import { StatusBadge, statusLabel } from './StatusBadge'
+import { StatusBadge } from './StatusBadge'
+import { statusLabel } from './statusLabel'
 import { INVALID_LINK_NOTICE, LIST_PAGE_SIZE, useListParams, type ListApiQuery, type ListParamsSchema } from './useListParams'
 
 const SCHEMA: ListParamsSchema = {
@@ -35,7 +36,7 @@ function ListHarness({ onQuery, totalItems = 57 }: { onQuery: (query: ListApiQue
   return (
     <div>
       <span data-testid="url">{location.search}</span>
-      {invalidNotice ? <p role="status">{INVALID_LINK_NOTICE}</p> : null}
+      {invalidNotice ? <output>{INVALID_LINK_NOTICE}</output> : null}
       <DateRangeFilter
         ref={filterRef}
         value={params}
@@ -110,7 +111,8 @@ describe('useListParams (frontend.md §3, §4; XC-04)', () => {
     fireEvent.change(screen.getByLabelText('From'), { target: { value: window3m.from } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: window3m.to } })
     await user.click(screen.getByRole('button', { name: 'Apply' }))
-    expect(url()).toBe(`?from=${window3m.from}&to=${window3m.to}`)
+    // Apply goes through RHF's async (resolver) submit: wait for the URL instead of assuming it updated within the click.
+    await waitFor(() => expect(url()).toBe(`?from=${window3m.from}&to=${window3m.to}`))
     expect(screen.queryByText(INVALID_LINK_NOTICE)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Next' }))
@@ -170,7 +172,7 @@ describe('DateRangeFilter (frontend.md §4, §6; CUS-05.1/05.3, XC-05)', () => {
     expect(screen.getByLabelText('From')).toHaveValue(window3m.from)
     expect(screen.getByLabelText('To')).toHaveValue(window3m.to)
     await applyRange(window3m.from, window3m.to)
-    expect(onApply).toHaveBeenCalledWith(window3m)
+    await waitFor(() => expect(onApply).toHaveBeenCalledWith(window3m))
   })
 
   it.each([

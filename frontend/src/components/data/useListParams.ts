@@ -81,12 +81,13 @@ export function useListParams(schema: ListParamsSchema = NO_EXTRA_FILTERS) {
   const [search, setSearch] = useSearchParams()
   const today = todayIst()
   const { params, invalid, clean } = useMemo(() => parse(search, schema, today), [search, schema, today])
+  // The notice outlives the cleaned URL: latch it while rendering (no effect) when invalid params are seen.
   const [noticeShown, setNoticeShown] = useState(false)
+  if (invalid && !noticeShown) setNoticeShown(true)
 
+  // Drop the invalid params from the URL (synchronising with the router, so an effect).
   useEffect(() => {
-    if (!invalid) return
-    setNoticeShown(true)
-    setSearch(clean, { replace: true })
+    if (invalid) setSearch(clean, { replace: true })
   }, [invalid, clean, setSearch])
 
   const setFilters = useCallback(

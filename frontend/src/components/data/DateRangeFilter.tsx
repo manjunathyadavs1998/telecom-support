@@ -1,24 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react'
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { defaultWindow, MAX_RANGE_DAYS, todayIst, validateRange, type DateRange } from '@/lib/dateWindow'
+import { defaultWindow, MAX_RANGE_DAYS, todayIst, type DateRange } from '@/lib/dateWindow'
+import { dateRangeSchema } from './dateRangeSchema'
 
 export const IST_HINT = 'Dates are in India Standard Time (IST)'
-
-/** Date range form (frontend.md §6): both dates required; `from ≤ to`; `to ≤ todayIst()`; at most `maxDays` days. */
-export function dateRangeSchema({ today = todayIst(), maxDays = MAX_RANGE_DAYS }: { today?: string; maxDays?: number } = {}) {
-  return z
-    .object({ from: z.string(), to: z.string() })
-    .superRefine((range, ctx) => {
-      const problem = validateRange(range, { today, maxDays })
-      if (problem) ctx.addIssue({ code: 'custom', path: [problem.field], message: problem.message })
-    })
-}
 
 export type DateRangeFilterHandle = {
   /** "Change dates" (empty states, §3): select Custom range and focus its start date. */
@@ -42,23 +32,28 @@ type Mode = 'default' | 'custom'
  * (native date inputs + Apply). Tabs use manual activation (F17): arrow keys only move focus; `Enter`/`Space`/click selects.
  */
 export function DateRangeFilter({ value, onApply, onReset, maxDays = MAX_RANGE_DAYS, ref }: DateRangeFilterProps) {
-  const applied = value.from && value.to ? { from: value.from, to: value.to } : null
-  const [mode, setMode] = useState<Mode>(applied ? 'custom' : 'default')
+  const appliedFrom = value.from && value.to ? value.from : undefined
+  const appliedTo = appliedFrom ? value.to : undefined
+  const [mode, setMode] = useState<Mode>(appliedFrom ? 'custom' : 'default')
+  // The URL is the source of truth (Back, deep links): follow external changes of the applied range. The tab is adjusted while
+  // rendering (no effect) and the form follows through RHF `values`.
+  const appliedKey = appliedFrom ? `${appliedFrom}/${appliedTo}` : ''
+  const [syncedKey, setSyncedKey] = useState(appliedKey)
+  if (syncedKey !== appliedKey) {
+    setSyncedKey(appliedKey)
+    setMode(appliedKey ? 'custom' : 'default')
+  }
   // "Change dates": focus the start date once it is mounted (the tab panel mounts a render after the tab is selected).
   const focusFromPending = useRef(false)
   const [, setFocusRequest] = useState(0)
   const today = todayIst()
   const schema = useMemo(() => dateRangeSchema({ today, maxDays }), [today, maxDays])
-  const form = useForm<DateRange>({ resolver: zodResolver(schema), defaultValues: applied ?? defaultWindow() })
-  const { control, handleSubmit, reset } = form
-
-  // The URL is the source of truth (Back, deep links): follow external changes of the applied range.
-  const appliedFrom = applied?.from
-  const appliedTo = applied?.to
-  useEffect(() => {
-    setMode(appliedFrom ? 'custom' : 'default')
-    reset(appliedFrom && appliedTo ? { from: appliedFrom, to: appliedTo } : defaultWindow())
-  }, [appliedFrom, appliedTo, reset])
+  const values = useMemo(
+    () => (appliedFrom && appliedTo ? { from: appliedFrom, to: appliedTo } : defaultWindow()),
+    [appliedFrom, appliedTo],
+  )
+  const form = useForm<DateRange>({ resolver: zodResolver(schema), values })
+  const { control, handleSubmit } = form
 
   useImperativeHandle(ref, () => ({
     openCustomRange: () => {
@@ -71,7 +66,7 @@ export function DateRangeFilter({ value, onApply, onReset, maxDays = MAX_RANGE_D
   function changeMode(next: string) {
     const nextMode: Mode = next === 'custom' ? 'custom' : 'default'
     setMode(nextMode)
-    if (nextMode === 'default' && applied) onReset()
+    if (nextMode === 'default' && appliedFrom) onReset()
   }
 
   const onSubmit = handleSubmit((range) => onApply(range), () => undefined)
