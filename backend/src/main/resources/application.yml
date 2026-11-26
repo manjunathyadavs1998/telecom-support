@@ -48,6 +48,32 @@ app:
   web:
     max-request-size: 1MB   # larger @RequestBody payloads get 413 payload-too-large
   display-time-zone: Asia/Kolkata
+  customer:
+    otp:                          # contact verification (02 backend R3, §3.2, §6)
+      ttl: 10m
+      max-attempts: 5
+      starts-per-hour: 5          # per customer per rolling hour -> 429
+      hmac-secret: ${OTP_HMAC_SECRET:}   # blank = random per-process key (dev/test only; ProfileGuard refuses it in prod)
+      dev-fixed-code: ""          # set only in dev; ProfileGuard refuses it with prod
+    plan-change:
+      apply-cron: "0 5 0 * * *"   # daily 00:05 in app.display-time-zone (02 backend R6)
+  payment:                        # hosted payment gateway (02 backend §6, §8, §3.1)
+    return-url-base: ${PAYMENT_RETURN_URL_BASE:http://localhost:${server.port:8080}}   # SPA origin; E15 returnUrl = base + /customer/payments/{ref} (E4); required in prod
+    gateway:
+      timeout: 5s                 # client timeout; past it the outcome is unknown and reconciled by reference
+      webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}   # HMAC key of X-Gateway-Signature; blank = random per-process key (refused in prod)
+      signature-tolerance: 5m
+      session-ttl: 15m
+      late-capture-window: 24h
+    webhook:
+      ip-requests-per-minute: 60
+    reconcile:                    # PaymentReconciliationJob (02 backend §3.1); "-" disables a schedule (tests only; refused in prod)
+      pending-cron: "0 * * * * *"         # every 60 s: PENDING older than 2 min
+      late-capture-cron: "0 */15 * * * *" # every 15 min: FAILED/EXPIRED completed within late-capture-window
+    mock:
+      enabled: false              # mock checkout page (dev/test only)
+      mode: NORMAL                # NORMAL | UNAVAILABLE | TIMEOUT
+      webhook-url: http://localhost:${server.port:8080}/api/v1/payment-gateway/webhooks
   session:
     absolute-timeout: 12h
   idempotency:

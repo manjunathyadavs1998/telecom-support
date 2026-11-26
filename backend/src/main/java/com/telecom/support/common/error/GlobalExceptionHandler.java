@@ -1,6 +1,7 @@
 package com.telecom.support.common.error;
 
 import com.telecom.support.common.error.ApiExceptions.ApiException;
+import com.telecom.support.common.error.ApiExceptions.TooManyRequestsException;
 import com.telecom.support.common.error.ProblemDetailFactory.FieldViolation;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
 import com.telecom.support.common.security.AccessDeniedListener;
@@ -55,7 +56,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * {@link ApiExceptions} (400 bad-request, 409 conflict, 422 business-rule / idempotency-mismatch): the row's
+     * {@link ApiExceptions} (400 bad-request, 404 not-found, 409 conflict, 422 business-rule / idempotency-mismatch, 429
+     * too-many-requests with {@code Retry-After}, 503 dependency-unavailable): the row's
      * user-safe detail, or the exception's own user-safe detail when it carries one (never its log message).
      */
     @ExceptionHandler(ApiException.class)
@@ -63,7 +65,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.debug("{} on {}: {}", ex.problem(), request.getRequestURI(), ex.getMessage());
         ProblemDetail pd = problems.create(ex.problem(), request.getRequestURI());
         ex.userDetail().ifPresent(pd::setDetail);
-        return respond(pd, HttpHeaders.EMPTY);
+        HttpHeaders headers = new HttpHeaders();
+        if (ex instanceof TooManyRequestsException tooMany) {
+            headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(tooMany.retryAfterSeconds()));
+        }
+        return respond(pd, headers);
     }
 
     @ExceptionHandler(PayloadTooLargeException.class)

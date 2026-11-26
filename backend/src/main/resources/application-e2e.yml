@@ -1,6 +1,15 @@
-# e2e profile (01 backend §12 E2.4): used only together with dev (`dev,e2e`) for the Playwright run, which logs in more
-# often than L1 allows. Nothing else changes. ProfileGuard refuses to start when prod and e2e are both active (E2.5).
+# e2e profile (01 backend §12 E2.4, 02 backend erratum E5): used only together with dev (`dev,e2e`) for the Playwright
+# run. It logs in more often than L1 allows, starts every run from a fresh database (Flyway clean -> migrate with the
+# dev seed, see common.E2eDatabaseReset) and returns from the mock gateway to the e2e base origin (erratum E4).
+# ProfileGuard refuses to start when e2e is active without dev, prod and e2e are both active, or clean is enabled
+# under prod (E2.5, E5, review C20).
 app:
   security:
     login:
       ip-attempts-per-minute: 100
+  payment:
+    # the origin the Playwright browser uses (scripts/check-frontend.sh E2E_BASE_URL); E15 builds returnUrl from it
+    return-url-base: ${E2E_BASE_URL:http://host.docker.internal:8080}
+spring:
+  flyway:
+    clean-disabled: false   # e2e only; ProfileGuard refuses it with prod

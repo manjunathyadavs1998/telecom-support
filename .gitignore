@@ -31,3 +31,6 @@ uploads/
 
 # Quiet check logs (scripts/check-*.sh)
 .logs/
+
+# Claude Code agent worktrees
+.claude/worktrees/

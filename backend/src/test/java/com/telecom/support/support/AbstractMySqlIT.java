@@ -15,7 +15,9 @@ import org.testcontainers.containers.MySQLContainer;
  * seed in {@code db/seed} is never loaded. {@link #mvc} drives the full servlet filter chain (correlation id + security).
  */
 @AutoConfigureMockMvc
-@SpringBootTest(properties = "spring.flyway.locations=classpath:db/migration,classpath:db/test-data")
+@SpringBootTest(properties = {"spring.flyway.locations=classpath:db/migration,classpath:db/test-data",
+        // PaymentReconciliationJob runs only when a test calls it (it polls every PENDING payment)
+        "app.payment.reconcile.pending-cron=-", "app.payment.reconcile.late-capture-cron=-"})
 public abstract class AbstractMySqlIT {
 
     /** Password of every user in {@code db/test-data/R__test_users.sql}. */

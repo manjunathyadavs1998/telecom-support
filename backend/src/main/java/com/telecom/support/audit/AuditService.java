@@ -45,6 +45,16 @@ public class AuditService {
         repository.insert(event(action, Outcome.SUCCESS, actorUserId, actorUsername, entityType, entityId, details));
     }
 
+    /**
+     * Row with the given outcome in the caller's transaction; fails if there is none. For a state change whose audit is
+     * not SUCCESS (e.g. an automatic cancellation), so the row commits or rolls back with the change.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void record(String action, Outcome outcome, Long actorUserId, String actorUsername,
+                       String entityType, String entityId, Map<String, ?> details) {
+        repository.insert(event(action, outcome, actorUserId, actorUsername, entityType, entityId, details));
+    }
+
     /** Row in a new transaction that survives the caller's rollback (FAILURE / DENIED rows, §7). */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordIndependently(String action, Outcome outcome, Long actorUserId, String actorUsername,

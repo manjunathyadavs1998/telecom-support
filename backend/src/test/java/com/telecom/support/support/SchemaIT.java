@@ -23,7 +23,8 @@ class SchemaIT extends AbstractMySqlIT {
                 """, Map.of(), String.class);
 
         assertThat(applied).containsExactly(
-                "V1__baseline.sql", "V2__identity_rbac_audit.sql", "R__test_users.sql");
+                "V1__baseline.sql", "V2__identity_rbac_audit.sql", "V3__catalog.sql", "V4__customer.sql",
+                "V5__servicecase.sql", "V6__payment.sql", "R__test_users.sql", "R__test_users_02_customer.sql");
         assertThat(count("SELECT COUNT(*) FROM users WHERE username = 'IN001'")).isZero();
     }
 
@@ -40,6 +41,9 @@ class SchemaIT extends AbstractMySqlIT {
 
         assertThat(combos).containsExactlyInAnyOrder(
                 "+919900000001=CUSTOMER",
+                "+919900000002=CUSTOMER",   // slice 02 test data (R__test_users_02_customer.sql)
+                "+919900000003=CUSTOMER",
+                "+919900000004=CUSTOMER",
                 "T-IN=INBOUND_AGENT",
                 "T-IN-REACT=INBOUND_AGENT+REACTIVATION_APPROVER",
                 "T-OUT=OUTBOUND_AGENT",

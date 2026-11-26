@@ -57,6 +57,25 @@ class ArchitectureTest {
                 .check(productionClasses);
     }
 
+    @Test
+    void catalogDependsOnNoCustomerFacingModule() {
+        noClasses()
+                .that().resideInAPackage(ROOT + ".catalog..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        ROOT + ".customer..", ROOT + ".servicecase..", ROOT + ".payment..")
+                .because("02-customer backend §1, §9: catalog is reference data used by customer, not the reverse")
+                .check(productionClasses);
+    }
+
+    @Test
+    void customerDependsOnNeitherCasesNorPayments() {
+        noClasses()
+                .that().resideInAPackage(ROOT + ".customer..")
+                .should().dependOnClassesThat().resideInAnyPackage(ROOT + ".servicecase..", ROOT + ".payment..")
+                .because("02-customer backend §1: servicecase and payment depend on customer, one way only")
+                .check(productionClasses);
+    }
+
     private static ArchCondition<JavaClass> onlyBeAccessedFromTheirOwnModule() {
         return new ArchCondition<>("only be accessed from their own module") {
             @Override

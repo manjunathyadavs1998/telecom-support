@@ -15,8 +15,8 @@ import org.springframework.web.util.ServletRequestPathUtils;
 
 /**
  * Deep links and reloads of SPA routes (design 01-foundation backend §12 E2.1; XC-02, ADR 0001): a {@code GET} whose last
- * path segment has no dot and whose first segment is not {@code api}, {@code actuator}, {@code error}, {@code v3} or
- * {@code swagger-ui} is forwarded to {@code /index.html}. Everything else is untouched, so unknown {@code /api/**} keeps
+ * path segment has no dot and whose first segment is not {@code api}, {@code actuator}, {@code error}, {@code v3},
+ * {@code swagger-ui} or {@code mock-gateway} (the dev-only mock checkout, 02 backend §4: 404 when disabled) is forwarded to {@code /index.html}. Everything else is untouched, so unknown {@code /api/**} keeps
  * its 401/404 ProblemDetail and a missing file such as {@code /missing.js} stays 404.
  *
  * <p>A handler mapping rather than a {@code @GetMapping}: path patterns cannot express "any depth, no dot in the last
@@ -27,7 +27,7 @@ import org.springframework.web.util.ServletRequestPathUtils;
 @Component
 public class SpaForwardController extends AbstractHandlerMapping {
 
-    static final Set<String> EXCLUDED_FIRST_SEGMENTS = Set.of("api", "actuator", "error", "v3", "swagger-ui");
+    static final Set<String> EXCLUDED_FIRST_SEGMENTS = Set.of("api", "actuator", "error", "v3", "swagger-ui", "mock-gateway");
 
     private final ParameterizableViewController forward = new ParameterizableViewController();
 

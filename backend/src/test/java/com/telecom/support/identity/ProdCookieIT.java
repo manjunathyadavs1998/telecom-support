@@ -10,6 +10,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
@@ -17,6 +18,11 @@ import org.springframework.test.web.servlet.MvcResult;
  * request (01 backend §4.3, §8 "Secure under prod"; NFR-SEC). The default-profile behaviour is in {@code AuthIT}.
  */
 @ActiveProfiles("prod")
+// the values ProfileGuard requires under prod (review C1, C18, erratum E4); prod refuses disabled ("-") reconcile
+// crons, so the jobs get a valid schedule that never fires during the test (1 Jan, 00:00)
+@TestPropertySource(properties = {"app.customer.otp.hmac-secret=it-otp-secret",
+        "app.payment.gateway.webhook-secret=it-webhook-secret", "app.payment.return-url-base=https://portal.example",
+        "app.payment.reconcile.pending-cron=0 0 0 1 1 *", "app.payment.reconcile.late-capture-cron=0 0 0 1 1 *"})
 class ProdCookieIT extends AbstractMySqlIT {
 
     private static final String TOKEN = "prod-xsrf-token";

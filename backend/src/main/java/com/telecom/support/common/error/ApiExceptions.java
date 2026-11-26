@@ -49,6 +49,13 @@ public final class ApiExceptions {
         }
     }
 
+    /** 404 {@code not-found}: the resource does not exist or is outside the caller's scope (never says which). */
+    public static class NotFoundException extends ApiException {
+        public NotFoundException(String message) {
+            super(Problem.NOT_FOUND, message);
+        }
+    }
+
     /** 409 {@code conflict}: concurrency or state conflict (e.g. the idempotency key is still in progress). */
     public static class ConflictException extends ApiException {
         public ConflictException(String message) {
@@ -67,6 +74,27 @@ public final class ApiExceptions {
 
         public BusinessRuleException(String message, String userDetail) {
             super(Problem.BUSINESS_RULE, message, userDetail);
+        }
+    }
+
+    /** 429 {@code too-many-requests} with a {@code Retry-After} header of {@code retryAfterSeconds} (at least 1). */
+    public static class TooManyRequestsException extends ApiException {
+        private final long retryAfterSeconds;
+
+        public TooManyRequestsException(String message, long retryAfterSeconds) {
+            super(Problem.TOO_MANY_REQUESTS, message);
+            this.retryAfterSeconds = Math.max(1, retryAfterSeconds);
+        }
+
+        public long retryAfterSeconds() {
+            return retryAfterSeconds;
+        }
+    }
+
+    /** 503 {@code dependency-unavailable}: an external port (sender, gateway, ...) failed or is unreachable. */
+    public static class DependencyUnavailableException extends ApiException {
+        public DependencyUnavailableException(String message) {
+            super(Problem.DEPENDENCY_UNAVAILABLE, message);
         }
     }
 
