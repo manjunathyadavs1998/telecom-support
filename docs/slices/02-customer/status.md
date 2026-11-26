@@ -48,7 +48,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
 | F1 | Slice 02 API types + dev proxy | `scripts/gen-api.mjs`, `src/types/api/02-customer.ts` (generated), `src/types/api/index.ts`, `vite.config.ts` | §7 | NFR-MAINT, CUS-08.2 | `gen:api:check` and `typecheck` pass; `/mock-gateway` proxied | ☑ |
-| F2 | Formatting + date window | `src/lib/format.ts` (`formatInr`, `isPositiveMoney`, dates), `src/lib/format.test.ts`, `src/lib/dateWindow.ts`, `src/lib/dateWindow.test.ts` | §4, §6 | XC-05, BR-05, CUS-04.1 | `format.test`, `dateWindow.test` pass (incl. exclusive `validTo`, `"0.00"`) | ☐ |
+| F2 | Formatting + date window | `src/lib/format.ts` (`formatInr`, `isPositiveMoney`, dates), `src/lib/format.test.ts`, `src/lib/dateWindow.ts`, `src/lib/dateWindow.test.ts` | §4, §6 | XC-05, BR-05, CUS-04.1 | `format.test`, `dateWindow.test` pass (incl. exclusive `validTo`, `"0.00"`) | ☑ |
 | F3 | Idempotency key + submit guard + test fixtures | `src/services/api/idempotency.ts` (`useIdempotencyKey`, `useSubmitGuard`), `idempotency.test.ts`, `src/test/fixtures/customer.ts`, `src/test/msw/customerHandlers.ts`, `src/test/msw/handlers.ts` | §4, §5, §8 | NFR-REL, CUS-06.6 | `idempotency.test` passes (path-scoped keys, sessionStorage record, one run on double call) | ☐ |
 | F4 | shadcn primitives (1) | `src/components/ui/{dialog,alert-dialog,select,checkbox,radio-group}.tsx` (CLI-generated) | §4 | XC-08 | typecheck + lint green | ☐ |
 | F5 | shadcn primitives (2) + DataTable | `src/components/ui/{textarea,table,tabs}.tsx`, `src/components/data/DataTable.tsx`, `DataTable.test.tsx` | §4 | NFR-RESP, XC-08 | `DataTable.test` passes (table ≥ md, cards < md, caption, `aria-busy`) | ☐ |
@@ -72,5 +72,6 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Backend B1–B21 + errata E1–E6 merged (PR #10); seed: customer 1 (`+919800000001`) ≥ 21 cases/payments, customer 5 (`+919800000005`) 2 OPEN invoices.
-- F1 done: `gen-api.mjs` also generates `src/types/api/02-customer.ts`; `src/types/api/index.ts` exports `paths = paths01 & paths02` + slice 02 schema aliases (`Profile`, `Subscription`, `Promotion`, `Invoice`, `Payment`, …); Vite proxies `/mock-gateway` beside `/api`.
-- Next: F2 (format + dateWindow helpers).
+- F1: `src/types/api/02-customer.ts` generated; `index.ts` exports `paths = paths01 & paths02` + slice 02 aliases; Vite proxies `/mock-gateway`.
+- F2: `src/lib/format.ts` (`formatInr` via BigInt + `formatToParts`, `isPositiveMoney`, `formatDateTime` → `25 Nov 2026, 3:30 pm` IST, `formatDate` no shift, `istFields`) and `src/lib/dateWindow.ts` (`todayIst`, `minusMonths`, `defaultWindow`, `daysBetween`, `validateRange` → `{field, message} | null`, `MAX_RANGE_DAYS` 366 = backend `DAYS.between`).
+- Next: F3 (idempotency key + submit guard + fixtures/MSW).
