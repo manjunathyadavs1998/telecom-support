@@ -22,7 +22,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B1 | V7 account suspension + 02 IT updates | `V7__account_suspension.sql`, `support/AbstractMySqlIT.java` (`suspendAccount(ref, reason)`, `reinstateAccount(ref)`), `PromotionIT`, `SubscriptionPlanIT`, `CustomerCaseIT`, `PaymentInitiateIT` (one-line switch to the helpers) | §2 | INB-04.1, NFR-INTEG | `SchemaV7toV9IT` V7 case passes and the four 02 ITs are green | ☑ |
 | B2 | V8 inbound schema + permission | `V8__inbound.sql`, test-data `R__test_users_03_inbound.sql`, `identity/Permissions.java`, `PermissionMatrixIT` (26 + new row), `SchemaV7toV9IT` | §2, 01 §13 E3 | INB-01.2, INB-03.2, BR-07, §14 #4 | `SchemaV7toV9IT` V8 cases (identity_checks CHECKs, leaf × 4 severities) and `PermissionMatrixIT` pass | ☑ |
 | B3 | V9 reactivation + notification schema | `V9__reactivation_notification.sql`, test-data `R__test_users_03_inbound.sql`, `SchemaV7toV9IT` | §2 | INB-04.2, INB-04.5, INB-04.7 | `SchemaV7toV9IT` passes (prohibited CHECK, open UK, 24 h CHECK, outbox UK) | ☑ |
-| B4 | Dev + e2e seed | `db/seed/R__03_inbound.sql`, `db/seed/R__03_inbound_e2e.sql`, `E2eProfileIT` | §2 | INB-01..04 | `E2eProfileIT` passes with the 03 rows | ☐ |
+| B4 | Dev + e2e seed | `db/seed/R__03_inbound.sql`, `db/seed/R__03_inbound_e2e.sql`, `E2eProfileIT` | §2 | INB-01..04 | `E2eProfileIT` passes with the 03 rows | ☑ |
 | B5 | Cross-module APIs | `identity/UserDirectory.java`, `customer/AccountLookup.java` (lock, suspension fields, suspended MSISDNs, contacts), `customer/CustomerRepository.java`, `ArchitectureTest` (new edges), `CrossModuleApiIT` | §1, §6.1 | NFR-MAINT | `CrossModuleApiIT` + `ArchitectureTest` pass | ☐ |
 | B6 | Extract `OtpCodec`; sender channel `PRIMARY_MSISDN` | `customer/OtpCodec.java`, `customer/ContactVerificationService.java`, `customer/VerificationCodeSender.java`, `customer/MockVerificationCodeSender.java`, `OtpCodecTest` | R3 | INB-01.2 | `OtpCodecTest` + unchanged `ContactVerificationIT` pass | ☐ |
 | B7 | Search I1 + lookup tokens | `customer/CustomerLookupService.java`, `customer/CustomerLookupRepository.java`, `customer/LookupRateLimiter.java`, `customer/InboundProperties.java`, `customer/AgentCustomerController.java` (+ `CustomerLookupIT`) | R1 | INB-01.1/01.4, NFR-PRIV | `CustomerLookupIT` passes | ☐ |
@@ -46,8 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1 (V7 suspension CHECK; `suspendAccount`/`reinstateAccount` helpers in `AbstractMySqlIT`, 4 02 ITs switched) and B2 (V8 lookups,
-  identity_checks, `case.severity.override`, INTERNAL categories, SLA for every top level × 4; test data customers T-0006/7/8). Full suite green (431).
-- Note: 01 §13 E3 still says "`V7__inbound.sql`"; the grant ships in `V8__inbound.sql` per 03 §2. SchemaIT/SchemaV3toV6IT flyway lists and permission count updated.
-- Gap for B11: test-data INTERNAL-category cases on customer 1 (§2 "same shape") would break `CustomerCaseIT` exact lists — not added; decide customer/IT change.
-- Next: B3 (V9 reactivation + notification schema; ENDED reactivation 10 days ago in test data).
+- Done: B1–B2 (V7, V8), B3 (V9 reactivation_policies/requests + notifications outbox; test data CUST-T-0009 `+919900000009` NON_PAYMENT with an ENDED
+  reactivation 10 days ago by T-IN-REACT), B4 (dev `R__03_inbound.sql` customers D-0006/7/8; `R__03_inbound_e2e.sql` INTERNAL cases on customer 1).
+- Decision (user, B2 gap): test-data INTERNAL-category cases + INTERNAL notes live on **CUST-T-0006** (refs SR-…-900101/900102, by T-IN), not customer 1, so `CustomerCaseIT` is unchanged.
+- Fix: `R__02_customer*.sql` account upserts now clear `suspension_reason`/`suspended_at` on re-run (V7 CHECK). Dev/e2e split: e2e file holds only the customer-1 INTERNAL cases.
+- Next: B5 (cross-module APIs: UserDirectory, AccountLookup additions, ArchitectureTest edges, CrossModuleApiIT).

@@ -103,7 +103,9 @@ SELECT * FROM (
     FROM customers c WHERE c.customer_ref = 'CUST-D-0005'
 ) AS new
 ON DUPLICATE KEY UPDATE
-    billing_cycle_day = new.billing_cycle_day, status = new.status, updated_at = new.updated_at;
+    billing_cycle_day = new.billing_cycle_day, status = new.status,
+    suspension_reason = NULL, suspended_at = NULL,   -- ACTIVE again: clear the V7 suspension columns together
+    updated_at = new.updated_at;
 
 INSERT INTO subscriptions (account_id, msisdn, plan_id, is_primary, status, activated_at, created_at, updated_at)
 SELECT a.id, '+919800000005', p.id, TRUE, 'ACTIVE', @now - INTERVAL 200 DAY, @now, @now
