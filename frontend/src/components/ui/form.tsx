@@ -21,9 +21,11 @@ export const Form = FormProvider
 const FormFieldContext = createContext<{ name: string } | null>(null)
 const FormItemContext = createContext<{ id: string } | null>(null)
 
-export function FormField<TFieldValues extends FieldValues = FieldValues, TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>>(
-  props: ControllerProps<TFieldValues, TName>,
-) {
+export function FormField<
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+  TTransformedValues = TFieldValues,
+>(props: ControllerProps<TFieldValues, TName, TTransformedValues>) {
   return (
     <FormFieldContext value={{ name: props.name }}>
       <Controller {...props} />
