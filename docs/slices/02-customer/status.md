@@ -4,12 +4,12 @@
 |---|---|---|
 | Design | ☑ `docs/design/02-customer/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D23 addressed) | ☑ `docs/design/02-customer/frontend.md` — **Approved** rev 2 (review F1–F24 addressed; needs backend errata D1–D3) (branch `design/02-customer-fe`) |
 | Approved by user | ☑ 2026-11-25 (also 00-overview §1 rev 3; OQ defaults kept) | ☑ 2026-11-25 (OQ defaults kept; backend errata E4–E6) |
-| Tasks planned | ☑ B1–B21 confirmed 2026-11-25 | ☐ |
+| Tasks planned | ☑ B1–B21 confirmed 2026-11-25 | ☑ F1–F22 confirmed 2026-11-26 |
 | Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☐ branch `slice/02-customer-fe` |
 | Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☐ |
 | Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☐ `review.md` |
 | PR | ☑ #10 | ☐ #… |
-| Merged (by user) | ☐ | ☐ |
+| Merged (by user) | ☑ #10 | ☐ |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
 
@@ -40,7 +40,7 @@ Paths: main code under `backend/src/main/java/com/telecom/support/`, migrations/
 | B20 | Reconciliation job | `payment/PaymentReconciliationJob.java`, `PaymentReconciliationJobIT` | §3.1 | CUS-07.5, CUS-08.4/08.5, NFR-AVAIL | `PaymentReconciliationJobIT` passes (late capture, never auto-EXPIRE, 24 h REVIEW, parallel runs) | ☑ |
 | B21 | Authz matrix, IDOR, architecture, traceability | `CustomerPortalAuthzIT`, `CustomerIdorIT`, `ArchitectureTest`, `docs/requirements/traceability.md` | §4, §9 | BR-10, XC-02, CUS-01.3, NFR-INTEG, NFR-MAINT | all pass; `./mvnw verify` green; slice 02 rows show code + tests || ☑ |
 
-## Tasks — frontend (draft; refs are `frontend.md` sections; confirmed after approval)
+## Tasks — frontend (refs are `frontend.md` sections)
 
 Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2e/`). Every task: `bash scripts/check-frontend.sh` green
 (typecheck, lint, test, gen:api:check). Each page task registers its page in `src/app/pageRegistry.ts` and adds MSW handlers it needs.
