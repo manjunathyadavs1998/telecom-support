@@ -24,7 +24,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B3 | V9 reactivation + notification schema | `V9__reactivation_notification.sql`, test-data `R__test_users_03_inbound.sql`, `SchemaV7toV9IT` | §2 | INB-04.2, INB-04.5, INB-04.7 | `SchemaV7toV9IT` passes (prohibited CHECK, open UK, 24 h CHECK, outbox UK) | ☑ |
 | B4 | Dev + e2e seed | `db/seed/R__03_inbound.sql`, `db/seed/R__03_inbound_e2e.sql`, `E2eProfileIT` | §2 | INB-01..04 | `E2eProfileIT` passes with the 03 rows | ☑ |
 | B5 | Cross-module APIs | `identity/UserDirectory.java`, `customer/AccountLookup.java` (lock, suspension fields, suspended MSISDNs, contacts), `customer/CustomerRepository.java`, `ArchitectureTest` (new edges), `CrossModuleApiIT` | §1, §6.1 | NFR-MAINT | `CrossModuleApiIT` + `ArchitectureTest` pass | ☑ |
-| B6 | Extract `OtpCodec`; sender channel `PRIMARY_MSISDN` | `customer/OtpCodec.java`, `customer/ContactVerificationService.java`, `customer/VerificationCodeSender.java`, `customer/MockVerificationCodeSender.java`, `OtpCodecTest` | R3 | INB-01.2 | `OtpCodecTest` + unchanged `ContactVerificationIT` pass | ☐ |
+| B6 | Extract `OtpCodec`; sender channel `PRIMARY_MSISDN` | `customer/OtpCodec.java`, `customer/ContactVerificationService.java`, `customer/VerificationCodeSender.java`, `customer/MockVerificationCodeSender.java`, `OtpCodecTest` | R3 | INB-01.2 | `OtpCodecTest` + unchanged `ContactVerificationIT` pass | ☑ |
 | B7 | Search I1 + lookup tokens | `customer/CustomerLookupService.java`, `customer/CustomerLookupRepository.java`, `customer/LookupRateLimiter.java`, `customer/InboundProperties.java`, `customer/AgentCustomerController.java` (+ `CustomerLookupIT`) | R1 | INB-01.1/01.4, NFR-PRIV | `CustomerLookupIT` passes | ☐ |
 | B8 | Identity checks I2–I4 + cleanup job | `customer/IdentityCheckRepository.java`, `customer/IdentityCheckService.java`, `customer/IdentityCheckController.java`, `customer/IdentityCheckCleanupJob.java`, `IdentityCheckIT` | R2–R4 | INB-01.1/01.2, NFR-SEC | `IdentityCheckIT` passes (parallel OTP starts = 5, parallel KBA = 3 evaluated, token 404s identical) | ☐ |
 | B9 | Central verified scope + problem type | `customer/VerifiedCustomer.java`, `customer/VerifiedCustomerAccess.java`, `customer/VerifiedCustomerInterceptor.java` (+ resolver, `WebMvcConfigurer`), `common/error/{ApiExceptions,ProblemDetailFactory,GlobalExceptionHandler}.java`, `VerifiedCustomerAccessIT` | R5, R6, §4 | INB-01.2/01.4, BR-10 | `VerifiedCustomerAccessIT` passes (incl. parallel first reads) | ☐ |
@@ -46,8 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B2 (V7, V8), B3 (V9 reactivation_policies/requests + notifications outbox; test data CUST-T-0009 `+919900000009` NON_PAYMENT with an ENDED
-  reactivation 10 days ago by T-IN-REACT), B4 (dev `R__03_inbound.sql` customers D-0006/7/8; `R__03_inbound_e2e.sql` INTERNAL cases on customer 1).
-- Decision (user, B2 gap): test-data INTERNAL-category cases + INTERNAL notes live on **CUST-T-0006** (refs SR-…-900101/900102, by T-IN), not customer 1, so `CustomerCaseIT` is unchanged.
-- Fix: `R__02_customer*.sql` account upserts now clear `suspension_reason`/`suspended_at` on re-run (V7 CHECK). Dev/e2e split: e2e file holds only the customer-1 INTERNAL cases.
-- Next: B5 (cross-module APIs: UserDirectory, AccountLookup additions, ArchitectureTest edges, CrossModuleApiIT).
+- Done: B1–B4 (V7–V9, test data, dev/e2e seed; test-data INTERNAL cases on CUST-T-0006, user decision). B5: `identity.UserDirectory`
+  (displayNames, teamNames, lockForUpdate MANDATORY); `AccountLookup` + `SuspensionReason`, `lockForUpdate(accountId)` MANDATORY, `suspendedMsisdns`, `notificationContacts`; `ArchitectureTest` edge whitelist (rev 4).
+- B6: `customer.OtpCodec` (newCode/hmac/matches, shared key `app.customer.otp.*`) used by `ContactVerificationService`; `Channel.PRIMARY_MSISDN` added.
+  Guard: the 02 `ContactVerificationStart` validator rejects `PRIMARY_MSISDN` (400 on `channel`) so customers cannot use it.
+- Next: B7 (search I1 + lookup tokens, `CustomerLookupIT`).
