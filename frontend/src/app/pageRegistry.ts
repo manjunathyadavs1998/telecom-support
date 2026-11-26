@@ -9,6 +9,7 @@ export type LazyPage = () => Promise<{ Component: ComponentType }>
  * entry renders `ComingSoonPage`. Each page task (F9–F20) adds its entry here.
  */
 export const PAGE_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
+  'customer-home': () => import('@/features/customer/dashboard/DashboardPage'),
   'customer-profile': () => import('@/features/customer/profile/ProfilePage'),
   'customer-plan': () => import('@/features/customer/plan/PlanPage'),
   'customer-promotions': () => import('@/features/customer/promotions/PromotionsPage'),
