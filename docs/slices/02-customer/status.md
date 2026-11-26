@@ -8,7 +8,7 @@
 | Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☐ branch `slice/02-customer-fe` |
 | Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☐ |
 | Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☐ `review.md` |
-| PR | ☐ #… | ☐ #… |
+| PR | ☑ #10 | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
