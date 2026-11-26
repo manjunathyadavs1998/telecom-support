@@ -33,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -48,6 +49,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * CUST-T-0007: KBA 110001 + +919900000017; CUST-T-0008: no verified contact).
  */
 @ExtendWith(OutputCaptureExtension.class)
+@Import(VerifiedProbeController.class)
 @TestPropertySource(properties = "logging.level.com.telecom.support=DEBUG")
 class IdentityCheckIT extends AbstractMySqlIT {
 

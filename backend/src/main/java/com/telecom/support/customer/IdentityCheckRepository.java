@@ -129,6 +129,24 @@ class IdentityCheckRepository {
             LIMIT 1
             """;
 
+    /** R5: this agent's valid VERIFIED check for the customer, with the customer's account. */
+    private static final String FIND_VERIFIED = """
+            SELECT ic.id, a.id AS account_id
+            FROM identity_checks ic
+            JOIN accounts a ON a.customer_id = ic.customer_id
+            WHERE ic.agent_user_id = :agentUserId AND ic.customer_id = :customerId AND ic.status = 'VERIFIED'
+              AND ic.valid_until > :now
+            ORDER BY ic.valid_until DESC, ic.id DESC
+            LIMIT 1
+            """;
+
+    /** R6: the first protected read under a check wins this guarded update (exactly once, also in parallel). */
+    private static final String MARK_ACCESS_LOGGED = """
+            UPDATE identity_checks
+            SET access_logged_at = :now
+            WHERE id = :id AND access_logged_at IS NULL
+            """;
+
     /** Guarded {@code :from} → {@code :to} (LOCKED, EXPIRED, FAILED). */
     private static final String TRANSITION = """
             UPDATE identity_checks
@@ -212,6 +230,19 @@ class IdentityCheckRepository {
     Optional<CheckRow> findCurrent(long agentUserId, long customerId, Instant now) {
         return jdbc.query(FIND_CURRENT, Map.of("agentUserId", agentUserId, "customerId", customerId, "now", utc(now)),
                 (rs, i) -> row(rs)).stream().findFirst();
+    }
+
+    /** R5: (check id, account id) of this agent's valid VERIFIED check for the customer. */
+    record VerifiedRow(long checkId, long accountId) {}
+
+    Optional<VerifiedRow> findVerified(long agentUserId, long customerId, Instant now) {
+        return jdbc.query(FIND_VERIFIED, Map.of("agentUserId", agentUserId, "customerId", customerId, "now", utc(now)),
+                (rs, i) -> new VerifiedRow(rs.getLong("id"), rs.getLong("account_id"))).stream().findFirst();
+    }
+
+    /** 1 when this call logged the first access of the check; 0 when it was already logged. */
+    int markAccessLogged(long id, Instant now) {
+        return jdbc.update(MARK_ACCESS_LOGGED, Map.of("id", id, "now", utc(now)));
     }
 
     int transition(long id, String from, String to, Instant now) {

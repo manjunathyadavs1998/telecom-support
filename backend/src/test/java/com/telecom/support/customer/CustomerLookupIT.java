@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -38,6 +39,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * account SUSPENDED) and R__test_users_02_customer.sql (+919900000003 is TERMINATED).
  */
 @ExtendWith(OutputCaptureExtension.class)
+@Import(VerifiedProbeController.class)
 @TestPropertySource(properties = "logging.level.com.telecom.support=DEBUG")
 class CustomerLookupIT extends AbstractMySqlIT {
 
