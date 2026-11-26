@@ -11,6 +11,15 @@ declare module 'vitest' {
   interface Matchers<R, T> extends AxeMatchers {}
 }
 
+// jsdom has no ResizeObserver; Radix Checkbox and RadioGroup measure their hidden form input with it.
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+}
+
 // NFR-OBS / XC-03: an unexpected console.error or console.warn (React act(), key, DOM-nesting, a11y warnings...) is a defect.
 // A test that expects one installs its own spy on `console`, which replaces this guard for that test.
 let unexpected: string[] = []

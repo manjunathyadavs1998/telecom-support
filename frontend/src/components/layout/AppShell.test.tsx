@@ -33,7 +33,8 @@ function renderShell(me: Me, path = landingFor(me) ?? '/') {
   return { router, ...view }
 }
 
-const h1 = (name: string) => screen.findByRole('heading', { level: 1, name })
+// Real pages load via `route.lazy`; a cold import under a parallel run can take over the default 1 s.
+const h1 = (name: string) => screen.findByRole('heading', { level: 1, name }, { timeout: 3000 })
 const menuButton = () => screen.getByRole('button', { name: 'Open navigation menu' })
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
