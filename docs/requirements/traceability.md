@@ -69,3 +69,39 @@ then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1�
 | NFR-A11Y | Accessible controls and validation | FE: frontend.md §3 (dialogs, disclosures, live regions), §6 | | | FE Designed |
 | NFR-RESP | Responsive customer experience | FE: frontend.md §3 Dashboard grid, §4 `DataTable` cards < md | | | FE Designed |
 | NFR-PERF | Lazy-load modules, server paging | FE: frontend.md §2 (`route.lazy`), §3 independent dashboard cards | | | FE Designed |
+
+## Slice 03 — Inbound assistant workspace
+
+Design: `03-inbound/backend.md` (+ `openapi.yaml`), status **Proposed** (2026-11-26, branch `design/03-inbound`). Rows stay `Proposed`
+until the user approves, then become `Designed`. Section refs are to `03-inbound/backend.md`; endpoints I1–I15.
+
+| BRD ID | Requirement (short) | Design | Code | Tests | Status |
+|---|---|---|---|---|---|
+| INB-01.1 | Search by mobile, scoped to authorized records | R1, R4, I1, §4 | | | Proposed |
+| INB-01.2 | Verification before protected actions | R2–R4, I2–I4, §3.2 of 02 reused | | | Proposed |
+| INB-01.3 | Identity, account status, plan, contacts, case/payment context | R6, I5–I9, I15 | | | Proposed |
+| INB-01.4 | Log customer-record access | R1, R5, §7 `CUSTOMER_LOOKUP`, `CUSTOMER_RECORD_ACCESSED` | | | Proposed |
+| INB-02.1 | Case list: ref, category, severity, status, owner, dates | R7, I9 | | | Proposed |
+| INB-02.2 | Description + activity timeline | R8, I10 | | | Proposed |
+| INB-02.3 | Related/duplicate cases | R9, I10 (OQ 11) | | | Proposed |
+| INB-02.4 | Internal notes never shown to customers | R8, BR-04 | | | Proposed |
+| INB-03.1 | Mobile/account populated from the selected customer | R11 | | | Proposed |
+| INB-03.2 | Internal categories permission-controlled | R10, R11, I11, V7 categories | | | Proposed |
+| INB-03.3 | Summary, statement, agent notes, severity, attachments | R11 (attachments deferred, OQ 5) | | | Proposed (partial) |
+| INB-03.4 | Created-by agent and channel inbound | R11, §7 `CASE_CREATED` | | | Proposed |
+| INB-03.5 | Reference number returned | R11, I12 | | | Proposed |
+| INB-04.1 | Check suspension reason and eligibility first | R12, I13, R13 | | | Proposed |
+| INB-04.2 | Prohibited reasons never overridable | R12, §2 CHECK on `reactivation_policies` | | | Proposed |
+| INB-04.3 | Reason, agent, time, approval evidence | R13, §2 `reactivation_requests`, §7 (OQ 7) | | | Proposed |
+| INB-04.4 | Provisioning via backend integration | R14, §3.1, §8 `ProvisioningClient` | | | Proposed |
+| INB-04.5 | Backend-enforced expiry ≤ 24 h | §3.1 `ReactivationExpiryJob`, §2 24 h CHECK | | | Proposed |
+| INB-04.6 | Prevent repeated extensions / abuse | R12, R13 (OQ 13) | | | Proposed |
+| INB-04.7 | Notify customer + immutable audit | R15, §7, §8 `NotificationSender` | | | Proposed |
+| BR-01/02/04/07 | Reference, channel, separate notes, SLA by category | R11, V7 SLA rows | | | Proposed |
+| BR-08 | Provisioning confirmed by provider | §3.1 | | | Proposed |
+| BR-10 / XC-02 | Server-side authorization | §4, §9 `InboundAuthzIT` | | | Proposed |
+| XC-06 / XC-07 | Privileged actions audited; success only when confirmed | §3.1, §7 | | | Proposed |
+| NFR-AVAIL | Degrade when provisioning/notification is down | §3.1, §8 | | | Proposed |
+| NFR-PRIV | Masked search results, minimised view | R1, R6, §7 | | | Proposed |
+| NFR-REL | Idempotent case create and reactivation | §5 I12, I14 | | | Proposed |
+| NFR-SEC | OTP/KBA limits, prod guard for mocks | R2, R3, §6 | | | Proposed |

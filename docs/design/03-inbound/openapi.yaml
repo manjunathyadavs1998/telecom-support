@@ -1,0 +1,915 @@
+openapi: 3.1.0
+info:
+  title: Telecom Customer Support API — 03 Inbound assistant workspace
+  version: 0.3.0
+  description: |
+    Status: **Proposed** (awaiting approval). Contract-first spec for slice 03 (see backend.md).
+    Auth (session cookie, CSRF header) and the shared components (ProblemDetail, FieldViolation, CorrelationId,
+    XsrfToken, IdempotencyKey, Problem, TooManyRequests) are **copied verbatim** from 01-foundation/openapi.yaml; the
+    read models Subscription, PlanSummary, Benefit, PlanChange, Invoice, Payment and PaymentPage are copied from
+    02-customer/openapi.yaml, so this file generates types on its own.
+    Every `/api/v1/agent/**` operation requires `customer.lookup` (inbound agents only) plus the permission it names.
+    Operations marked "verified" require a valid identity check of the calling agent for that customer (backend.md R4);
+    without one they return 403 with type `verification-required`. Idempotent operations hash {path variables, body},
+    so a key reused on another path id returns 422 idempotency-mismatch.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security:
+  - session: []
+tags:
+  - name: Customer lookup
+    description: Search and identity verification (INB-01.1, INB-01.2)
+  - name: Customer view
+    description: Verified customer profile, plan and payment context (INB-01.3)
+  - name: Cases
+    description: Customer case tracking and requests on behalf (INB-02, INB-03)
+  - name: Reactivation
+    description: Temporary service reactivation (INB-04)
+paths:
+  /api/v1/agent/customers:
+    get:
+      tags: [Customer lookup]
+      operationId: lookupCustomer
+      summary: Find a customer by exact mobile number (masked result)
+      description: 'Permission customer.lookup. INB-01.1, INB-01.4. Exact E.164 match on a live (ACTIVE or SUSPENDED) subscription; 0 or 1 item. Every call is audited. 30 calls per agent per minute.'
+      parameters:
+        - name: msisdn
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Msisdn' }
+      responses:
+        '200':
+          description: Matches (empty when none)
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 1
+                items: { $ref: '#/components/schemas/CustomerMatch' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/identity-checks:
+    post:
+      tags: [Customer lookup]
+      operationId: startIdentityCheck
+      summary: Start an OTP identity check or submit KBA answers
+      description: 'Permission customer.verify. INB-01.2, §14 #2. OTP → 201 PENDING (code sent to the primary mobile); KBA → 201 VERIFIED or 422 (attemptsRemaining). Supersedes this agent''s earlier check for the customer. 5 OTP starts per customer per hour, 3 failed KBA per customer per hour → 429.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdentityCheckStart' }
+      responses:
+        '201':
+          description: Check created
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentityCheck' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/VerificationProblem' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/identity-checks/{checkId}/confirm:
+    post:
+      tags: [Customer lookup]
+      operationId: confirmIdentityCheck
+      summary: Confirm an OTP identity check
+      description: 'Permission customer.verify. INB-01.2. The attempt is counted before the comparison (02 backend §3.2). A check of another agent or customer → 404.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - name: checkId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+        - $ref: '#/components/parameters/XsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IdentityCheckConfirm' }
+      responses:
+        '200':
+          description: Verified
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentityCheck' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/VerificationProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/identity-checks/current:
+    get:
+      tags: [Customer lookup]
+      operationId: getCurrentIdentityCheck
+      summary: This agent's valid verified check for the customer
+      description: 'Permission customer.verify. INB-01.2. 404 when there is none (or it has expired).'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Valid check
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentityCheck' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/profile:
+    get:
+      tags: [Customer view]
+      operationId: getAgentCustomerProfile
+      summary: Verified customer identity, status and contacts
+      description: 'Permission customer.profile.read, verified. INB-01.3. Billing address is not returned (data minimisation).'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Profile
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentCustomerProfile' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/subscriptions:
+    get:
+      tags: [Customer view]
+      operationId: getAgentCustomerSubscriptions
+      summary: Subscriptions and plans of the customer's account
+      description: 'Permission plan.read, verified. INB-01.3. Primary first.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Subscriptions
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/invoices:
+    get:
+      tags: [Customer view]
+      operationId: getAgentCustomerInvoices
+      summary: Latest 12 invoices of the account
+      description: 'Permission payment.read, verified. INB-01.3.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, PAID] }
+      responses:
+        '200':
+          description: Invoices
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/payments:
+    get:
+      tags: [Customer view]
+      operationId: getAgentCustomerPayments
+      summary: Payment history of the account
+      description: 'Permission payment.read, verified. INB-01.3, BR-05/06. Window on initiatedAt, default 3 months; sort whitelist initiatedAt.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          schema: { type: string, enum: ['initiatedAt,desc', 'initiatedAt,asc'], default: 'initiatedAt,desc' }
+      responses:
+        '200':
+          description: Page of payments
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentPage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/cases:
+    get:
+      tags: [Cases]
+      operationId: listAgentCustomerCases
+      summary: Consolidated case list of the customer
+      description: 'Permission case.read, verified. INB-02.1, XC-04/05. Window on createdAt, default 3 months; exact reference searched inside the window.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: status
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 8
+            items: { $ref: '#/components/schemas/CaseStatus' }
+        - name: reference
+          in: query
+          schema: { type: string, maxLength: 24 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          schema: { type: string, enum: ['createdAt,desc', 'createdAt,asc', 'updatedAt,desc', 'updatedAt,asc'], default: 'createdAt,desc' }
+      responses:
+        '200':
+          description: Page of cases
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentCasePage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Cases]
+      operationId: createCaseOnBehalf
+      summary: Raise a request on behalf of the verified customer
+      description: 'Permission case.create.onbehalf, verified, idempotent (operation CASE_CREATE_ONBEHALF). INB-03.1..03.5, BR-01/02/04/07. An INTERNAL category needs case.category.internal and a severity different from the derived one needs case.severity.override (else 403). Channel INBOUND_AGENT and the creating agent are set by the server. Inactive customer, closed account or no SLA row → 422.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgentCaseCreateRequest' }
+      responses:
+        '201':
+          description: Case created
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentCaseCreated' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/cases/{reference}:
+    get:
+      tags: [Cases]
+      operationId: getAgentCustomerCase
+      summary: Case detail with activity timeline and possible duplicates
+      description: 'Permission case.read, verified. INB-02.2..02.4, BR-04. INTERNAL activity only for case.note.internal holders. A case of another account → 404.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string, maxLength: 24, pattern: '^SR-\d{8}-\d{6,}$' }
+      responses:
+        '200':
+          description: Case detail
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentCaseDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/case-categories:
+    get:
+      tags: [Cases]
+      operationId: listAgentCaseCategories
+      summary: Categories available to the agent (customer and, with permission, internal)
+      description: 'Permission case.create.onbehalf. INB-03.2. INTERNAL categories only for case.category.internal holders.'
+      responses:
+        '200':
+          description: Categories
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AgentCategory' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/reactivation-eligibility:
+    get:
+      tags: [Reactivation]
+      operationId: getReactivationEligibility
+      summary: Whether a temporary reactivation may be requested, and why not
+      description: 'Permission service.reactivate, verified. INB-04.1, INB-04.2, INB-04.6.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Eligibility
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReactivationEligibility' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+  /api/v1/agent/customers/{customerId}/reactivations:
+    get:
+      tags: [Reactivation]
+      operationId: listReactivations
+      summary: Reactivation history of the account
+      description: 'Permission customer.profile.read, verified. INB-01.3, INB-04.3. Window on createdAt, default 3 months; newest first.'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Page of reactivations
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReactivationPage' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '500': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Reactivation]
+      operationId: requestReactivation
+      summary: Request a temporary reactivation (up to 24 h) through provisioning
+      description: 'Permission service.reactivate, verified, idempotent (operation REACTIVATION_CREATE). INB-04.1..04.7, BR-08. 201 only after the provider confirms (status ACTIVE). Ineligible → 422 with reasons; open request → 409; provider refused → 422 (FAILED); provider unreachable → 503 (FAILED, retry allowed); outcome unknown → 503 (PENDING, reconciled; a retry gets 409).'
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/XsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReactivationRequest' }
+      responses:
+        '201':
+          description: Service temporarily restored
+          headers:
+            X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reactivation' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/ReactivationProblem' }
+        '500': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/ReactivationProblem' }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: SESSION
+  headers:
+    CorrelationId:
+      description: Request correlation id (echoed if valid, otherwise generated)
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{1,64}$' }
+    RetryAfter:
+      description: Seconds until the caller may retry
+      schema: { type: integer, minimum: 1 }
+  parameters:
+    XsrfToken:
+      name: X-XSRF-TOKEN
+      in: header
+      required: true
+      description: Current value of the XSRF-TOKEN cookie, read by the SPA before each mutating request (no masking)
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated key, reused on retries of the same request (00-overview §7)
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      description: Customer id from the lookup result; access needs a valid identity check (R4)
+      schema: { type: integer, format: int64 }
+    From:
+      name: from
+      in: query
+      description: 'Inclusive start date (Asia/Kolkata). Default is the to date minus 3 months. Range ≤ 366 days.'
+      schema: { type: string, format: date }
+    To:
+      name: to
+      in: query
+      description: Inclusive end date (Asia/Kolkata). Default today.
+      schema: { type: string, format: date }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    Problem:
+      description: Error (RFC 7807), see 00-overview.md §4. A 403 with type suffix verification-required means no valid identity check.
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    TooManyRequests:
+      description: Rate limit hit (type too-many-requests)
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    VerificationProblem:
+      description: Identity check rejected (wrong code or answers, expired, locked, no destination)
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/VerificationProblem' }
+    ReactivationProblem:
+      description: Reactivation not performed; reasons (422 eligibility) or the reference of the request (provider failure)
+      headers:
+        X-Correlation-Id: { $ref: '#/components/headers/CorrelationId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ReactivationProblem' }
+  schemas:
+    Money:
+      type: string
+      description: Decimal amount in INR with two fraction digits
+      pattern: '^\d{1,10}\.\d{2}$'
+      examples: ['499.00']
+    Msisdn:
+      type: string
+      description: E.164 mobile number
+      pattern: '^\+[1-9]\d{7,14}$'
+      examples: ['+919800000001']
+    CustomerStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    AccountStatus:
+      type: string
+      enum: [ACTIVE, SUSPENDED, CLOSED]
+    SuspensionReason:
+      type: string
+      description: Placeholder set until operations approve it (backend.md OQ 2)
+      enum: [NON_PAYMENT, CUSTOMER_REQUEST, KYC_PENDING, FRAUD, LEGAL, REGULATORY, OTHER]
+    CustomerMatch:
+      type: object
+      required: [customerId, customerRef, maskedName, maskedMsisdn, subscriptionStatus, customerStatus, accountStatus]
+      properties:
+        customerId: { type: integer, format: int64 }
+        customerRef: { type: string }
+        maskedName: { type: string, examples: ['R*** K***'] }
+        maskedMsisdn: { type: string, examples: ['+91******0001'] }
+        subscriptionStatus: { type: string, enum: [ACTIVE, SUSPENDED] }
+        customerStatus: { $ref: '#/components/schemas/CustomerStatus' }
+        accountStatus: { $ref: '#/components/schemas/AccountStatus' }
+        verifiedUntil:
+          type: [string, 'null']
+          format: date-time
+          description: End of this agent's valid identity check for the customer, else null
+    IdentityCheckMethod:
+      type: string
+      enum: [OTP, KBA]
+    IdentityCheckStart:
+      type: object
+      required: [method]
+      description: For KBA both answers are required (else 400). Answers are never stored.
+      properties:
+        method: { $ref: '#/components/schemas/IdentityCheckMethod' }
+        postalCode: { type: [string, 'null'], minLength: 3, maxLength: 12 }
+        registeredContact: { type: [string, 'null'], minLength: 3, maxLength: 254, description: Verified email or secondary mobile on file }
+      if:
+        properties:
+          method: { const: KBA }
+      then:
+        required: [postalCode, registeredContact]
+        properties:
+          postalCode: { type: string, minLength: 3, maxLength: 12 }
+          registeredContact: { type: string, minLength: 3, maxLength: 254 }
+    IdentityCheckConfirm:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^\d{6}$' }
+    IdentityCheck:
+      type: object
+      required: [id, method, status]
+      properties:
+        id: { type: integer, format: int64 }
+        method: { $ref: '#/components/schemas/IdentityCheckMethod' }
+        status: { type: string, enum: [PENDING, VERIFIED] }
+        maskedDestination: { type: [string, 'null'], description: OTP only, examples: ['+91******0001'] }
+        expiresAt: { type: [string, 'null'], format: date-time, description: OTP code expiry while PENDING }
+        validUntil: { type: [string, 'null'], format: date-time, description: End of the verified window when VERIFIED }
+    AgentCustomerProfile:
+      type: object
+      required: [customerId, customerRef, accountRef, fullName, customerStatus, accountStatus, primaryMsisdn, emailVerified, secondaryMsisdnVerified]
+      properties:
+        customerId: { type: integer, format: int64 }
+        customerRef: { type: string }
+        accountRef: { type: string }
+        fullName: { type: string }
+        aliasName: { type: [string, 'null'] }
+        customerStatus: { $ref: '#/components/schemas/CustomerStatus' }
+        accountStatus: { $ref: '#/components/schemas/AccountStatus' }
+        suspension:
+          oneOf:
+            - type: object
+              required: [reason, since]
+              properties:
+                reason: { $ref: '#/components/schemas/SuspensionReason' }
+                since: { type: string, format: date-time }
+            - type: 'null'
+        primaryMsisdn:
+          oneOf:
+            - $ref: '#/components/schemas/Msisdn'
+            - type: 'null'
+        email: { type: [string, 'null'], format: email }
+        emailVerified: { type: boolean }
+        secondaryMsisdn:
+          oneOf:
+            - $ref: '#/components/schemas/Msisdn'
+            - type: 'null'
+        secondaryMsisdnVerified: { type: boolean }
+    Benefit:
+      type: object
+      required: [type, label, value, key]
+      properties:
+        type: { type: string, enum: [VOICE, DATA, SMS, ROAMING, OTT, OTHER] }
+        label: { type: string }
+        value: { type: string }
+        key: { type: boolean, description: Shown in the collapsed plan card }
+    PlanSummary:
+      type: object
+      required: [code, name, planType, monthlyRental, benefits]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        planType: { type: string, enum: [PREPAID, POSTPAID] }
+        monthlyRental: { $ref: '#/components/schemas/Money' }
+        description: { type: [string, 'null'] }
+        benefits:
+          type: array
+          items: { $ref: '#/components/schemas/Benefit' }
+    PlanChange:
+      type: object
+      required: [id, fromPlanCode, toPlanCode, effectiveDate, charge, status]
+      properties:
+        id: { type: integer, format: int64 }
+        fromPlanCode: { type: string }
+        toPlanCode: { type: string }
+        effectiveDate: { type: string, format: date }
+        charge: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [SCHEDULED, APPLIED, CANCELLED] }
+    Subscription:
+      type: object
+      required: [id, msisdn, primary, status, billingCycleDay, plan]
+      properties:
+        id: { type: integer, format: int64 }
+        msisdn: { $ref: '#/components/schemas/Msisdn' }
+        primary: { type: boolean }
+        status: { type: string, enum: [ACTIVE, SUSPENDED, TERMINATED] }
+        billingCycleDay: { type: integer, minimum: 1, maximum: 28 }
+        plan: { $ref: '#/components/schemas/PlanSummary' }
+        pendingPlanChange:
+          oneOf:
+            - $ref: '#/components/schemas/PlanChange'
+            - type: 'null'
+    Invoice:
+      type: object
+      required: [id, invoiceRef, periodStart, periodEnd, issueDate, dueDate, amountDue, amountPaid, outstanding, status]
+      properties:
+        id: { type: integer, format: int64 }
+        invoiceRef: { type: string }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        issueDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        amountDue: { $ref: '#/components/schemas/Money' }
+        amountPaid: { $ref: '#/components/schemas/Money' }
+        outstanding: { $ref: '#/components/schemas/Money' }
+        status: { type: string, enum: [OPEN, PAID] }
+    PaymentStatus:
+      type: string
+      description: REVIEW = held for manual reconciliation (amount mismatch or unreconciled after 24 h); blocks a new payment on the invoice
+      enum: [PENDING, SUCCEEDED, FAILED, EXPIRED, REVIEW]
+    Payment:
+      type: object
+      required: [reference, invoiceRef, amount, currency, status, initiatedAt, receiptAvailable]
+      properties:
+        reference: { type: string, examples: [PAY-20261125-000007] }
+        invoiceRef: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, enum: [INR] }
+        method: { type: [string, 'null'], enum: [UPI, CARD, NETBANKING, WALLET, null] }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        failureReason: { type: [string, 'null'] }
+        initiatedAt: { type: string, format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        receiptAvailable: { type: boolean }
+    PaymentPage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Payment' }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    Severity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    CaseStatus:
+      type: string
+      description: Internal case status (BRD §7.1)
+      enum: [CREATED, ASSIGNED, IN_PROGRESS, PENDING_CUSTOMER, PENDING_EXTERNAL, RESOLVED, CLOSED, REOPENED]
+    PublicCaseStatus:
+      type: string
+      enum: [SUBMITTED, IN_PROGRESS, AWAITING_YOUR_REPLY, RESOLVED, CLOSED]
+    CaseChannel:
+      type: string
+      enum: [CUSTOMER_PORTAL, INBOUND_AGENT]
+    AgentCaseSummary:
+      type: object
+      required: [reference, categoryName, subject, caseType, severity, status, publicStatus, channel, createdAt, updatedAt]
+      properties:
+        reference: { type: string, examples: [SR-20261126-000042] }
+        categoryName: { type: string }
+        subcategoryName: { type: [string, 'null'] }
+        subject: { type: string }
+        caseType: { type: string, enum: [REQUEST, COMPLAINT] }
+        severity: { $ref: '#/components/schemas/Severity' }
+        status: { $ref: '#/components/schemas/CaseStatus' }
+        publicStatus: { $ref: '#/components/schemas/PublicCaseStatus' }
+        channel: { $ref: '#/components/schemas/CaseChannel' }
+        ownerName: { type: [string, 'null'], description: 'Assigned user, else team, else null (unassigned)' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AgentCasePage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AgentCaseSummary' }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    CaseActivity:
+      type: object
+      required: [type, visibility, at]
+      properties:
+        type: { type: string, enum: [CREATED, STATUS_CHANGED, ASSIGNED, NOTE] }
+        visibility: { type: string, enum: [PUBLIC, INTERNAL] }
+        actorName: { type: [string, 'null'] }
+        oldValue: { type: [string, 'null'] }
+        newValue: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+        at: { type: string, format: date-time }
+    RelatedCase:
+      type: object
+      required: [reference, subject, status, createdAt]
+      properties:
+        reference: { type: string }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/CaseStatus' }
+        createdAt: { type: string, format: date-time }
+    AgentCaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/AgentCaseSummary'
+        - type: object
+          required: [description, preferredContact, contactMsisdn, createdByName, activity, possibleDuplicates]
+          properties:
+            description: { type: string }
+            preferredContact: { type: string, enum: [PHONE, SMS, EMAIL] }
+            contactMsisdn: { $ref: '#/components/schemas/Msisdn' }
+            createdByName: { type: string }
+            slaDueAt: { type: string, format: date-time }
+            activity:
+              type: array
+              description: Oldest first; INTERNAL entries only for case.note.internal holders
+              items: { $ref: '#/components/schemas/CaseActivity' }
+            possibleDuplicates:
+              type: array
+              maxItems: 5
+              description: Same account and leaf category within ±30 days (R9)
+              items: { $ref: '#/components/schemas/RelatedCase' }
+    AgentCategory:
+      type: object
+      required: [code, name, audience, subcategories]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        audience: { type: string, enum: [CUSTOMER, INTERNAL] }
+        defaultSeverity: { oneOf: [ { $ref: '#/components/schemas/Severity' }, { type: 'null' } ] }
+        subcategories:
+          type: array
+          items:
+            type: object
+            required: [code, name]
+            properties:
+              code: { type: string }
+              name: { type: string }
+              defaultSeverity: { oneOf: [ { $ref: '#/components/schemas/Severity' }, { type: 'null' } ] }
+    AgentCaseCreateRequest:
+      type: object
+      required: [categoryCode, subject, customerStatement, preferredContact]
+      description: Account, contact number, channel and creator are set by the server (INB-03.1, INB-03.4); unknown fields are ignored.
+      properties:
+        categoryCode: { type: string, maxLength: 32 }
+        subcategoryCode: { type: [string, 'null'], maxLength: 32 }
+        subscriptionId: { type: [integer, 'null'], format: int64, description: Defaults to the primary subscription }
+        subject: { type: string, minLength: 5, maxLength: 150, description: Issue summary }
+        customerStatement: { type: string, minLength: 10, maxLength: 4000 }
+        agentNotes: { type: [string, 'null'], maxLength: 4000, description: Stored as an INTERNAL note }
+        severity:
+          oneOf:
+            - $ref: '#/components/schemas/Severity'
+            - type: 'null'
+          description: Null = derived from the category. A different value needs case.severity.override and severityReason.
+        severityReason: { type: [string, 'null'], minLength: 5, maxLength: 200 }
+        preferredContact: { type: string, enum: [PHONE, SMS, EMAIL] }
+    AgentCaseCreated:
+      type: object
+      required: [reference, caseType, status, severity, createdAt, contactMsisdn, accountRef, channel]
+      properties:
+        reference: { type: string, description: Communicated to the customer (INB-03.5) }
+        caseType: { type: string, enum: [REQUEST, COMPLAINT] }
+        status: { $ref: '#/components/schemas/CaseStatus' }
+        severity: { $ref: '#/components/schemas/Severity' }
+        createdAt: { type: string, format: date-time }
+        contactMsisdn: { $ref: '#/components/schemas/Msisdn' }
+        accountRef: { type: string }
+        channel: { $ref: '#/components/schemas/CaseChannel' }
+    EligibilityReason:
+      type: string
+      enum: [CUSTOMER_INACTIVE, NOT_SUSPENDED, PROHIBITED_REASON, REASON_NOT_ELIGIBLE, NO_SUSPENDED_SERVICE, OPEN_REQUEST, ACCOUNT_LIMIT_REACHED, AGENT_LIMIT_REACHED]
+    ReactivationEligibility:
+      type: object
+      required: [eligible, reasons]
+      properties:
+        eligible: { type: boolean }
+        reasons:
+          type: array
+          description: Empty when eligible
+          items: { $ref: '#/components/schemas/EligibilityReason' }
+        suspensionReason:
+          oneOf:
+            - $ref: '#/components/schemas/SuspensionReason'
+            - type: 'null'
+        maxHours: { type: [integer, 'null'], minimum: 1, maximum: 24 }
+        suspendedMsisdns:
+          type: array
+          items: { $ref: '#/components/schemas/Msisdn' }
+        openRequestReference: { type: [string, 'null'] }
+    ReactivationRequest:
+      type: object
+      required: [hours, reason]
+      properties:
+        hours: { type: integer, minimum: 1, maximum: 24, default: 24, description: Also capped by the policy maxHours (else 422) }
+        reason: { type: string, minLength: 10, maxLength: 500 }
+        approvalReference: { type: [string, 'null'], maxLength: 64 }
+    ReactivationStatus:
+      type: string
+      description: REVIEW = provider outcome unknown or expiry failed; held for operations and blocks new requests
+      enum: [PENDING, ACTIVE, EXPIRING, EXPIRED, ENDED, FAILED, REVIEW]
+    Reactivation:
+      type: object
+      required: [reference, status, suspensionReason, msisdns, requestedHours, reason, requestedByName, createdAt]
+      properties:
+        reference: { type: string, examples: [REA-20261126-000001] }
+        status: { $ref: '#/components/schemas/ReactivationStatus' }
+        suspensionReason: { $ref: '#/components/schemas/SuspensionReason' }
+        msisdns:
+          type: array
+          items: { $ref: '#/components/schemas/Msisdn' }
+        requestedHours: { type: integer, minimum: 1, maximum: 24 }
+        reason: { type: string }
+        approvalReference: { type: [string, 'null'] }
+        requestedByName: { type: string }
+        failureReason: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        activatedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        endedAt: { type: [string, 'null'], format: date-time }
+    ReactivationPage:
+      type: object
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Reactivation' }
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    FieldViolation:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ProblemDetail:
+      type: object
+      required: [type, title, status, correlationId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        correlationId: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldViolation' }
+    VerificationProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            reason: { type: string, enum: [wrong_code, expired, locked, kba_mismatch, kba_unavailable, no_otp_destination] }
+            attemptsRemaining: { type: integer, minimum: 0 }
+    ReactivationProblem:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            reasons:
+              type: array
+              items: { $ref: '#/components/schemas/EligibilityReason' }
+            reference: { type: [string, 'null'], description: REA reference when a request row was created }
+            reactivationStatus:
+              oneOf:
+                - $ref: '#/components/schemas/ReactivationStatus'
+                - type: 'null'
