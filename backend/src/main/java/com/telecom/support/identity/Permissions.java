@@ -21,6 +21,8 @@ public final class Permissions {
     public static final String CASE_CREATE = "case.create";
     public static final String CASE_CREATE_ON_BEHALF = "case.create.onbehalf";
     public static final String CASE_CATEGORY_INTERNAL = "case.category.internal";
+    /** Agent severity override on case-on-behalf (01 backend §13 E3, granted by V8; BRD §14 #4). */
+    public static final String CASE_SEVERITY_OVERRIDE = "case.severity.override";
     public static final String CASE_READ = "case.read";
     public static final String CASE_READ_QUEUE = "case.read.queue";
     public static final String CASE_ASSIGN = "case.assign";

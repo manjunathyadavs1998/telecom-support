@@ -24,8 +24,8 @@ class SchemaIT extends AbstractMySqlIT {
 
         assertThat(applied).containsExactly(
                 "V1__baseline.sql", "V2__identity_rbac_audit.sql", "V3__catalog.sql", "V4__customer.sql",
-                "V5__servicecase.sql", "V6__payment.sql", "V7__account_suspension.sql", "R__test_users.sql",
-                "R__test_users_02_customer.sql");
+                "V5__servicecase.sql", "V6__payment.sql", "V7__account_suspension.sql", "V8__inbound.sql",
+                "R__test_users.sql", "R__test_users_02_customer.sql", "R__test_users_03_inbound.sql");
         assertThat(count("SELECT COUNT(*) FROM users WHERE username = 'IN001'")).isZero();
     }
 
@@ -54,9 +54,10 @@ class SchemaIT extends AbstractMySqlIT {
     }
 
     @Test
-    void seedsSevenRolesAndTwentyFivePermissions() {
+    void seedsSevenRolesAndTwentySixPermissions() {
         assertThat(count("SELECT COUNT(*) FROM roles")).isEqualTo(7);
-        assertThat(count("SELECT COUNT(*) FROM permissions")).isEqualTo(25);
+        // 25 (V2) + case.severity.override (V8, 01 §13 E3)
+        assertThat(count("SELECT COUNT(*) FROM permissions")).isEqualTo(26);
     }
 
     @Test
