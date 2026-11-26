@@ -26,7 +26,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B5 | Cross-module APIs | `identity/UserDirectory.java`, `customer/AccountLookup.java` (lock, suspension fields, suspended MSISDNs, contacts), `customer/CustomerRepository.java`, `ArchitectureTest` (new edges), `CrossModuleApiIT` | §1, §6.1 | NFR-MAINT | `CrossModuleApiIT` + `ArchitectureTest` pass | ☑ |
 | B6 | Extract `OtpCodec`; sender channel `PRIMARY_MSISDN` | `customer/OtpCodec.java`, `customer/ContactVerificationService.java`, `customer/VerificationCodeSender.java`, `customer/MockVerificationCodeSender.java`, `OtpCodecTest` | R3 | INB-01.2 | `OtpCodecTest` + unchanged `ContactVerificationIT` pass | ☑ |
 | B7 | Search I1 + lookup tokens | `customer/CustomerLookupService.java`, `customer/CustomerLookupRepository.java`, `customer/LookupRateLimiter.java`, `customer/InboundProperties.java`, `customer/AgentCustomerController.java` (+ `CustomerLookupIT`) | R1 | INB-01.1/01.4, NFR-PRIV | `CustomerLookupIT` passes | ☑ |
-| B8 | Identity checks I2–I4 + cleanup job | `customer/IdentityCheckRepository.java`, `customer/IdentityCheckService.java`, `customer/IdentityCheckController.java`, `customer/IdentityCheckCleanupJob.java`, `IdentityCheckIT` | R2–R4 | INB-01.1/01.2, NFR-SEC | `IdentityCheckIT` passes (parallel OTP starts = 5, parallel KBA = 3 evaluated, token 404s identical) | ☐ |
+| B8 | Identity checks I2–I4 + cleanup job | `customer/IdentityCheckRepository.java`, `customer/IdentityCheckService.java`, `customer/IdentityCheckController.java`, `customer/IdentityCheckCleanupJob.java`, `IdentityCheckIT` | R2–R4 | INB-01.1/01.2, NFR-SEC | `IdentityCheckIT` passes (parallel OTP starts = 5, parallel KBA = 3 evaluated, token 404s identical) | ☑ |
 | B9 | Central verified scope + problem type | `customer/VerifiedCustomer.java`, `customer/VerifiedCustomerAccess.java`, `customer/VerifiedCustomerInterceptor.java` (+ resolver, `WebMvcConfigurer`), `common/error/{ApiExceptions,ProblemDetailFactory,GlobalExceptionHandler}.java`, `VerifiedCustomerAccessIT` | R5, R6, §4 | INB-01.2/01.4, BR-10 | `VerifiedCustomerAccessIT` passes (incl. parallel first reads) | ☐ |
 | B10 | Verified view I5–I8 | `customer/CustomerService.java` (`profileOf`, `contactsOf`), `customer/SubscriptionService.java` (`subscriptionsOf`, `liveSubscription`), `customer/AgentCustomerController.java`, `payment/{PaymentQueryService,AgentPaymentController}.java`, `AgentCustomerViewIT` | R7, §6.1 | INB-01.3 | `AgentCustomerViewIT` passes; 02 ITs green | ☐ |
 | B11 | Case list + detail I9, I10 | `servicecase/AgentCaseQueryService.java`, `servicecase/CaseRepository.java`, `servicecase/CaseActivityRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseQueryIT` | R8–R10 | INB-02, BR-04 | `AgentCaseQueryIT` passes | ☐ |
@@ -46,8 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B4 (V7–V9, test data, dev/e2e seed; test-data INTERNAL cases on CUST-T-0006, user decision). B5: `identity.UserDirectory`
-  (displayNames, teamNames, lockForUpdate MANDATORY); `AccountLookup` + `SuspensionReason`, `lockForUpdate(accountId)` MANDATORY, `suspendedMsisdns`, `notificationContacts`; `ArchitectureTest` edge whitelist (rev 4).
-- B6: `customer.OtpCodec` (newCode/hmac/matches, shared key `app.customer.otp.*`) used by `ContactVerificationService`; `Channel.PRIMARY_MSISDN` added.
-  Guard: the 02 `ContactVerificationStart` validator rejects `PRIMARY_MSISDN` (400 on `channel`) so customers cannot use it.
-- Next: B7 (search I1 + lookup tokens, `CustomerLookupIT`).
+- Done: B1–B6 (schema, seed, cross-module APIs, `OtpCodec`). B7: `CustomerLookupService.search` (I1, `AgentCustomerController`), token = 128-bit
+  base64url stored as SHA-256, `isValidToken(token, agent, customer)`, `LookupRateLimiter` (per agent, `clear()` for tests), `InboundProperties` (`app.inbound.*`).
+- B8: `IdentityCheckService` startOtp/startKba/confirm/current + `IdentityCheckController` (I2–I4, 422 body adds `reason`, `attemptsRemaining`),
+  `IdentityCheckCleanupJob` (`app.inbound.identity-check.cleanup-cron`). ITs share `InboundTestClock` (T0 2030) + DEBUG logging = one context.
+- Next: B9 (`VerifiedCustomerAccess` reads VERIFIED + `valid_until > now` per agent+customer; `access_logged_at` already in V8).

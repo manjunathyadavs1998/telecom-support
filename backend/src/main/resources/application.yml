@@ -62,6 +62,7 @@ app:
     lookup-token-ttl: 15m         # a search hit's lookup token (R1, R2)
     identity-check:
       validity: 30m               # VERIFIED window per agent + customer, never extended (R5)
+      cleanup-cron: "0 */5 * * * *"   # IdentityCheckCleanupJob: expire PENDING OTP checks, purge lookups older than 24 h
     kba-customer-per-hour: 3      # KBA attempts (CHECKING|FAILED) per customer per rolling hour -> 429 (R4)
     kba-agent-per-hour: 10        # KBA attempts (CHECKING|FAILED) per agent per rolling hour -> 429 (R4)
     related-window: 30d           # possible duplicates +/- around a case (R10)
