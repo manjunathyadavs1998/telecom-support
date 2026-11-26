@@ -54,7 +54,7 @@ Roles add up: a user can hold several. Special permissions are separate roles so
 | case.create | ✔ own | | | | | | |
 | case.create.onbehalf | | ✔ | | | | | |
 | case.category.internal | | ✔ | | | | | |
-| case.severity.override *(E3, proposed with 03)* | | ✔ | | | | | |
+| case.severity.override *(E3, approved with 03)* | | ✔ | | | | | |
 | case.read | ✔ own | ✔ verified | | ✔ queue scope | | | |
 | case.read.queue | | | | ✔ | | | |
 | case.assign | | | | ✔ claim | | | |
@@ -278,7 +278,7 @@ here is built until the user approves it. Other sections stay as approved.
 | E2.5 | config guard | a startup check fails the application context when profiles `prod` and `e2e` are both active | `ProfileGuardIT`: context with `prod,e2e` fails to start with a clear message | the relaxed limit can never reach production (NFR-SEC) |
 | E2.6 | tooling (`scripts/check-frontend.sh`) | mount the repo root (work dir `frontend/`) so `gen:api:check` sees `docs/design`; default steps `ci typecheck lint test gen:api:check`; `build` and `e2e` opt-in; `e2e` uses the Playwright image with `E2E_BASE_URL` (default `http://host.docker.internal:8080`) and `E2E_PASSWORD` | script runs default steps on the skeleton; `e2e` step skipped unless named | typed contract drift (NFR-MAINT) |
 
-## 13. Errata proposed with the 03 design (branch `design/03-inbound`) — Status: **Proposed** (approved together with `03-inbound/backend.md`)
+## 13. Errata proposed with the 03 design (branch `design/03-inbound`) — Status: **Approved** (user, 2026-11-26, with `03-inbound/backend.md`)
 
 ### E3 — permission `case.severity.override` (03 backend OQ 1, review D6)
 **Change.** New permission `case.severity.override` (BRD §14 #4 "agent override with permission"), granted to INBOUND_AGENT by

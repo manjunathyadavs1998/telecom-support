@@ -1,7 +1,6 @@
 # 00 — System overview and cross-cutting conventions
 
-- Status: **Approved** (revision 3: §1 module dependencies, approved with `02-customer/backend.md`) · Date: 2026-11-25
-- Revision 4: **Proposed with `03-inbound/backend.md`** (2026-11-26; approved and merged together with it): §1 modules, tables and edges for slice 03, §4 `verification-required`
+- Status: **Approved** (revision 4: §1 slice 03 modules/edges, §4 `verification-required`; approved by user 2026-11-26 with `03-inbound/backend.md`) · Date: 2026-11-26
 - Covers: BRD §2, §7, §8, §9, §11, §13, §15 · ADRs 0001–0003
 
 This document fixes the conventions that every slice design reuses. Slice designs reference it instead of repeating it.
@@ -13,7 +12,7 @@ One Spring Boot application with feature packages under `com.telecom.support`. A
 
 *Rev 3:* module dependencies are one-way and cycle-free (`ArchitectureTest`): `servicecase → customer`,
 `payment → customer`, `customer → catalog`; every module may use `common` and `audit`.
-*Rev 4 (proposed with 03):* adds `servicecase → identity`, `reactivation → customer`, `reactivation → notification`,
+*Rev 4 (approved with 03, 2026-11-26):* adds `servicecase → identity`, `reactivation → customer`, `reactivation → notification`,
 `reactivation → identity` (identity's public `UserDirectory` only; `identity` imports no feature module); `notification` uses only `common`.
 
 | Module | Package | Owns (tables) | BRD | Slice |
@@ -67,7 +66,7 @@ Every error is an RFC 7807 `ProblemDetail` (`application/problem+json`):
 | 400 | `validation` / `bad-request` | Bean validation failed (`errors[]` filled) or a malformed request (unknown JSON fields are ignored) |
 | 401 | `unauthenticated` | No session, or bad credentials |
 | 403 | `forbidden` | Missing permission or out-of-scope record (also CSRF failure) |
-| 403 | `verification-required` | *Rev 4 (proposed with 03):* an inbound agent has no valid identity check for the customer in the path (03 backend R5) |
+| 403 | `verification-required` | *Rev 4 (approved with 03, 2026-11-26):* an inbound agent has no valid identity check for the customer in the path (03 backend R5) |
 | 404 | `not-found` | Unknown id **or** a record outside the caller's scope when existence must not leak |
 | 405 | `method-not-allowed` | HTTP method not supported on the path (`Allow` header set) |
 | 409 | `conflict` | Concurrency or state conflict (e.g. the case was already claimed, the idempotency key is in progress) |

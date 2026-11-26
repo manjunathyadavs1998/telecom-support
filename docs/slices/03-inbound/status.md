@@ -2,8 +2,8 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Proposed** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` |
-| Approved by user | ☐ | ☐ |
+| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` |
+| Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☐ |
 | Tasks planned | ☐ draft B1–B20 below (confirmed after approval) | ☐ |
 | Built | ☐ branch `slice/03-inbound-be` | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☐ | ☐ |
@@ -46,6 +46,6 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: backend design rev 2 (review `review-backend-design.md` D1–D22 dispositioned); 00-overview rev 4, 01 §13 E3 (+ openapi enum), 02 E7 proposed in the same branch.
-- Next: user decides OQ 1, 2, 4, 13 and approves design + those changes together; then confirm B1–B20 and cut `slice/03-inbound-be`.
+- Done: backend design rev 2 approved by user 2026-11-26 (OQ defaults kept); 00-overview rev 4, 01 §13 E3 (+ openapi enum), 02 E7 approved with it.
+- Next: user merges the design PR → cut `slice/03-inbound-be` from main → confirm B1–B20 → B1.
 - Blockers / open questions: none beyond §10.

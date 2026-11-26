@@ -1,6 +1,6 @@
 # 03 Inbound assistant workspace — backend design
 
-- Status: **Proposed** (awaiting approval), revision 2 · Date: 2026-11-26
+- Status: **Approved** (revision 2) · Date: 2026-11-26 · approved by user 2026-11-26 with OQ defaults (OQ 1, 2, 4, 13, 17 confirmed)
 - BRD: INB-01..INB-04, BR-01..BR-04, BR-07, BR-08, BR-10, XC-02, XC-04..XC-07, NFR-AVAIL, NFR-INTEG, NFR-OBS, NFR-PRIV, NFR-REL, NFR-SEC, §8, §11, §12, §14 #2, #4, #5, #12, §15 phase 3
 - Conventions: [`../00-overview.md`](../00-overview.md) (rev 4 §1/§4 **proposed with this design**) · Contract: [`openapi.yaml`](openapi.yaml) (shared components copied verbatim from 01, as in 02) · Precedent: [`../02-customer/backend.md`](../02-customer/backend.md) (rev 2 + errata E1–E6; E7 proposed with this design)
 - Approved-doc changes in this PR (approved together with this design): 00-overview rev 4 (§1 modules/edges, §4 `verification-required`), 01 backend §13 E3 + 01 openapi `Permission` enum (`case.severity.override`), 02 backend §11 E7 (ACCESS_DENIED wording)
