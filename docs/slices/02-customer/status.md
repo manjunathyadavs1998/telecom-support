@@ -7,7 +7,7 @@
 | Tasks planned | ☑ B1–B21 confirmed 2026-11-25 | ☑ F1–F22 confirmed 2026-11-26 |
 | Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☐ branch `slice/02-customer-fe` |
 | Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☐ |
-| Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☐ `review.md` |
+| Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☑ `review-frontend-code.md`: High 0, Medium 0 open (FC1, FC2 fixed); every finding has a disposition |
 | PR | ☑ #10 | ☐ #… |
 | Merged (by user) | ☑ #10 | ☐ |
 
@@ -71,8 +71,7 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | F22 | e2e payment + traceability | `e2e/payment.spec.ts`, `scripts/check-frontend.sh` (documents the fresh-JAR precondition), `docs/requirements/traceability.md` | §7, §8, §10 | CUS-08, CUS-07.4 | needs backend D1, D2; `check-frontend.sh e2e` green twice in a row (JAR restarted between); slice 02 rows show FE code + tests | ⏸ deferred by user 2026-11-27 (browser tests postponed; unit tests + backend ITs only) |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- F1–F20 built; F21/F22 (browser e2e) deferred by the user 2026-11-27 (WIP specs in `frontend/e2e/`, not green; a dev,e2e JAR hang under parallel load is undiagnosed).
-- `origin/main` merged in (slice 03 rows kept in traceability; 01 API types regenerated for `case.severity.override`).
-- Code review fixed: FC2–FC9, FC11–FC13 (see `review-frontend-code.md`); FC14/FC15 accepted as design-wording items.
-- Waiting on the user: FC1 (REVIEW payment on Pay bill) and FC10 (status label texts) need a design decision before code changes.
-- Next: user decides FC1/FC10 → design erratum → fix; then PR for `slice/02-customer-fe` (merge-steward).
+- F1–F20 built; F21/F22 (browser e2e) deferred by the user 2026-11-27 (WIP specs in `frontend/e2e/`, not green).
+- Code review: FC1–FC13 fixed (FC1/FC10 via erratum FE1: REVIEW payment alert on Pay bill, approved status labels); FC14/FC15 accepted.
+- Review clean: no High/Medium open. `check-frontend.sh` default steps green (568 tests).
+- Next: PR for `slice/02-customer-fe` (merge-steward); merge only on the user's "merge".

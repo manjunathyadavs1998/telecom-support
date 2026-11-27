@@ -16,14 +16,14 @@ import {
 } from 'lucide-react'
 import type { PaymentStatus, PublicCaseStatus, Severity, Subscription } from '@/types/api'
 
-/** Status display labels, icons and tones (frontend.md §3 Payment status, §4; XC-08), shared by `StatusBadge` and plain-text uses. */
+/** Status display labels, icons and tones (frontend.md §3 Payment status, §4, erratum FE1 labels; XC-08), shared by `StatusBadge` and plain-text uses. */
 
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 export type Look = { label: string; icon: LucideIcon; tone: Tone }
 
 
 const CASE: Record<PublicCaseStatus, Look> = {
-  SUBMITTED: { label: 'Submitted', icon: CircleDot, tone: 'info' },
+  SUBMITTED: { label: 'Open', icon: CircleDot, tone: 'info' },
   IN_PROGRESS: { label: 'In progress', icon: Clock, tone: 'info' },
   AWAITING_YOUR_REPLY: { label: 'Awaiting your reply', icon: MessageSquare, tone: 'warning' },
   RESOLVED: { label: 'Resolved', icon: CircleCheck, tone: 'success' },

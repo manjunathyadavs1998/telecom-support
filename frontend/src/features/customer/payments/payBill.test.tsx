@@ -33,6 +33,7 @@ import {
   PayBillPage,
   PROVIDER_UNAVAILABLE_MESSAGE,
   REDIRECT_REFUSED_TITLE,
+  UNDER_REVIEW_MESSAGE,
 } from './PayBillPage'
 import { browserNavigation, resolveRedirect } from './redirect'
 
@@ -237,11 +238,8 @@ describe('Pay bill (frontend.md §3 Pay bill; CUS-08.1/08.2/08.4, NFR-REL)', () 
     expect(posts).toEqual([{ key: STORED_KEY, body: { invoiceId: 801, expectedAmount: '589.82' } }])
   })
 
-  it.each([
-    ['FAILED (terminal)', paymentFailed],
-    ['REVIEW (cannot be continued)', paymentReview],
-  ])('a stored %s payment drops the record: no Continue, Pay uses a fresh key', async (_label, payment) => {
-    store(invoiceOpenOlder, { reference: payment.reference })
+  it('a stored FAILED (terminal) payment drops the record: no Continue, Pay uses a fresh key', async () => {
+    store(invoiceOpenOlder, { reference: paymentFailed.reference })
     serve()
     const user = userEvent.setup()
     renderPage()
@@ -251,6 +249,53 @@ describe('Pay bill (frontend.md §3 Pay bill; CUS-08.1/08.2/08.4, NFR-REL)', () 
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(posts[0]!.key).not.toBe(STORED_KEY)
     expect(posts[0]!.key).toMatch(UUID_V4)
+  })
+
+  it('erratum FE1: a stored REVIEW payment → "under review" alert with its link, no Pay, no Continue; the record is kept', async () => {
+    store(invoiceOpenOlder, { reference: paymentReview.reference })
+    serve()
+    renderPage()
+    const message = await screen.findByText(UNDER_REVIEW_MESSAGE)
+    const alert = message.closest('[role="alert"]') as HTMLElement
+    expect(within(alert).getByRole('link', { name: `View payment ${paymentReview.reference}` })).toHaveAttribute(
+      'href',
+      `/customer/payments/${paymentReview.reference}`,
+    )
+    expect(screen.queryByRole('button', { name: /^Pay / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue payment' })).not.toBeInTheDocument()
+    expect(stored(invoiceOpenOlder)).toMatchObject({ key: STORED_KEY, reference: paymentReview.reference })
+    expect(posts).toHaveLength(0)
+  })
+
+  it('erratum FE1: 409 for a saved payment now under review → the same "under review" alert, no Pay; the record is kept', async () => {
+    let status: Payment['status'] = 'PENDING'
+    store(invoiceOpenOlder, { reference: paymentPending.reference })
+    serve({
+      payments: [],
+      replies: [() => problemResponse(problem(409, 'payment-in-progress', 'A payment is in progress.'))],
+    })
+    server.use(
+      http.get(`${ME}/payments/:reference`, ({ params }) => {
+        paymentGets.push(String(params.reference))
+        return HttpResponse.json({ ...paymentPending, status })
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('button', { name: 'Continue payment' })
+    status = 'REVIEW'
+    await user.click(await payButton())
+    const message = await screen.findByText(UNDER_REVIEW_MESSAGE)
+    const alert = message.closest('[role="alert"]') as HTMLElement
+    expect(within(alert).getByRole('link', { name: `View payment ${paymentPending.reference}` })).toHaveAttribute(
+      'href',
+      `/customer/payments/${paymentPending.reference}`,
+    )
+    expect(screen.queryByText(/A payment for this bill is still open/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Pay / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue payment' })).not.toBeInTheDocument()
+    expect(stored(invoiceOpenOlder)?.reference).toBe(paymentPending.reference)
+    expect(assign).not.toHaveBeenCalled()
   })
 
   it('409 with a stored payment: "still open" links to that payment; the key is kept', async () => {
@@ -270,7 +315,7 @@ describe('Pay bill (frontend.md §3 Pay bill; CUS-08.1/08.2/08.4, NFR-REL)', () 
     expect(assign).not.toHaveBeenCalled()
   })
 
-  it('409 without a stored payment (e.g. one under review, E1): "still open" links to Payment history', async () => {
+  it('409 without a stored payment: "still open" links to Payment history', async () => {
     serve({ replies: [() => problemResponse(problem(409, 'payment-in-progress', 'A payment is in progress.'))] })
     const user = userEvent.setup()
     renderPage()

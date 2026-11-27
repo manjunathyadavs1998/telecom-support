@@ -21,8 +21,10 @@ import { ApiError, GENERIC_ERROR_MESSAGE } from '@/services/api/errors'
 import { IDEMPOTENCY_MISMATCH_MESSAGE, isIdempotencyMismatch, useIdempotencyKey, useSubmitGuard } from '@/services/api/idempotency'
 import type { Invoice } from '@/types/api'
 import { PAYMENT_HISTORY_PATH, paymentStatusPath } from './paymentFormat'
+import { TERMINAL_PAYMENT_STATUSES } from './paymentPolling'
 import {
   INVOICES_QUERY_KEY,
+  fetchPayment,
   PAYMENT_INITIATE_PATH,
   paymentQueryKey,
   useInitiatePayment,
@@ -37,10 +39,11 @@ export const BILL_GONE_MESSAGE = 'This bill is no longer available.'
 export const PROVIDER_UNAVAILABLE_MESSAGE =
   "We couldn't reach the payment provider. Try again in a few minutes. If a payment was started, it will appear in your payment history once confirmed."
 export const REDIRECT_REFUSED_TITLE = "We couldn't open the secure payment page"
+export const UNDER_REVIEW_MESSAGE = "A payment for this bill is under review. Don't pay again — we'll update you."
 
 const linkClass = 'font-medium underline underline-offset-4'
 
-/** frontend.md §3 Pay bill 409 (covers a duplicate attempt and a payment under review, E1). */
+/** frontend.md §3 Pay bill 409 (a duplicate attempt; a payment known to be under review shows `UnderReviewAlert`, erratum FE1). */
 function stillOpenMessage(reference: string | undefined): ReactNode {
   return (
     <>
@@ -56,6 +59,18 @@ function stillOpenMessage(reference: string | undefined): ReactNode {
       )}
       , or try again in about 15 minutes.
     </>
+  )
+}
+
+/** Erratum FE1: shown instead of the Pay button while the bill's saved payment is REVIEW (also after a 409 for it). */
+function UnderReviewAlert({ reference }: { reference: string }) {
+  return (
+    <Alert className="flex-col">
+      <p>{UNDER_REVIEW_MESSAGE}</p>
+      <Link className={linkClass} to={paymentStatusPath(reference)}>
+        View payment {reference}
+      </Link>
+    </Alert>
   )
 }
 
@@ -116,10 +131,10 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
   const storedPayment = useStoredPaymentQuery(storedReference)
   const storedStatus = storedPayment.data?.status
 
-  // Abandoned checkout (F3): only a PENDING payment can be continued; any other status drops the record, so "Pay" uses a fresh
-  // key (a payment under review then gets the 409 below, E1).
+  // Abandoned checkout (F3): only a PENDING payment can be continued. A terminal status (SUCCEEDED/FAILED/EXPIRED, the same set
+  // as the status page) drops the record, so "Pay" uses a fresh key. REVIEW is not terminal: the record is kept (erratum FE1).
   useEffect(() => {
-    if (storedStatus === undefined || storedStatus === 'PENDING') return
+    if (storedStatus === undefined || !TERMINAL_PAYMENT_STATUSES.has(storedStatus)) return
     idempotency.reset() // this render already offers no "Continue"; the next one reads no record
   }, [storedStatus, idempotency])
 
@@ -131,6 +146,11 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
   useEffect(() => {
     if (rootFocusRequest > 0) rootRef.current?.focus()
   }, [rootFocusRequest])
+  const reviewRef = useRef<HTMLDivElement>(null)
+  const [reviewFocusRequest, setReviewFocusRequest] = useState(0)
+  useEffect(() => {
+    if (reviewFocusRequest > 0) reviewRef.current?.focus()
+  }, [reviewFocusRequest])
 
   // bfcache (F4): back from the payment page, the restored page is usable again and shows fresh data.
   const refetchStoredPayment = useCallback(() => {
@@ -154,7 +174,23 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
     setRootFocusRequest((n) => n + 1)
   }
 
-  function showServerError(error: unknown) {
+  /** Erratum FE1: after a 409, re-reads the saved payment; true when it is under review (its alert then replaces Pay). */
+  async function savedPaymentUnderReview(): Promise<boolean> {
+    const reference = idempotency.storedRecord()?.reference
+    if (reference === undefined) return false
+    try {
+      const payment = await client.fetchQuery({
+        queryKey: paymentQueryKey(reference),
+        queryFn: () => fetchPayment(reference),
+        staleTime: 0,
+      })
+      return payment.status === 'REVIEW'
+    } catch {
+      return false
+    }
+  }
+
+  async function showServerError(error: unknown) {
     if (!(error instanceof ApiError)) {
       showRoot({ message: GENERIC_ERROR_MESSAGE, error: null })
       return
@@ -166,6 +202,11 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
     }
     switch (error.status) {
       case 409:
+        if (await savedPaymentUnderReview()) {
+          setRecordVersion((n) => n + 1)
+          setReviewFocusRequest((n) => n + 1)
+          return
+        }
         showRoot({ message: stillOpenMessage(idempotency.storedRecord()?.reference), error })
         return
       case 422:
@@ -199,7 +240,7 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
       } catch (error) {
         idempotency.failed(error)
         setRecordVersion((n) => n + 1)
-        showServerError(error)
+        await showServerError(error)
       }
     })
 
@@ -216,12 +257,18 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
 
   const busy = guard.busy || redirecting
   const canContinue = storedReference !== undefined && storedStatus === 'PENDING'
+  const underReview = storedReference !== undefined && storedStatus === 'REVIEW'
 
   return (
     <Form {...form}>
       <form noValidate onSubmit={onSubmit} aria-label="Pay bill" aria-busy={busy} className="flex flex-col gap-4">
         <FormRootError ref={rootRef} message={root?.message} error={root?.error ?? null} />
-        {root?.retry && selected ? (
+        {underReview ? (
+          <div ref={reviewRef} tabIndex={-1} className="outline-none">
+            <UnderReviewAlert reference={storedReference} />
+          </div>
+        ) : null}
+        {root?.retry && selected && !underReview ? (
           <div>
             <Button type="button" variant="outline" disabled={busy} onClick={() => void pay(selected)}>
               Try again
@@ -283,7 +330,7 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
           </section>
         ) : null}
         <p className="text-sm text-muted-foreground">{PAYMENT_METHODS_INFO}</p>
-        {selected ? (
+        {selected && !underReview ? (
           <div>
             <Button type="submit" disabled={busy}>
               {busy ? 'Opening the payment page…' : `Pay ${formatInr(selected.outstanding)}`}
@@ -298,7 +345,8 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
 /**
  * Pay bill `/customer/payments/pay` (frontend.md §3 Pay bill; CUS-08.1/08.2/08.4, NFR-REL, NFR-SEC): the open invoices with
  * the server's outstanding amount, oldest due first; "Pay" starts E15 with a per-invoice key persisted in sessionStorage and
- * sends the browser to the checkout (same-origin or allowlisted only). A stored PENDING payment offers "Continue payment".
+ * sends the browser to the checkout (same-origin or allowlisted only). A stored PENDING payment offers "Continue payment"; a stored
+ * REVIEW payment shows the "under review" alert instead of Pay (erratum FE1).
  */
 export function PayBillPage() {
   const client = useQueryClient()

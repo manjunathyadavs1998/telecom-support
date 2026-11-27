@@ -275,6 +275,23 @@ describe('StatusBadge (frontend.md §3 Payment status, §4; XC-08)', () => {
     expect(badge.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
+  it.each([
+    ['case', 'SUBMITTED', 'Open'],
+    ['case', 'IN_PROGRESS', 'In progress'],
+    ['case', 'AWAITING_YOUR_REPLY', 'Awaiting your reply'],
+    ['case', 'RESOLVED', 'Resolved'],
+    ['case', 'CLOSED', 'Closed'],
+    ['severity', 'LOW', 'Low'],
+    ['severity', 'MEDIUM', 'Medium'],
+    ['severity', 'HIGH', 'High'],
+    ['severity', 'CRITICAL', 'Critical'],
+    ['subscription', 'ACTIVE', 'Active'],
+    ['subscription', 'SUSPENDED', 'Suspended'],
+    ['subscription', 'TERMINATED', 'Terminated'],
+  ] as const)('approved label (erratum FE1): %s %s → "%s"', (kind, value, label) => {
+    expect(statusLabel({ kind, value } as Parameters<typeof statusLabel>[0])).toBe(label)
+  })
+
   it('labels case, severity and subscription values; axe clean', async () => {
     const { container } = render(
       <>

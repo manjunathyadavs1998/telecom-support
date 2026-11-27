@@ -321,7 +321,7 @@ describe('Create request (frontend.md §3 Create request, §6; CUS-06)', () => {
     await waitFor(() => expect(heading).toHaveFocus())
     expect(within(heading).getByRole('status')).toHaveTextContent(`Request ${caseCreated.reference} submitted`)
     const confirmation = heading.closest('section')!
-    expect(within(confirmation).getByText('Status').nextElementSibling).toHaveTextContent('Submitted')
+    expect(within(confirmation).getByText('Status').nextElementSibling).toHaveTextContent('Open')
     expect(within(confirmation).getByText('Priority').nextElementSibling).toHaveTextContent('Low')
     expect(within(confirmation).getByText('Created').nextElementSibling).toHaveTextContent('26 Nov 2026, 10:30 am')
     expect(within(confirmation).getByRole('link', { name: 'View my requests' })).toHaveAttribute('href', '/customer/requests')

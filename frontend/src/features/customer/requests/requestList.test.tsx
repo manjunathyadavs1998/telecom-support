@@ -92,7 +92,7 @@ describe('Service requests list (frontend.md §3 Service requests; CUS-05, BR-05
       'Status',
     ])
     const cells = within(rows()[0]!).getAllByRole('cell').map((c) => c.textContent)
-    expect(cells).toEqual(['SR-20261125-000042', 'Billing › Wrong charge', '25 Nov 2026, 3:30 pm', 'Medium', 'Submitted'])
+    expect(cells).toEqual(['SR-20261125-000042', 'Billing › Wrong charge', '25 Nov 2026, 3:30 pm', 'Medium', 'Open'])
     expect(screen.getByRole('tab', { name: 'Last 3 months' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Searches within the selected dates')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'New request' })[0]).toHaveAttribute('href', '/customer/requests/new')
