@@ -1,7 +1,45 @@
 // Public names for the generated contract types (frontend.md §7 Types). The generated files are never edited by hand.
 import type { components, paths as paths01 } from './01-foundation'
+import type { components as components02, paths as paths02 } from './02-customer'
 
-export type paths = paths01
+// 02-customer/frontend.md §7: one client over both slices' paths.
+export type paths = paths01 & paths02
 export type Me = components['schemas']['Me']
 export type Permission = components['schemas']['Permission']
 export type ProblemDetail = components['schemas']['ProblemDetail']
+
+// Slice 02 (02-customer/openapi.yaml).
+type S02 = components02['schemas']
+export type Money = S02['Money']
+export type Msisdn = S02['Msisdn']
+export type BillingAddress = S02['BillingAddress']
+export type Profile = S02['Profile']
+export type ProfileUpdate = S02['ProfileUpdate']
+export type ContactChannel = S02['ContactChannel']
+export type ContactVerificationStart = S02['ContactVerificationStart']
+export type ContactVerification = S02['ContactVerification']
+export type ContactVerificationConfirm = S02['ContactVerificationConfirm']
+export type VerificationProblem = S02['VerificationProblem']
+export type Benefit = S02['Benefit']
+export type PlanSummary = S02['PlanSummary']
+export type PlanChange = S02['PlanChange']
+export type Subscription = S02['Subscription']
+export type PlanOption = S02['PlanOption']
+export type PlanChangeRequest = S02['PlanChangeRequest']
+export type Promotion = S02['Promotion']
+export type PromotionClaimRequest = S02['PromotionClaimRequest']
+export type PromotionClaim = S02['PromotionClaim']
+export type Severity = S02['Severity']
+export type Category = S02['Category']
+export type PublicCaseStatus = S02['PublicCaseStatus']
+export type CaseSummary = S02['CaseSummary']
+export type CasePage = S02['CasePage']
+export type CaseCreateRequest = S02['CaseCreateRequest']
+export type CaseCreated = S02['CaseCreated']
+export type Invoice = S02['Invoice']
+export type PaymentStatus = S02['PaymentStatus']
+export type Payment = S02['Payment']
+export type PaymentPage = S02['PaymentPage']
+export type PaymentInitiateRequest = S02['PaymentInitiateRequest']
+export type PaymentInitiated = S02['PaymentInitiated']
+export type Receipt = S02['Receipt']
