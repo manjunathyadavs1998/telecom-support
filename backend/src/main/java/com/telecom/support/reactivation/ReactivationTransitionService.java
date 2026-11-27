@@ -151,11 +151,10 @@ public class ReactivationTransitionService {
      * the account is ACTIVE again (no provider call; notify + audit); ACTIVE → EXPIRING when due ({@code expired}) or
      * when the account's reason is now FRAUD/LEGAL/REGULATORY ({@code policy_prohibited}, early). Otherwise nothing.
      *
-     * <p>Lock order (review C6): this holds {@code accounts} X and the ENDED notification insert then takes the FK S
-     * lock on {@code customers}, against the intended global order users → customers → accounts. With KBA/OTP
-     * (customers X → FK S on users) and I14 tx1 (users X → accounts X) a rare 3-way deadlock is possible; InnoDB
-     * rolls one back (this job retries on its next run). The fix needs a design decision (§3.1 lock order, tied to
-     * review C1 / erratum E1), so it is documented here, not changed.
+     * <p>Lock order (§3.1, E1, review C6): agent-scoped rows before customer/account rows. This job takes no agent
+     * row (accounts X, then the FK S lock on {@code customers} for the ENDED notification); I14 tx1 takes users X
+     * then accounts X; KBA/OTP take users S (and the agent's KBA hour row) before customers X, so none of them waits
+     * on an agent row while holding a customer or account row and the former 3-way cycle cannot form.
      *
      * @return the new status when this call made a transition, else null
      */

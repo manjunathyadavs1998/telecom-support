@@ -168,10 +168,53 @@ class IdentityCheckRepository {
             WHERE status = 'PENDING' AND expires_at <= :now
             """;
 
+    /**
+     * §3.1 lock order (E1, review C6): the agent's {@code users} row in share mode, taken before any customer row, so
+     * the later {@code identity_checks} FK check never waits on {@code users} while the customer row is held.
+     */
+    private static final String LOCK_AGENT_SHARED = """
+            SELECT id FROM users WHERE id = :agentUserId FOR SHARE
+            """;
+
+    /** E1: creates the agent's hour row if missing; on a duplicate this also X-locks the existing row. */
+    private static final String UPSERT_KBA_WINDOW = """
+            INSERT INTO agent_kba_windows (agent_user_id, window_start, attempts)
+            VALUES (:agentUserId, :windowStart, 0)
+            ON DUPLICATE KEY UPDATE attempts = attempts
+            """;
+
+    private static final String LOCK_KBA_WINDOW = """
+            SELECT attempts FROM agent_kba_windows
+            WHERE agent_user_id = :agentUserId AND window_start = :windowStart
+            FOR UPDATE
+            """;
+
+    private static final String COUNT_KBA_WINDOW = """
+            UPDATE agent_kba_windows SET attempts = attempts + 1
+            WHERE agent_user_id = :agentUserId AND window_start = :windowStart
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     IdentityCheckRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    /** Share-locks the agent's {@code users} row (agent-scoped, first in the §3.1 lock order). */
+    void lockAgentShared(long agentUserId) {
+        jdbc.queryForList(LOCK_AGENT_SHARED, Map.of("agentUserId", agentUserId), Long.class);
+    }
+
+    /** E1: upserts and X-locks the agent's KBA row for the hour starting {@code windowStart}. */
+    void lockKbaWindow(long agentUserId, Instant windowStart) {
+        Map<String, Object> params = Map.of("agentUserId", agentUserId, "windowStart", utc(windowStart));
+        jdbc.update(UPSERT_KBA_WINDOW, params);
+        jdbc.queryForList(LOCK_KBA_WINDOW, params, Integer.class);
+    }
+
+    /** E1: counts one admitted KBA attempt in the agent's (already locked) hour row. */
+    void countKbaWindow(long agentUserId, Instant windowStart) {
+        jdbc.update(COUNT_KBA_WINDOW, Map.of("agentUserId", agentUserId, "windowStart", utc(windowStart)));
     }
 
     Optional<CustomerFacts> findFacts(long customerId) {

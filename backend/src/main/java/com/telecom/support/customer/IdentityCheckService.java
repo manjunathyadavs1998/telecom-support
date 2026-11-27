@@ -17,6 +17,7 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -40,7 +41,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       {@code app.customer.otp.starts-per-hour} OTP starts in the last hour (429, all agents), supersedes this agent's
  *       PENDING/VERIFIED check, inserts PENDING (HMAC of the code only) and audits; after the commit the code goes to
  *       the primary MSISDN ({@link Channel#PRIMARY_MSISDN}); a failed send marks the check EXPIRED → 503.</li>
- *   <li><b>KBA</b> (R4): tx A locks the customer row, refuses at {@code kba-customer-per-hour} (customer) or
+ *   <li><b>KBA</b> (R4, E1): tx A share-locks the agent's {@code users} row, upserts and locks the agent's current-hour
+ *       {@code agent_kba_windows} row, then locks the customer row, refuses at {@code kba-customer-per-hour} (customer) or
  *       {@code kba-agent-per-hour} (agent) CHECKING/FAILED rows in the last hour (429), inserts CHECKING and commits;
  *       only then are the HMACs of the normalised answers compared in constant time; tx B moves CHECKING → VERIFIED or
  *       FAILED by a guarded update. A crash between them leaves CHECKING, which counts as a failure.</li>
@@ -154,6 +156,7 @@ public class IdentityCheckService {
 
         record Started(IdentityCheck check, String destination) {}
         Started started = auditedAfterRollback(() -> tx.execute(status -> {
+            checks.lockAgentShared(agent.id()); // §3.1 lock order: agent-scoped row before the customer row (E1)
             lockCustomer(customerId);
             CustomerFacts facts = facts(customerId);
             if (facts.primaryMsisdn() == null) {
@@ -199,8 +202,13 @@ public class IdentityCheckService {
 
         // tx A: the attempt is committed (and counts) before anything is compared
         long[] attempt = auditedAfterRollback(() -> newTx.execute(status -> {
-            lockCustomer(customerId);
+            // E1 / §3.1 lock order: agent-scoped rows (users S, the agent's hour row X) before the customer row, so
+            // one agent's parallel attempts on different customers are counted one at a time
             Instant now = clock.instant();
+            Instant windowStart = now.truncatedTo(ChronoUnit.HOURS);
+            checks.lockAgentShared(agent.id());
+            checks.lockKbaWindow(agent.id(), windowStart);
+            lockCustomer(customerId);
             Window ofCustomer = checks.kbaAttemptsOfCustomerSince(customerId, now.minus(RATE_WINDOW));
             if (ofCustomer.count() >= inbound.kbaCustomerPerHour()) {
                 throw rateLimited(agent, facts, Method.KBA, ofCustomer, now, "KBA attempts per customer exceeded");
@@ -209,6 +217,7 @@ public class IdentityCheckService {
             if (ofAgent.count() >= inbound.kbaAgentPerHour()) {
                 throw rateLimited(agent, facts, Method.KBA, ofAgent, now, "KBA attempts per agent exceeded");
             }
+            checks.countKbaWindow(agent.id(), windowStart);
             return new long[] {checks.insertKbaChecking(agent.id(), customerId, now), ofCustomer.count() + 1L};
         }));
         long id = attempt[0];
