@@ -9,11 +9,11 @@ import { LoadingState } from '@/components/states/LoadingState'
 import { Button } from '@/components/ui/button'
 import { formatDateTime, formatInr } from '@/lib/format'
 import { ForbiddenPage } from '@/pages/ForbiddenPage'
-import { NotFoundPage } from '@/pages/NotFoundPage'
 import { Can } from '@/permissions/Can'
 import { ApiError } from '@/services/api/errors'
 import { dropIdempotencyRecordsFor } from '@/services/api/idempotency'
 import type { Payment } from '@/types/api'
+import { PaymentNotFound } from './PaymentNotFound'
 import { PAY_BILL_PATH, PAYMENT_HISTORY_PATH, paymentMethodLabel, paymentReceiptPath } from './paymentFormat'
 import { TERMINAL_PAYMENT_STATUSES, usePaymentStatusQuery, usePollWindow } from './paymentPolling'
 import { INVOICES_QUERY_KEY, PAYMENT_INITIATE_PATH, PAYMENTS_QUERY_KEY } from './queries'
@@ -190,7 +190,7 @@ function PaymentResult({ payment, windowOpen, refetchFailed, onCheckAgain }: Res
  * Payment status `/customer/payments/:reference` (frontend.md §3 Payment status; CUS-08.3–08.5, XC-07): the gateway return
  * URL (E4). Only E16 decides what is shown; the browser return and its query string are ignored. Polls every 3 s for 2 min
  * while PENDING, then offers "Check again". A failed poll keeps the last confirmed status with a notice. A terminal status
- * drops the stored E15 record and refreshes the payment lists (and the open invoices on success).
+ * drops the stored E15 record; leaving PENDING (REVIEW too) refreshes the payment lists (and the open invoices on success).
  */
 export function PaymentStatusPage() {
   const { reference = '' } = useParams()
@@ -200,9 +200,12 @@ export function PaymentStatusPage() {
   const status = query.data?.status
 
   useEffect(() => {
-    if (status === undefined || !TERMINAL_PAYMENT_STATUSES.has(status)) return
-    dropIdempotencyRecordsFor('PAYMENT_INITIATE', PAYMENT_INITIATE_PATH, reference)
+    if (status === undefined || status === 'PENDING') return
+    // Leaving PENDING (REVIEW included) changes the history row, so the lists refresh (review FC6); only a terminal status
+    // drops the stored E15 record.
     void client.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
+    if (!TERMINAL_PAYMENT_STATUSES.has(status)) return
+    dropIdempotencyRecordsFor('PAYMENT_INITIATE', PAYMENT_INITIATE_PATH, reference)
     if (status === 'SUCCEEDED') void client.invalidateQueries({ queryKey: INVOICES_QUERY_KEY })
   }, [status, reference, client])
 
@@ -214,7 +217,6 @@ export function PaymentStatusPage() {
   const error = query.error
   if (!query.data && error instanceof ApiError) {
     if (error.status === 403) return <ForbiddenPage />
-    if (error.status === 404) return <NotFoundPage />
   }
 
   return (
@@ -226,6 +228,8 @@ export function PaymentStatusPage() {
           refetchFailed={query.isRefetchError}
           onCheckAgain={checkAgain}
         />
+      ) : error instanceof ApiError && error.status === 404 ? (
+        <PaymentNotFound error={error} />
       ) : error ? (
         <ErrorState title="We couldn't load this payment" error={error} onRetry={() => void query.refetch()} />
       ) : (

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { DataTable, type DataTableColumn } from '@/components/data/DataTable'
 import { ErrorState } from '@/components/states/ErrorState'
@@ -10,7 +11,7 @@ import { useIdempotencyKey } from '@/services/api/idempotency'
 import type { PlanOption, PlanSummary, Subscription } from '@/types/api'
 import { PlanChangeDialog } from './PlanChangeDialog'
 import { perMonth } from './planFormat'
-import { planChangePath, usePlanOptionsQuery } from './queries'
+import { planChangePath, SUBSCRIPTIONS_QUERY_KEY, usePlanOptionsQuery } from './queries'
 import { KeyBenefits } from './SubscriptionCard'
 
 export const NO_UPGRADES_MESSAGE = 'No upgrades are available for this plan'
@@ -79,6 +80,7 @@ export function UpgradeOptions({ subscription }: { subscription: Subscription })
   const focusRejectedOnClose = useRef(false)
   const query = usePlanOptionsQuery(subscription.id, requested)
   const idempotency = useIdempotencyKey('PLAN_CHANGE', planChangePath(subscription.id))
+  const client = useQueryClient()
 
   useEffect(() => {
     if (rejectedFocus > 0) rejectedRef.current?.focus()
@@ -89,6 +91,8 @@ export function UpgradeOptions({ subscription }: { subscription: Subscription })
     setRejected(error)
     setRejectedFocus((n) => n + 1)
     void query.refetch()
+    // The reason may be a change already scheduled or a suspended number, both held by E5 (review FC7).
+    void client.invalidateQueries({ queryKey: SUBSCRIPTIONS_QUERY_KEY, exact: true })
   }
 
   if (!requested) {

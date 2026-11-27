@@ -289,4 +289,15 @@ describe('StatusBadge (frontend.md §3 Payment status, §4; XC-08)', () => {
     expect(statusLabel({ kind: 'case', value: 'IN_PROGRESS' })).toBe('In progress')
     expect(await axe(container)).toHaveNoViolations()
   })
+  it('success and warning text use the design tokens, not raw palette colours (FC11)', () => {
+    render(
+      <>
+        <StatusBadge kind="payment" value="SUCCEEDED" />
+        <StatusBadge kind="case" value="AWAITING_YOUR_REPLY" />
+      </>,
+    )
+    expect(screen.getByText('Paid')).toHaveClass('text-success-foreground')
+    expect(screen.getByText('Awaiting your reply')).toHaveClass('text-warning-foreground')
+    expect(screen.getByText('Paid').className).not.toMatch(/text-(green|amber)-\d/)
+  })
 })

@@ -34,6 +34,7 @@ type Post = { subscriptionId: string; key: string | null; body: PlanChangeReques
 
 let client: QueryClient
 let optionGets: number
+let subscriptionGets: number
 let posts: Post[]
 
 /** E5–E7 with server-side state: a 201 schedules the change on that subscription (E5 then shows it). */
@@ -49,7 +50,10 @@ function serve({
 } = {}) {
   let current = subscriptions
   server.use(
-    http.get(SUBSCRIPTIONS_URL, () => HttpResponse.json(current)),
+    http.get(SUBSCRIPTIONS_URL, () => {
+      subscriptionGets += 1
+      return HttpResponse.json(current)
+    }),
     http.get(OPTIONS_URL, () => {
       optionGets += 1
       return HttpResponse.json(options)
@@ -111,6 +115,7 @@ const quoteBody: PlanChangeRequest = {
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   optionGets = 0
+  subscriptionGets = 0
   posts = []
   toast.dismiss()
 })
@@ -258,6 +263,7 @@ describe('plan change (frontend.md §3 My plan, §6; CUS-03.5, XC-06, XC-07, NFR
     expect(alert.closest('[role="alert"]')).toHaveTextContent('corr-422-plan-change-rejected')
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     await waitFor(() => expect(optionGets).toBe(2))
+    await waitFor(() => expect(subscriptionGets).toBe(2)) // E5 too: the reason may be a scheduled change or SUSPENDED (FC7)
 
     const table = screen.getByRole('table', { name: /Upgrade options/ })
     await user.click(within(table).getByRole('button', { name: 'Choose Unlimited 799' }))

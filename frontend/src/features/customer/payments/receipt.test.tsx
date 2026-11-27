@@ -10,6 +10,7 @@ import { paymentPending, problem, receipt } from '@/test/fixtures/customer'
 import { meCustomer } from '@/test/fixtures/me'
 import { problemResponse } from '@/test/msw/customerHandlers'
 import { server } from '@/test/msw/server'
+import { PAYMENT_NOT_FOUND_TITLE } from './PaymentNotFound'
 import { RECEIPT_UNAVAILABLE_MESSAGE, ReceiptPage } from './ReceiptPage'
 
 const ME = '*/api/v1/customers/me'
@@ -80,10 +81,14 @@ describe('Receipt (frontend.md §3 Receipt; CUS-07.4, CUS-08.5)', () => {
     expect(screen.queryByRole('button', { name: 'Print or save as PDF' })).not.toBeInTheDocument()
   })
 
-  it('404 shows Not found', async () => {
+  it('404 shows the not-found ErrorState with a Payment history link and no print button (FC5)', async () => {
     failWith(404)
     renderPage()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: PAYMENT_NOT_FOUND_TITLE })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Payment history' })).toHaveAttribute('href', '/customer/payments')
+    expect(screen.queryByRole('button', { name: 'Print or save as PDF' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Page not found' })).not.toBeInTheDocument()
   })
 
   it('500 shows ErrorState with retry', async () => {

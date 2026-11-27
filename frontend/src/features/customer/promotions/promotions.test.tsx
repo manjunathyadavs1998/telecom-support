@@ -21,7 +21,8 @@ import { problemResponse } from '@/test/msw/customerHandlers'
 import { clearXsrfCookie } from '@/test/msw/handlers'
 import { server } from '@/test/msw/server'
 import type { Me, Promotion, PromotionClaimRequest } from '@/types/api'
-import { CLAIM_STILL_PROCESSING_MESSAGE, OFFER_GONE_MESSAGE } from './ClaimDialog'
+import { SECTION_FORBIDDEN_TITLE } from '@/components/states/SectionErrorState'
+import { CLAIM_STILL_PROCESSING_MESSAGE, NUMBERS_ERROR_TITLE, OFFER_GONE_MESSAGE } from './ClaimDialog'
 import { PromotionsPage } from './PromotionsPage'
 
 const PROMOTIONS_URL = '*/api/v1/customers/me/promotions'
@@ -205,6 +206,45 @@ describe('Promotions page (frontend.md §3 Promotions; CUS-04.1/04.2)', () => {
     server.use(http.get(PROMOTIONS_URL, () => problemResponse(problem(403, 'forbidden', 'Access denied.'))))
     renderPromotions()
     expect(await screen.findByRole('heading', { level: 1, name: 'Access denied' })).toBeInTheDocument()
+  })
+
+  it('E5 500 on the page: a "Your numbers" notice with retry instead of silently hiding the claimed numbers (FC8)', async () => {
+    serve({ promotions: [promotionPartlyClaimed] })
+    let fail = true
+    server.use(
+      http.get(SUBSCRIPTIONS_URL, () =>
+        fail
+          ? problemResponse(problem(500, 'internal', 'Unexpected error.'))
+          : HttpResponse.json([subscriptionPrimary, subscriptionSecondary]),
+      ),
+    )
+    const user = userEvent.setup()
+    const { container } = renderPromotions()
+    const notice = await screen.findByRole('region', { name: 'Your numbers' })
+    const alert = await within(notice).findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: NUMBERS_ERROR_TITLE })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: promotionPartlyClaimed.title })).toBeInTheDocument()
+    expect(await axe(container)).toHaveNoViolations()
+    fail = false
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Your numbers' })).not.toBeInTheDocument())
+  })
+
+  it('E5 403: the page notice and the claim dialog show "isn\'t available for your account" without retry (FC8)', async () => {
+    serve()
+    server.use(http.get(SUBSCRIPTIONS_URL, () => problemResponse(problem(403, 'forbidden', 'Access denied.'))))
+    const user = userEvent.setup()
+    renderPromotions()
+    const notice = await screen.findByRole('region', { name: 'Your numbers' })
+    expect(within(notice).getByRole('heading', { name: SECTION_FORBIDDEN_TITLE })).toBeInTheDocument()
+    expect(within(notice).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+
+    await card()
+    await user.click(claimButton())
+    const dialog = await screen.findByRole('dialog', { name: promotionClaimable.title })
+    expect(await within(dialog).findByRole('heading', { name: SECTION_FORBIDDEN_TITLE })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('heading', { name: NUMBERS_ERROR_TITLE })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('form', { name: 'Claim offer' })).not.toBeInTheDocument()
   })
 
   it('/customer/promotions#<code> focuses that card\'s heading (after the page heading)', async () => {

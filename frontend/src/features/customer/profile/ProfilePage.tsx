@@ -42,7 +42,9 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
   return (
     <Badge
       className={cn(
-        verified ? 'border-success/30 bg-success/10 text-green-800' : 'border-warning/30 bg-warning/10 text-amber-800',
+        verified
+          ? 'border-success/30 bg-success/10 text-success-foreground'
+          : 'border-warning/30 bg-warning/10 text-warning-foreground',
       )}
     >
       {verified ? 'Verified' : 'Not verified'}

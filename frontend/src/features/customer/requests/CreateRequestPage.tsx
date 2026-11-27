@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/states/EmptyState'
 import { ErrorState } from '@/components/states/ErrorState'
 import { FormRootError } from '@/components/states/FormRootError'
 import { LoadingState } from '@/components/states/LoadingState'
+import { SectionErrorState } from '@/components/states/SectionErrorState'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -54,11 +55,25 @@ const REQUESTS_PATH = '/customer/requests'
 
 type RootProblem = { message: string; error: ApiError | null }
 
+export const NUMBERS_LOADING_LABEL = 'Loading your numbers'
+export const NUMBERS_ERROR_TITLE = "We couldn't load your numbers"
+
+/**
+ * The E5 subscriptions feeding the "Which number is it about?" picker (OQ 7). `off` = no `plan.read`, so no picker and
+ * no query. While pending, Submit stays disabled so "Not specific" is never sent just because the list wasn't there yet;
+ * on an error the section shows its own `ErrorState` (403 rule) so the customer knows the number can't be chosen.
+ */
+type NumbersSection =
+  | { state: 'off' }
+  | { state: 'pending' }
+  | { state: 'error'; error: Error; retry: () => void }
+  | { state: 'ready'; subscriptions: Subscription[] }
+
 type CreateRequestFormProps = {
   profile: Profile
   categories: Category[]
   /** Shown as the "Which number is it about?" picker only when there is more than one (OQ 7). */
-  subscriptions: Subscription[]
+  numbers: NumbersSection
   idempotency: IdempotencyKey
   onCreated: (created: CaseCreated) => void
 }
@@ -78,7 +93,7 @@ function DescriptionCounter({ length, counterId }: { length: number; counterId: 
   )
 }
 
-function CreateRequestForm({ profile, categories, subscriptions, idempotency, onCreated }: CreateRequestFormProps) {
+function CreateRequestForm({ profile, categories, numbers, idempotency, onCreated }: CreateRequestFormProps) {
   const create = useCreateCase()
   const guard = useSubmitGuard()
   const counterId = useId()
@@ -164,6 +179,7 @@ function CreateRequestForm({ profile, categories, subscriptions, idempotency, on
   )
 
   const busy = guard.busy
+  const subscriptions = numbers.state === 'ready' ? numbers.subscriptions : []
 
   return (
     <Form {...form}>
@@ -237,6 +253,16 @@ function CreateRequestForm({ profile, categories, subscriptions, idempotency, on
           />
         ) : null}
         <p className="text-sm text-muted-foreground">{SEVERITY_NOTE}</p>
+        {numbers.state === 'pending' ? (
+          <section aria-label="Which number is it about?">
+            <LoadingState label={NUMBERS_LOADING_LABEL} />
+          </section>
+        ) : null}
+        {numbers.state === 'error' ? (
+          <section aria-label="Which number is it about?" className="rounded-lg border">
+            <SectionErrorState title={NUMBERS_ERROR_TITLE} error={numbers.error} onRetry={numbers.retry} />
+          </section>
+        ) : null}
         {subscriptions.length > 1 ? (
           <FormField
             control={control}
@@ -334,7 +360,7 @@ function CreateRequestForm({ profile, categories, subscriptions, idempotency, on
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={busy} className="self-start">
+        <Button type="submit" disabled={busy || numbers.state === 'pending'} className="self-start">
           {busy ? 'Submitting…' : 'Submit request'}
         </Button>
       </form>
@@ -390,7 +416,7 @@ function Confirmation({ created, onCreateAnother }: { created: CaseCreated; onCr
 /**
  * Create request `/customer/requests/new` (frontend.md §3 Create request, §6; CUS-06.1/06.2/06.4–06.6, NFR-REL): the contact
  * number and account reference are shown read-only (never sent); category → subcategory from E10; the number picker only with
- * `plan.read` and more than one subscription; severity is set by the system; no attachments. Submit is guarded against double
+ * `plan.read` and more than one subscription (while E5 loads Submit waits; an E5 failure shows in its section, 403 rule); severity is set by the system; no attachments. Submit is guarded against double
  * clicks and carries an idempotency key per filled-in form. A 403 on the profile or the categories (the route's permissions)
  * → `ForbiddenPage`.
  */
@@ -401,6 +427,13 @@ export function CreateRequestPage() {
   const subscriptions = useQuery({ ...subscriptionsQuery, enabled: can(['plan.read']) })
   const idempotency = useIdempotencyKey('CASE_CREATE', CASE_CREATE_PATH)
   const [created, setCreated] = useState<CaseCreated | null>(null)
+  const numbers: NumbersSection = !can(['plan.read'])
+    ? { state: 'off' }
+    : subscriptions.isPending
+      ? { state: 'pending' }
+      : subscriptions.isError
+        ? { state: 'error', error: subscriptions.error, retry: () => void subscriptions.refetch() }
+        : { state: 'ready', subscriptions: subscriptions.data }
 
   const forbidden = [profile.error, categories.error].some((e) => e instanceof ApiError && e.status === 403)
   if (forbidden) return <ForbiddenPage />
@@ -434,7 +467,7 @@ export function CreateRequestPage() {
         <CreateRequestForm
           profile={profile.data}
           categories={categories.data}
-          subscriptions={subscriptions.data ?? []}
+          numbers={numbers}
           idempotency={idempotency}
           onCreated={setCreated}
         />

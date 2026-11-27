@@ -5,8 +5,8 @@ import { Link } from 'react-router'
 import { OWN_FORBIDDEN_HANDLING } from '@/app/queryClient'
 import { StatusBadge } from '@/components/data/StatusBadge'
 import { EmptyState } from '@/components/states/EmptyState'
-import { ErrorState } from '@/components/states/ErrorState'
 import { LoadingState } from '@/components/states/LoadingState'
+import { SECTION_FORBIDDEN_TITLE, SectionErrorState } from '@/components/states/SectionErrorState'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatDate, formatDateTime, formatInr, isPositiveMoney } from '@/lib/format'
@@ -18,11 +18,10 @@ import { profileQuery } from '@/features/customer/profile/queries'
 import { promotionsQuery } from '@/features/customer/promotions/queries'
 import { casesQueryKey, fetchCases } from '@/features/customer/requests/queries'
 import { Can } from '@/permissions/Can'
-import { ApiError } from '@/services/api/errors'
 import type { Permission } from '@/types/api'
 
 /** frontend.md §3 403 rule (F2): a 403 on a dashboard card (a secondary query) shows in that card only. */
-export const CARD_FORBIDDEN_TITLE = "This information isn't available for your account"
+export const CARD_FORBIDDEN_TITLE = SECTION_FORBIDDEN_TITLE
 
 /** Dashboard card size (OQ 11): 3 rows on request and bill cards; one last payment. */
 export const DASHBOARD_CARD_SIZE = 3
@@ -72,16 +71,7 @@ type QueryBodyProps<T> = {
 /** A card's own loading / error (403 → "isn't available") / data states (XC-03, CUS-01.2). */
 function QueryBody<T>({ query, loadingLabel, errorTitle, children }: QueryBodyProps<T>) {
   if (query.isPending) return <LoadingState label={loadingLabel} />
-  if (query.isError) {
-    const forbidden = query.error instanceof ApiError && query.error.status === 403
-    return (
-      <ErrorState
-        title={forbidden ? CARD_FORBIDDEN_TITLE : errorTitle}
-        error={query.error}
-        onRetry={forbidden ? undefined : () => void query.refetch()}
-      />
-    )
-  }
+  if (query.isError) return <SectionErrorState title={errorTitle} error={query.error} onRetry={() => void query.refetch()} />
   return <>{children(query.data)}</>
 }
 

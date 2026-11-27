@@ -6,6 +6,7 @@ import { PageContainer } from '@/components/layout/PageContainer'
 import { EmptyState } from '@/components/states/EmptyState'
 import { ErrorState } from '@/components/states/ErrorState'
 import { LoadingState } from '@/components/states/LoadingState'
+import { SectionErrorState } from '@/components/states/SectionErrorState'
 import { Button } from '@/components/ui/button'
 import { subscriptionsQuery } from '@/features/customer/plan/queries'
 import { formatDateTime } from '@/lib/format'
@@ -15,7 +16,7 @@ import { Can } from '@/permissions/Can'
 import { usePermissions } from '@/permissions/usePermissions'
 import { ApiError } from '@/services/api/errors'
 import type { Promotion, Subscription } from '@/types/api'
-import { ClaimDialog } from './ClaimDialog'
+import { ClaimDialog, NUMBERS_ERROR_TITLE } from './ClaimDialog'
 import { numberEnding, usePromotionsQuery } from './queries'
 
 /** The card heading's id: the focus target for `/customer/promotions#<code>` (frontend.md §3 Promotions, F18). */
@@ -144,10 +145,22 @@ export function PromotionsPage() {
           description="New offers for your plan will appear here."
         />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          {query.data.map((promotion) => (
-            <PromotionCard key={promotion.code} promotion={promotion} subscriptions={subscriptions} />
-          ))}
+        <div className="flex flex-col gap-6">
+          {subscriptions.isError ? (
+            // Without E5 the "Claimed for number ending …" lines can't be shown; say so instead of hiding them (FC8).
+            <section aria-label="Your numbers" className="rounded-lg border bg-white">
+              <SectionErrorState
+                title={NUMBERS_ERROR_TITLE}
+                error={subscriptions.error}
+                onRetry={() => void subscriptions.refetch()}
+              />
+            </section>
+          ) : null}
+          <div className="grid gap-6 xl:grid-cols-2">
+            {query.data.map((promotion) => (
+              <PromotionCard key={promotion.code} promotion={promotion} subscriptions={subscriptions} />
+            ))}
+          </div>
         </div>
       )}
     </PageContainer>

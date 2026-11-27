@@ -2,7 +2,9 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './errors'
 import {
+  claimIdempotencyRecords,
   clearIdempotencyRecords,
+  IDEMPOTENCY_OWNER_STORAGE_KEY,
   IDEMPOTENCY_RECORD_TTL_MS,
   idempotencyStorageKey,
   type IdempotencyKeyOptions,
@@ -169,6 +171,16 @@ describe('useIdempotencyKey with persist (E15, F3)', () => {
     expect(JSON.parse(sessionStorage.getItem(storageKey)!).key).toBe(second)
   })
 
+  it('keeps the reference of the open payment when a changed amount replaces the key (FC4)', () => {
+    const { result } = renderKeyHook(props(801))
+    result.current.keyFor(PAY_BODY)
+    result.current.succeeded('PAY-20261125-000007')
+    const second = result.current.keyFor({ ...PAY_BODY, expectedAmount: '600.00' })
+    expect(JSON.parse(sessionStorage.getItem(storageKey)!)).toMatchObject({ key: second, reference: 'PAY-20261125-000007' })
+    result.current.succeeded('PAY-20261125-000008')
+    expect(result.current.storedRecord()).toMatchObject({ key: second, reference: 'PAY-20261125-000008' })
+  })
+
   it('ignores and removes a record older than 24 h', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
@@ -199,6 +211,26 @@ describe('useIdempotencyKey with persist (E15, F3)', () => {
     clearIdempotencyRecords()
     expect(sessionStorage.getItem(storageKey)).toBeNull()
     expect(sessionStorage.getItem('other')).toBe('kept')
+  })
+
+  it('claimIdempotencyRecords keeps the records for the same user and clears them for another (FC3)', () => {
+    const { result } = renderKeyHook(props(801))
+    claimIdempotencyRecords(5)
+    result.current.keyFor(PAY_BODY)
+    sessionStorage.setItem('other', 'kept')
+    claimIdempotencyRecords(5) // the same user signs in again after an expiry
+    expect(sessionStorage.getItem(storageKey)).not.toBeNull()
+    claimIdempotencyRecords(6)
+    expect(sessionStorage.getItem(storageKey)).toBeNull()
+    expect(sessionStorage.getItem(IDEMPOTENCY_OWNER_STORAGE_KEY)).toBe('6')
+    expect(sessionStorage.getItem('other')).toBe('kept')
+  })
+
+  it('claimIdempotencyRecords clears records whose owner is unknown', () => {
+    const { result } = renderKeyHook(props(801))
+    result.current.keyFor(PAY_BODY)
+    claimIdempotencyRecords(5)
+    expect(sessionStorage.getItem(storageKey)).toBeNull()
   })
 })
 

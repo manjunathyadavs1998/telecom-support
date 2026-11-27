@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { showErrorToast } from '@/app/queryClient'
-import { ErrorState } from '@/components/states/ErrorState'
+import { SectionErrorState } from '@/components/states/SectionErrorState'
 import { FormRootError } from '@/components/states/FormRootError'
 import { LoadingState } from '@/components/states/LoadingState'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import { promotionClaimPath, useClaimPromotion, useRefetchPromotions } from './q
 
 export const OFFER_GONE_MESSAGE = 'This offer is no longer available.'
 export const CLAIM_STILL_PROCESSING_MESSAGE = 'Your claim is still processing. Try again in a moment.'
+export const NUMBERS_ERROR_TITLE = "We couldn't load your numbers"
 
 // frontend.md §6 Promotion claim: `subscriptionId` required · `acceptTerms: z.literal(true)` (a checkbox starts unchecked).
 const claimSchema = z.object({
@@ -153,8 +154,8 @@ function ClaimForm({ promotion, subscriptions, idempotency, onDone }: ClaimFormP
       {subscriptions.isPending ? (
         <LoadingState label="Loading your numbers" />
       ) : subscriptions.isError ? (
-        <ErrorState
-          title="We couldn't load your numbers"
+        <SectionErrorState
+          title={NUMBERS_ERROR_TITLE}
           error={subscriptions.error}
           onRetry={() => void subscriptions.refetch()}
         />

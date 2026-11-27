@@ -7,9 +7,9 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { formatDateTime, formatInr } from '@/lib/format'
 import { ForbiddenPage } from '@/pages/ForbiddenPage'
-import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ApiError } from '@/services/api/errors'
 import type { Receipt } from '@/types/api'
+import { PaymentNotFound } from './PaymentNotFound'
 import { PAYMENT_HISTORY_PATH, paymentMethodLabel, paymentStatusPath } from './paymentFormat'
 import { useReceiptQuery } from './queries'
 
@@ -55,7 +55,6 @@ export function ReceiptPage() {
   const error = query.error
 
   if (error instanceof ApiError && error.status === 403) return <ForbiddenPage />
-  if (error instanceof ApiError && error.status === 404) return <NotFoundPage />
 
   const actions = query.data ? (
     <div className="flex flex-wrap gap-2 print:hidden">
@@ -80,6 +79,8 @@ export function ReceiptPage() {
             View the payment status
           </Link>
         </Alert>
+      ) : error instanceof ApiError && error.status === 404 ? (
+        <PaymentNotFound error={error} />
       ) : error ? (
         <ErrorState title="We couldn't load this receipt" error={error} onRetry={() => void query.refetch()} />
       ) : (

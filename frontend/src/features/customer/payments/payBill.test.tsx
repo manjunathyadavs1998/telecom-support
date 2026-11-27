@@ -5,8 +5,14 @@ import { delay, http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { axe } from 'vitest-axe'
-import { createQueryClient, ME_QUERY_KEY } from '@/app/queryClient'
-import { hashBody, idempotencyStorageKey, type IdempotencyRecord } from '@/services/api/idempotency'
+import { toast, Toaster } from 'sonner'
+import { createQueryClient, FORBIDDEN_ACTION_MESSAGE, ME_QUERY_KEY } from '@/app/queryClient'
+import {
+  hashBody,
+  IDEMPOTENCY_MISMATCH_MESSAGE,
+  idempotencyStorageKey,
+  type IdempotencyRecord,
+} from '@/services/api/idempotency'
 import {
   invoiceOpenNewer,
   invoiceOpenOlder,
@@ -95,6 +101,7 @@ function renderPage() {
       <MemoryRouter initialEntries={['/customer/payments/pay']}>
         <PayBillPage />
       </MemoryRouter>
+      <Toaster />
     </QueryClientProvider>,
   )
 }
@@ -115,6 +122,7 @@ beforeEach(() => {
   paymentGets = []
   posts = []
   sessionStorage.clear()
+  toast.dismiss()
   assign = vi.spyOn(browserNavigation, 'assign').mockImplementation(() => undefined)
 })
 afterEach(() => {
@@ -292,6 +300,34 @@ describe('Pay bill (frontend.md §3 Pay bill; CUS-08.1/08.2/08.4, NFR-REL)', () 
     expect(invoiceGets).toBe(2)
     expect(posts[1]!.body).toEqual({ invoiceId: 801, expectedAmount: '500.00' })
     expect(posts[1]!.key).not.toBe(posts[0]!.key)
+  })
+
+  it('422 idempotency-mismatch: "Please try again." and never "The amount due has changed"; a fresh key next time (FC9)', async () => {
+    serve({ replies: [() => problemResponse(problem(422, 'idempotency-mismatch', 'Key reused with another body.'))] })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await payButton())
+    const alert = await screen.findByText(IDEMPOTENCY_MISMATCH_MESSAGE)
+    expect(alert.closest('[role="alert"]')).toBeInTheDocument()
+    expect(screen.queryByText(AMOUNT_CHANGED_MESSAGE)).not.toBeInTheDocument()
+    expect(screen.queryByText('Key reused with another body.')).not.toBeInTheDocument()
+    expect(invoiceGets).toBe(1)
+    await user.click(await payButton())
+    await waitFor(() => expect(posts).toHaveLength(2))
+    expect(posts[1]!.key).not.toBe(posts[0]!.key)
+  })
+
+  it('403 on E15: the forbidden toast only; no error on the page, no redirect (FC9)', async () => {
+    serve({ replies: [() => problemResponse(problem(403, 'forbidden', 'Access denied.'))] })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await payButton())
+    expect(await screen.findByText(FORBIDDEN_ACTION_MESSAGE)).toBeInTheDocument()
+    const pageAlerts = screen.queryAllByRole('alert').filter((el) => !el.closest('[data-sonner-toaster]'))
+    expect(pageAlerts).toHaveLength(0)
+    expect(screen.queryByText('Access denied.')).not.toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+    expect(posts).toHaveLength(1)
   })
 
   it('503: provider message + "Try again" re-sends the same key', async () => {

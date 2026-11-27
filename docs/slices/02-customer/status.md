@@ -71,7 +71,8 @@ Paths under `frontend/` (code in `src/`, unit tests next to the code, e2e in `e2
 | F22 | e2e payment + traceability | `e2e/payment.spec.ts`, `scripts/check-frontend.sh` (documents the fresh-JAR precondition), `docs/requirements/traceability.md` | §7, §8, §10 | CUS-08, CUS-07.4 | needs backend D1, D2; `check-frontend.sh e2e` green twice in a row (JAR restarted between); slice 02 rows show FE code + tests | ⏸ deferred by user 2026-11-27 (browser tests postponed; unit tests + backend ITs only) |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- F1–F20 built (see git log); slice 02 traceability FE Code/Tests columns filled from the unit tests (e2e deferred).
-- F21/F22 deferred by the user 2026-11-27: WIP e2e specs kept in `frontend/e2e/` (customer-portal, payment, forbidden +2 cases, customer 5 in `users.ts`, 4-project `playwright.config.ts`) and the fresh-JAR precondition in `scripts/check-frontend.sh`; not yet green.
-- Found in the one partial e2e run: axe color-contrast on success/warning badges (fixed: darker badge text in `StatusBadge`/`ProfilePage`); the dev,e2e JAR stopped answering mid-run under parallel load (cause not diagnosed; check Hikari/thread dump when e2e resumes).
-- Next: review + PR for `slice/02-customer-fe` (merge-steward), or resume F21/F22 when browser tests are back in scope.
+- F1–F20 built; F21/F22 (browser e2e) deferred by the user 2026-11-27 (WIP specs in `frontend/e2e/`, not green; a dev,e2e JAR hang under parallel load is undiagnosed).
+- `origin/main` merged in (slice 03 rows kept in traceability; 01 API types regenerated for `case.severity.override`).
+- Code review fixed: FC2–FC9, FC11–FC13 (see `review-frontend-code.md`); FC14/FC15 accepted as design-wording items.
+- Waiting on the user: FC1 (REVIEW payment on Pay bill) and FC10 (status label texts) need a design decision before code changes.
+- Next: user decides FC1/FC10 → design erratum → fix; then PR for `slice/02-customer-fe` (merge-steward).

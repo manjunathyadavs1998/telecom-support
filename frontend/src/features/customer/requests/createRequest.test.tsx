@@ -21,7 +21,15 @@ import { problemResponse } from '@/test/msw/customerHandlers'
 import { clearXsrfCookie } from '@/test/msw/handlers'
 import { server } from '@/test/msw/server'
 import type { CaseCreateRequest, Category, Me, Profile, Subscription } from '@/types/api'
-import { CATEGORIES_UNAVAILABLE, CreateRequestPage, SEVERITY_NOTE, STILL_SUBMITTING_MESSAGE } from './CreateRequestPage'
+import { SECTION_FORBIDDEN_TITLE } from '@/components/states/SectionErrorState'
+import {
+  CATEGORIES_UNAVAILABLE,
+  CreateRequestPage,
+  NUMBERS_ERROR_TITLE,
+  NUMBERS_LOADING_LABEL,
+  SEVERITY_NOTE,
+  STILL_SUBMITTING_MESSAGE,
+} from './CreateRequestPage'
 import { CASES_QUERY_KEY } from './queries'
 
 const PROFILE_URL = '*/api/v1/customers/me/profile'
@@ -44,7 +52,7 @@ function serve({
 }: {
   me?: Profile
   categories?: Category[] | (() => Response)
-  subscriptions?: Subscription[]
+  subscriptions?: Subscription[] | (() => Response | Promise<Response>)
   /** One reply per POST, in order; after them, 201. */
   replies?: (() => Response | Promise<Response>)[]
 } = {}) {
@@ -53,7 +61,7 @@ function serve({
     http.get(CATEGORIES_URL, () => (typeof categories === 'function' ? categories() : HttpResponse.json(categories))),
     http.get(SUBSCRIPTIONS_URL, () => {
       subscriptionGets += 1
-      return HttpResponse.json(subscriptions)
+      return typeof subscriptions === 'function' ? subscriptions() : HttpResponse.json(subscriptions)
     }),
     http.post(CASES_URL, async ({ request }) => {
       posts.push({ key: request.headers.get('Idempotency-Key'), body: (await request.json()) as CaseCreateRequest })
@@ -210,6 +218,68 @@ describe('Create request (frontend.md §3 Create request, §6; CUS-06)', () => {
     await user.click(submit())
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(posts[0]!.body.subscriptionId).toBe(subscriptionSecondary.id)
+  })
+
+  it('number picker while E5 is pending: a loading state and Submit disabled, so "Not specific" is never sent by accident (FC2)', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    serve({
+      subscriptions: async () => {
+        await gate
+        return HttpResponse.json([subscriptionPrimary, subscriptionSecondary])
+      },
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await fillValid(user)
+    expect(screen.getByText(NUMBERS_LOADING_LABEL)).toBeInTheDocument()
+    expect(submit()).toBeDisabled()
+    await user.click(submit())
+    expect(posts).toHaveLength(0)
+    release()
+    await screen.findByRole('combobox', { name: 'Which number is it about?' })
+    expect(screen.queryByText(NUMBERS_LOADING_LABEL)).not.toBeInTheDocument()
+    expect(submit()).toBeEnabled()
+  })
+
+  it('number picker E5 500: its section shows an error with retry; the retry brings the picker back (FC2)', async () => {
+    let fail = true
+    serve({
+      subscriptions: () =>
+        fail
+          ? problemResponse(problem(500, 'internal', 'Unexpected error.'))
+          : HttpResponse.json([subscriptionPrimary, subscriptionSecondary]),
+    })
+    const user = userEvent.setup()
+    const { container } = renderPage()
+    const section = await screen.findByRole('region', { name: 'Which number is it about?' })
+    const alert = await within(section).findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: NUMBERS_ERROR_TITLE })).toBeInTheDocument()
+    expect(alert).toHaveTextContent('corr-500-internal')
+    expect(screen.getByRole('form', { name: 'New request' })).toBeInTheDocument()
+    expect(await axe(container)).toHaveNoViolations()
+    fail = false
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await screen.findByRole('combobox', { name: 'Which number is it about?' })
+    expect(screen.queryByRole('region', { name: 'Which number is it about?' })).not.toBeInTheDocument()
+  })
+
+  it('number picker E5 403: the section shows the forbidden-section copy without retry; the form stays usable (FC2)', async () => {
+    serve({ subscriptions: () => problemResponse(problem(403, 'forbidden', 'Forbidden.')) })
+    const user = userEvent.setup()
+    renderPage()
+    const section = await screen.findByRole('region', { name: 'Which number is it about?' })
+    const alert = await within(section).findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: SECTION_FORBIDDEN_TITLE })).toBeInTheDocument()
+    expect(within(alert).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Access denied' })).not.toBeInTheDocument()
+    await fillValid(user)
+    expect(submit()).toBeEnabled()
+    await user.click(submit())
+    await screen.findByRole('heading', { name: `Request ${caseCreated.reference} submitted` })
+    expect(posts[0]!.body.subscriptionId).toBeNull()
   })
 
   it.each<[string, Me | undefined, Subscription[]]>([

@@ -13,7 +13,7 @@ import { queryClient } from './queryClient'
 export function AppProviders({ children }: { children: ReactNode }) {
   useEffect(() => {
     void queryClient.prefetchQuery(meQuery)
-    return authChannel.subscribe(() => applySessionChangedElsewhere(queryClient))
+    return authChannel.subscribe((event) => applySessionChangedElsewhere(queryClient, event))
   }, [])
 
   return (

@@ -107,6 +107,27 @@ function removeRecord(storageKey: string): void {
   }
 }
 
+/** sessionStorage key of the user id the persisted records belong to (FC3); starts with the prefix, so a clear drops it too. */
+export const IDEMPOTENCY_OWNER_STORAGE_KEY = `${IDEMPOTENCY_STORAGE_PREFIX}owner`
+
+/**
+ * Binds the persisted records to the signed-in user (frontend.md §5, review FC3): when `userId` differs from the user the
+ * records were kept for (or none was recorded yet), they are cleared first. The same user signing in again after an expiry
+ * keeps them, so the gateway-return resume still works.
+ */
+export function claimIdempotencyRecords(userId: number): void {
+  const store = storage()
+  if (!store) return
+  try {
+    const owner = String(userId)
+    if (store.getItem(IDEMPOTENCY_OWNER_STORAGE_KEY) === owner) return
+    clearIdempotencyRecords()
+    store.setItem(IDEMPOTENCY_OWNER_STORAGE_KEY, owner)
+  } catch {
+    // storage unavailable
+  }
+}
+
 /** Removes every persisted idempotency record (frontend.md §5: cleared on logout together with the query cache). */
 export function clearIdempotencyRecords(): void {
   const store = storage()
@@ -189,7 +210,12 @@ export function useIdempotencyKey(
       if (current.current?.fingerprint === fingerprint) return current.current.key
       const stored = persist ? readIdempotencyRecord(storageKey) : null
       const key = stored?.bodyHash === bodyHash ? stored.key : uuidV4()
-      if (persist && stored?.key !== key) writeRecord(storageKey, { key, bodyHash, savedAt: Date.now() })
+      if (persist && stored?.key !== key) {
+        // A new key for a changed body keeps the reference of the payment the old key opened, so a later 409 can still link
+        // to that open payment (review FC4). The reference is replaced when the new request succeeds.
+        const reference = stored?.reference
+        writeRecord(storageKey, { key, bodyHash, savedAt: Date.now(), ...(reference === undefined ? {} : { reference }) })
+      }
       current.current = { fingerprint, key }
       return key
     },

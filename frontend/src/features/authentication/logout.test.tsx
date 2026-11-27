@@ -311,6 +311,25 @@ describe('cross-tab sign-out (frontend.md §7 Cross-tab)', () => {
     expect(router.state.location.search).toBe(`?returnTo=${encodeURIComponent('/customer/plan')}`)
     expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
     expect(queryClient.getQueryData(OTHER_KEY)).toBeUndefined()
+    expect(sessionStorage.getItem(IDEM_KEY)).toBeNull() // a logout elsewhere is a logout here (02 frontend.md §5, FC3)
+    expect(sessionStorage.getItem(UNRELATED_KEY)).toBe('kept')
     expect(calls.filter((c) => c === 'logout')).toHaveLength(0)
+  })
+
+  it('a login elsewhere by the same user keeps the E15 records; by another user it clears them (FC3)', async () => {
+    await renderApp(meCustomer, '/customer/plan', 'My plan')
+    const other = otherTab()
+    tab = other.tab
+
+    const mesBefore = calls.filter((c) => c === 'me').length
+    other.tab.postMessage({ type: 'login' })
+    await waitFor(() => expect(calls.filter((c) => c === 'me').length).toBeGreaterThan(mesBefore))
+    await screen.findByRole('heading', { level: 1, name: 'My plan' })
+    expect(sessionStorage.getItem(IDEM_KEY)).not.toBeNull()
+
+    meResponse = { ...meCustomer, id: meCustomer.id + 1000, username: '+919800000999' }
+    other.tab.postMessage({ type: 'login' })
+    await waitFor(() => expect(sessionStorage.getItem(IDEM_KEY)).toBeNull())
+    expect(sessionStorage.getItem(UNRELATED_KEY)).toBe('kept')
   })
 })

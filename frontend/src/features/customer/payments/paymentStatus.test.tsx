@@ -1,5 +1,5 @@
 import { focusManager, QueryClientProvider, type QueryClient } from '@tanstack/react-query'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -13,6 +13,7 @@ import { meCustomer } from '@/test/fixtures/me'
 import { problemResponse } from '@/test/msw/customerHandlers'
 import { server } from '@/test/msw/server'
 import type { Payment } from '@/types/api'
+import { PAYMENT_NOT_FOUND_TITLE } from './PaymentNotFound'
 import { POLL_INTERVAL_MS, POLL_WINDOW_MS } from './paymentPolling'
 import {
   CONFIRMING_MESSAGE,
@@ -266,6 +267,20 @@ describe('Payment status results (CUS-08.4, CUS-08.5)', () => {
     await untilGets(1)
   })
 
+  it('PENDING → REVIEW refreshes the payment lists but keeps the stored E15 record (FC6)', async () => {
+    storeRecord(3, REF)
+    serve(paymentPending, withRef(paymentReview))
+    renderPage()
+    await screen.findByText(CONFIRMING_MESSAGE)
+    const invalidate = vi.spyOn(client!, 'invalidateQueries')
+
+    await tick(POLL_INTERVAL_MS)
+    expect(await screen.findByText(REVIEW_MESSAGE)).toBeInTheDocument()
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: PAYMENTS_QUERY_KEY }))
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: INVOICES_QUERY_KEY })
+    expect(sessionStorage.getItem(recordKey(3))).not.toBeNull()
+  })
+
   it('REVIEW: honest copy, payment history and contact support; not polled', async () => {
     serve(withRef(paymentReview))
     renderPage()
@@ -287,10 +302,14 @@ describe('Payment status results (CUS-08.4, CUS-08.5)', () => {
     expect(await screen.findByText(CONFIRMING_MESSAGE)).toBeInTheDocument()
   })
 
-  it('an unknown or other customer\'s payment (404) shows Not found', async () => {
+  it('an unknown or other customer\'s payment (404) shows the not-found ErrorState with a Payment history link (FC5)', async () => {
     serve(404)
     renderPage()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: PAYMENT_NOT_FOUND_TITLE })).toBeInTheDocument()
+    expect(within(alert).queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Payment history' })).toHaveAttribute('href', '/customer/payments')
+    expect(screen.queryByRole('heading', { level: 1, name: 'Page not found' })).not.toBeInTheDocument()
   })
 
   it('an expired session (401) goes to login with returnTo', async () => {
