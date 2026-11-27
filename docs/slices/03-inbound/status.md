@@ -37,7 +37,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B16 | Eligibility I13 | `reactivation/{ReactivationPolicyRepository,ReactivationRepository,ReactivationEligibilityService,ReactivationController}.java`, `ReactivationEligibilityIT` | R13 | INB-04.1/04.2/04.6 | `ReactivationEligibilityIT` passes | ☑ |
 | B17 | Create + history I14, I15 | `reactivation/{ReactivationService,ReactivationTransitionService,ReactivationRepository,ReactivationController}.java`, `ReactivationCreateIT` | R14, R15, §3.1 | INB-04.1–04.4/04.6/04.7, NFR-REL | `ReactivationCreateIT` passes (agent-level parallel limit) | ☑ |
 | B18 | Reconcile + expiry jobs | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob,ReactivationTransitionService}.java`, `ReactivationJobsIT` | §3.1 | INB-04.5, BR-03, BR-08 | `ReactivationJobsIT` passes (10 failed suspends then EXPIRED, late RESTORED → EXPIRING → EXPIRED) | ☑ |
-| B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☐ |
+| B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☑ |
 | B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☐ |
 
 ## Tasks — frontend
