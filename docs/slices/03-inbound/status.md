@@ -2,9 +2,9 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` |
+| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` — **Proposed** (branch `design/03-inbound-fe`; needs 02 FE PR merged before build) |
 | Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☐ |
-| Tasks planned | ☐ draft B1–B20 below (confirmed after approval) | ☐ |
+| Tasks planned | ☐ draft B1–B20 below (confirmed after approval) | ☐ draft F1–F14 below (confirmed after approval) |
 | Built | ☐ branch `slice/03-inbound-be` | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☐ | ☐ |
 | Review clean (no open High) | ☐ `review.md` | ☐ `review.md` |
@@ -40,12 +40,30 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☐ |
 | B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☐ |
 
-## Tasks — frontend
+## Tasks — frontend (**draft**; refs are `frontend.md` sections)
+
+Paths under `frontend/src/`. Tests are **deferred** by the user (`frontend.md` §7), so every task is done when `check-frontend.sh`
+typecheck + lint + build pass in the Linux container, plus the named manual check against the dev JAR (IN002 = inbound + approver).
+Precondition: the slice 02 FE PR is merged and `slice/03-inbound-be` is merged (or running locally) before F5.
+
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| F1 | (planned after the frontend design is approved) | | | | | ☐ |
+| F1 | Generated 03 types + idempotency ops | `scripts/gen-api.mjs`, `types/api/03-inbound.ts` (generated), `types/api/index.ts`, `services/api/idempotency.ts` | §4, §6 | NFR-REL | typecheck passes; `AgentCaseDetail`, `Reactivation`, `ReactivationProblem` importable from `@/types/api` | ☐ |
+| F2 | Routes, nav children, param guard | `permissions/navConfig.ts`, `app/pageRegistry.ts`, `features/inbound/useInboundParams.ts` | §2 | BR-10, XC-02 | build passes; IN001 on `/inbound/customers/1/cases` → ComingSoon, CUS001 → ForbiddenPage, `/inbound/customers/x` → NotFound | ☐ |
+| F3 | Labels, text, list params | `components/data/statusLabel.ts`, `lib/inboundText.ts`, `components/data/useListParams.ts` | §4 | INB-02.1, INB-04.1, XC-04 | typecheck + lint pass; 02 pages unchanged (build) | ☐ |
+| F4 | Session store + verification helpers + keys | `stores/inboundSessionStore.ts`, `features/inbound/verificationState.ts` (`isVerificationRequired`, `markVerificationLost`, `inboundKeys`), `features/authentication/useLogout.ts` | §3.3, §4, §5 | INB-01.2, NFR-PRIV | typecheck passes; logout clears the store | ☐ |
+| F5 | Customer search page | `features/inbound/search/{CustomerSearchPage.tsx,searchSchema.ts,queries.ts}`, `app/pageRegistry.ts` | §3.1, §6 | INB-01.1, INB-01.4 | build; search `+919800000006` shows the masked card; 31st search/min shows the 429 countdown | ☐ |
+| F6 | Verify panel (OTP + KBA) | `features/inbound/verification/{VerifyPanel.tsx,OtpStep.tsx,KbaForm.tsx,verifySchemas.ts,queries.ts}` | §3.2, §6 | INB-01.2, NFR-SEC | build; OTP with the dev code and KBA with seed answers both reach VERIFIED | ☐ |
+| F7 | Workspace frame, countdown, re-verify | `features/inbound/workspace/{WorkspaceFrame.tsx,VerifiedBadge.tsx,ReverifyDialog.tsx,queries.ts}` | §3.3 | INB-01.2, INB-01.3 | build; unverified visit fires only I4; forcing expiry opens the dialog and removes protected data | ☐ |
+| F8 | Overview page | `features/inbound/workspace/{OverviewPage.tsx,ProfileSection.tsx,LinesSection.tsx,RecentSection.tsx}`, `app/pageRegistry.ts` | §3.4 | INB-01.3 | build; the four sections load for customer 1 | ☐ |
+| F9 | Billing page | `features/inbound/billing/{BillingPage.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.5 | INB-01.3, BR-05/06 | build; payments page 2 keeps the date filter | ☐ |
+| F10 | Case list | `features/inbound/cases/{CaseListPage.tsx,CaseFilters.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.6 | INB-02.1, XC-04/05 | build; status + sort survive paging and reload | ☐ |
+| F11 | Case detail | `features/inbound/cases/{CaseDetailPage.tsx,ActivityTimeline.tsx,RelatedCases.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.7 | INB-02.2–02.4, BR-04 | build; customer 1 INTERNAL note shows the "Internal" badge | ☐ |
+| F12 | Raise request on behalf | `features/inbound/cases/{RaiseRequestPage.tsx,raiseRequestSchema.ts,SeverityField.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.8, §6 | INB-03.1–03.5, §14 #4 | build; an INTERNAL-category request with override returns an `SR-…` shown with Copy | ☐ |
+| F13 | Reactivation eligibility + history | `features/inbound/reactivation/{ReactivationPage.tsx,EligibilityPanel.tsx,ReactivationHistory.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.9 | INB-04.1/04.2/04.5/04.6 | build; customer 7 shows "never be overridden"; IN001 sees History only | ☐ |
+| F14 | Reactivation request + outcomes | `features/inbound/reactivation/{ReactivationForm.tsx,reactivationSchema.ts,ConfirmReactivationDialog.tsx,queries.ts}`, `docs/requirements/traceability.md` | §3.9, §6 | INB-04.1–04.4/04.7, XC-07 | build; customer 6 (IN002) → "Service restored until …"; `check-frontend.sh` green; slice 03 FE rows `Built` | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: backend design rev 2 approved by user 2026-11-26 (OQ defaults kept); 00-overview rev 4, 01 §13 E3 (+ openapi enum), 02 E7 approved with it.
-- Next: user merges the design PR → cut `slice/03-inbound-be` from main → confirm B1–B20 → B1.
-- Blockers / open questions: none beyond §10.
+- Done: backend design rev 2 approved 2026-11-26; frontend design `frontend.md` **Proposed** 2026-11-27 (branch `design/03-inbound-fe`, tests deferred by user).
+- Next: user reviews/approves the FE design (OQ 1–8 defaults) → confirm F1–F14; backend build B1–B20 continues on `slice/03-inbound-be`.
+- Blockers / open questions: FE build needs the slice 02 FE PR merged; backend §10 and frontend §8 defaults stand.
