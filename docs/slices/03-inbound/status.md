@@ -7,7 +7,7 @@
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☐ |
 | Built | ☐ branch `slice/03-inbound-be` | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☐ | ☐ |
-| Review clean (no open High) | ☐ `review.md`: no High; C3–C12 dispositioned; C1/C2 (Medium) pending user decision (E1/E2) | ☐ `review.md` |
+| Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
@@ -46,7 +46,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B20 + review fixes (`docs/slices/03-inbound/review.md`). Fixed C3 (access row only after a 2xx GET), C4 (429 audited after the lock tx rolls back),
-  C5 (cleanup cron off in ITs), C8 (servicecase reads `related-window` via `@Value`), C12. C6/C7/C9/C10/C11 accepted or doc errata pending.
-- Open: C1 (agent KBA limit race) and C2 (restored-but-FAILED) need the user's design decision → `design/03-*` errata PR (E1/E2, plus C5/C6/C7/C9/C10 wording).
-- Full suite green after the fixes: 611 tests, 0 failures (clean report dir). Next: user decides E1/E2; then `merge-steward` PR.
+- Done: B1–B20 + review fixes C3–C12. E1 (a0ec005): V10 `agent_kba_windows`, with lock order agent-scoped → customer/account (C1, C6).
+  E2 (4cf756d): FAILED requests re-checked for 24 h; a late restore moves FAILED → EXPIRING → suspended (C2).
+- Tests for E1/E2 were deferred by the user. Only the compile was verified (`mvnw -o -DskipTests package`); the full suite was not re-run after E1/E2.
+- Next: the E1/E2 tests from design §11 (15 parallel KBA → 10 evaluated + 5 × 429; mixed KBA + reactivation; late-restore cases), then `merge-steward` PR.
