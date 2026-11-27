@@ -54,6 +54,7 @@ Design (the contract): `docs/design/`. Coverage: `docs/requirements/traceability
 ## Definition of done (per task)
 Code matches the design, tests pass (including a forbidden-role case for every protected endpoint), and the
 traceability row is updated.
+Temporary (user decision 2026-11-27): tests are deferred — tasks are verified by compile/typecheck/lint only; deferred tests are tracked in docs/testing/test-plan.md.
 
 ## Windows host note
 Application Control blocks unsigned native npm binaries (`rolldown`, `oxlint`). Run frontend tooling in a Linux

@@ -1,6 +1,6 @@
 # Test plan — Telecom Customer Support (deferred-testing execution plan)
 
-Status: Draft · Owner: QA/test engineering · Basis: `main` at `d32a590` (slices 01, 02 backend built; 03 backend designed; 03 FE, 04, 05, 06 not designed).
+Status: Draft · Owner: QA/test engineering · Basis: `main` incl. PR #12 (slices 01 BE+FE, 02 BE+FE built) plus unpushed branch `slice/03-inbound-be` (B1-B19 with ITs, 611 tests green at `06ffed6`); 03 FE, 04, 05, 06 not designed.
 Test code is **not** part of this document. Where a slice has no design yet, scenarios come from the BRD and must be re-checked against the design when it is approved.
 Per CLAUDE.md, every protected endpoint needs a forbidden-role case before its task is Done; this plan is the backlog for the tests the user chose to defer.
 
@@ -64,19 +64,19 @@ Levels: U unit, I integration, C contract, F frontend RTL, E e2e, A a11y, S secu
 
 | ID | Requirement | Levels | Existing tests | Status | Pri |
 |---|---|---|---|---|---|
-| CUS-01 | Dashboard, own data only | I, F, E, A | CustomerPortalAuthzIT, CustomerIdorIT, CustomerProfileIT | Partial (no FE/e2e) | P1 |
-| CUS-02 | Profile, verified contact change, audit | I, F, E, S | CustomerProfileIT, ContactVerificationIT | Partial (OTP UI) | P0 |
-| CUS-03 | Plan summary, upgrade, confirmed change | I, F, E, R | SubscriptionPlanIT | Partial | P1 |
-| CUS-04 | Promotions, confirmed claim | I, F, E | PromotionIT | Partial | P2 |
-| CUS-05 | Request list, 3-month window, paging | I, F, E | CustomerCaseIT | Partial | P1 |
-| CUS-06 | Create request, unique ref, no duplicates | I, F, E | CustomerCaseIT, CaseCategoryIT | Partial | P1 |
+| CUS-01 | Dashboard, own data only | I, F, E, A | CustomerPortalAuthzIT, CustomerIdorIT, CustomerProfileIT; FE RTL/MSW (slice 02 pages) | Partial (e2e F21 deferred) | P1 |
+| CUS-02 | Profile, verified contact change, audit | I, F, E, S | CustomerProfileIT, ContactVerificationIT | Partial (e2e deferred) | P0 |
+| CUS-03 | Plan summary, upgrade, confirmed change | I, F, E, R | SubscriptionPlanIT | Partial (e2e deferred) | P1 |
+| CUS-04 | Promotions, confirmed claim | I, F, E | PromotionIT | Partial (e2e deferred) | P2 |
+| CUS-05 | Request list, 3-month window, paging | I, F, E | CustomerCaseIT | Partial (e2e deferred) | P1 |
+| CUS-06 | Create request, unique ref, no duplicates | I, F, E | CustomerCaseIT, CaseCategoryIT | Partial (e2e deferred) | P1 |
 | CUS-06.3 | Optional attachment | I, S | none | Deferred (OQ 4) | P2 |
-| CUS-07 | Payment history, receipt, reconciled | I, F, E | PaymentHistoryIT, PaymentReconciliationJobIT | Partial | P0 |
-| CUS-08 | Make payment, hosted gateway, verification | I, R, F, E, S | PaymentInitiateIT, PaymentWebhookIT, PaymentTransitionIT, MockCheckoutIT, MockPaymentGatewayTest | Partial (e2e F22 deferred) | P0 |
-| INB-01 | Lookup, verification, context, access log | I, S, F, E | none (design 03 s9: CustomerLookupIT, IdentityCheckIT, VerifiedCustomerAccessIT) | Not started | P0 |
-| INB-02 | Track customer cases, internal notes hidden | I, F | none (AgentCaseQueryIT designed) | Not started | P1 |
-| INB-03 | Raise request on behalf | I, F, E | none (AgentCaseCreateIT designed) | Not started | P1 |
-| INB-04 | Temporary reactivation (24 h cap, prohibited reasons) | I, R, S, E | none (Reactivation*IT, NotificationDispatchIT designed) | Not started | P0 |
+| CUS-07 | Payment history, receipt, reconciled | I, F, E | PaymentHistoryIT, PaymentReconciliationJobIT | Partial (e2e deferred) | P0 |
+| CUS-08 | Make payment, hosted gateway, verification | I, R, F, E, S | PaymentInitiateIT, PaymentWebhookIT, PaymentTransitionIT, MockCheckoutIT, MockPaymentGatewayTest; FE RTL/MSW | Partial (e2e F22 deferred) | P0 |
+| INB-01 | Lookup, verification, context, access log | I, S, F, E | (branch `slice/03-inbound-be`) CustomerLookupIT, IdentityCheckIT, IdentityCheckRateLimitAuditTest, VerifiedCustomerAccessIT, AgentRouteCoverageTest, AgentCustomerViewIT, OtpCodecTest | Partial (E1 untested, no FE) | P0 |
+| INB-02 | Track customer cases, internal notes hidden | I, F | AgentCaseQueryIT | Partial (no FE) | P1 |
+| INB-03 | Raise request on behalf | I, F, E | AgentCaseCreateIT, CaseCreationServiceIT | Partial (no FE) | P1 |
+| INB-04 | Temporary reactivation (24 h cap, prohibited reasons) | I, R, S, E | ReactivationEligibilityIT, ReactivationCreateIT, ReactivationJobsIT, NotificationDispatchIT, ProvisioningMockTest | Partial (E2 untested, no FE) | P0 |
 | OUT-01 | Case dashboard and queue | I, P, F, E | none | Not started | P1 |
 | OUT-02 | Advanced filters | I, C, F | none | Not started | P1 |
 | OUT-03 | Atomic claim, reassignment | I (race), S | none | Not started | P0 |
@@ -92,11 +92,11 @@ Levels: U unit, I integration, C contract, F frontend RTL, E e2e, A a11y, S secu
 | BR-04 | Customer vs internal notes separate | I, F | SchemaV3toV6IT (schema only) | Partial | P0 |
 | BR-05/06 | 3-month default, bounded filters, paging | I, F, E | CustomerCaseIT, PaymentHistoryIT | Partial (FE, later lists) | P1 |
 | BR-07 | SLA configurable by category | I, D | CaseCategoryIT, SchemaV3toV6IT, CustomerCaseIT | Covered | P1 |
-| BR-08 | Provider-confirmed payment/provisioning | I, R | PaymentTransitionIT, PaymentWebhookIT, SubscriptionPlanIT | Partial (provisioning in 03) | P0 |
+| BR-08 | Provider-confirmed payment/provisioning | I, R | PaymentTransitionIT, PaymentWebhookIT, SubscriptionPlanIT | Partial (E2 late restore untested) | P0 |
 | BR-09 | Case to work-item link | I | none | Not started (future) | P2 |
-| BR-10 | Server-side authorization | I, S | PermissionMatrixIT, CustomerPortalAuthzIT | Partial (03-06 endpoints) | P0 |
+| BR-10 | Server-side authorization | I, S | PermissionMatrixIT, CustomerPortalAuthzIT, InboundAuthzIT, InboundIdorIT | Partial (04-06 endpoints) | P0 |
 | XC-01 | Role-specific navigation | F, E | navConfig.test, navFilter.test, auth-nav.spec | Partial | P1 |
-| XC-02 | Restricted routes and APIs denied | F, I, E | RequirePermission.test, apiForbidden.test, forbidden.spec, authz ITs | Partial | P0 |
+| XC-02 | Restricted routes and APIs denied | F, I, E | RequirePermission.test, apiForbidden.test, forbidden.spec, authz ITs (01-03) | Partial | P0 |
 | XC-03 | Loading/empty/error/validation states | F | states.test, LoginForm.test | Partial (01 only) | P1 |
 | XC-04 | Server paging, filters kept | I, F | CustomerCaseIT, PaymentHistoryIT | Partial (URL params FE) | P1 |
 | XC-05 | Date filter validation, timezone | I, F | CustomerCaseIT, PaymentHistoryIT | Partial | P1 |
@@ -107,7 +107,7 @@ Levels: U unit, I integration, C contract, F frontend RTL, E e2e, A a11y, S secu
 | NFR-PERF | Budgets, lazy load, paging (P95 <= 500 ms, LCP <= 2.5 s) | P | none | Not started | P1 |
 | NFR-SEC | Auth, sessions, validation, transport | S, I | AuthIT, AuthContractIT, ProdCookieIT, ClientIpIT, LoginRateLimiterTest | Partial (ZAP, TLS, deps) | P0 |
 | NFR-PRIV | Minimise, mask, log access, retention | I, S | AuditTrailIT, ContactVerificationIT, log assertions | Partial (retention untested) | P0 |
-| NFR-AVAIL | Graceful degradation | R | PaymentInitiateIT, PaymentReconciliationJobIT | Partial (provisioning/notify in 03) | P0 |
+| NFR-AVAIL | Graceful degradation | R | PaymentInitiateIT, PaymentReconciliationJobIT | Partial (03 E1/E2 untested) | P0 |
 | NFR-REL | Idempotent create/payment/reactivation | I | IdempotencyServiceIT, PaymentInitiateIT, CustomerCaseIT | Partial | P0 |
 | NFR-A11Y | Semantic, keyboard, focus, contrast | A | AppShell.test (vitest-axe), responsive-a11y.spec | Partial | P1 |
 | NFR-RESP | Desktop-first, tablet/mobile | E | responsive-a11y.spec | Partial | P1 |
@@ -115,7 +115,7 @@ Levels: U unit, I integration, C contract, F frontend RTL, E e2e, A a11y, S secu
 | NFR-MAINT | Modules, typed contracts | U | ArchitectureTest | Covered | P2 |
 | NFR-INTEG | Ownership and transition validation | I | CustomerIdorIT, PaymentTransitionIT, SchemaV3toV6IT | Partial | P0 |
 
-Tally: see 5.4. Other existing infrastructure tests: SchemaIT, SpaForwardIT, ProfileGuardIT/Test, CatalogServiceIT, CustomerScopeIT, E2eProfileIT, AbstractMySqlIT; FE: smoke, session, returnTo, logout, apiClient.
+Tally: see 5.4. Other existing tests: SchemaIT, SchemaV7toV9IT, CrossModuleApiIT, ProdAdapterCheckIT, SpaForwardIT, ProfileGuardIT/Test, CatalogServiceIT, CustomerScopeIT, E2eProfileIT, AbstractMySqlIT; FE: 29 Vitest/RTL/MSW files (568 tests: shell, session, apiClient, slice 02 pages); Playwright specs auth-nav, forbidden, responsive-a11y, session pass; customer-portal and payment specs are WIP.
 
 ## 3. Per-slice test catalogue
 
@@ -163,10 +163,10 @@ Checks that apply to **every** slice are listed once; slices refer to them as CM
 | Reconciliation | Keyset-paged job, 50 s budget, gateway down, prod refuses disabled cron | PaymentReconciliationJobIT | Two instances concurrently -> no double transition | P0 |
 | Receipt / history | Window, paging, reconciled flag, receipt only for SUCCESS | PaymentHistoryIT | none | P1 |
 | Data | V3-V6 constraints, guarded keys | SchemaV3toV6IT, E2eProfileIT | Upgrade from a V2 snapshot with data | P1 |
-| FE (F1-F22) | Dashboard cards independent states; profile + OTP dialog; plan-change/claim confirm dialogs; case list (URL params) and create form (no attachment); payment history, pay, return path, status, receipt; date-range filter | none | RTL per page (CM-10), MSW, vitest-axe | P0 |
+| FE unit (F1-F20) | Dashboard cards, profile + OTP dialog, plan-change/claim confirm, case list/create, payment history/pay/status/receipt, date range | 568 RTL/MSW tests (PR #12) | Audit vs CM-10 (all five states per page), vitest-axe on dialogs | P1 |
 | E2E | Customer journey x 3 viewports; payment serial; staff roles denied on `/customer/*` | forbidden.spec | F21 `customer-portal.spec`, F22 `payment.spec` deferred (5.2) | P0 |
 
-### 3.3 Slice 03 Inbound workspace (BE designed; tests per design s9; FE design pending)
+### 3.3 Slice 03 Inbound workspace (BE built with ITs on unpushed branch `slice/03-inbound-be`, tests per design s9; E1/E2 and FE untested)
 
 | Area | Scenarios | Test (design s9) | Pri |
 |---|---|---|---|
@@ -184,7 +184,8 @@ Checks that apply to **every** slice are listed once; slices refer to them as CM
 | Authz / IDOR | I1-I15 x anonymous + 5 other roles (403 `forbidden`, not `verification-required`); INBOUND_AGENT without REACTIVATION_APPROVER 403 on I13/I14; ACCESS_DENIED once; foreign case/sub/check/lookup token -> 404, no change | InboundAuthzIT, InboundIdorIT | P0 |
 | Prod guards | prod + mock adapter or `-` cron refused; prod with only mock adapters fails | ProfileGuardIT, ProdAdapterCheckIT | P0 |
 | Cross-module | New module edges only, no cycles | ArchitectureTest, CrossModuleApiIT | P2 |
-| Deferred | Slice 03 E1/E2 tests (user-deferred; list the exact items in `03-inbound/status.md` before starting) | to identify | P1 |
+| Deferred | E1: one agent, 15 parallel KBA on 15 customers -> exactly 10 evaluated + 5 x 429; mixed parallel KBA + reactivation, no deadlock (lock order agent row -> customer row, V10 `agent_kba_windows`) | untested | P0 |
+| E2: NOT_FOUND -> FAILED, provider restores at +5 min -> EXPIRING -> EXPIRED; restore confirmed on an already FAILED row -> suspended; parallel reconcile runs act once (`REACTIVATION_LATE_RESTORE` audit) | untested | P0 |
 | FE (to design) | Masked search; OTP/KBA dialogs (remaining attempts, lockout); verified banner + timeout; case timeline with internal-note badge; create-on-behalf form; reactivation wizard (blocked reasons, confirm, countdown); denied view for non-approvers; 3 viewports, axe | after FE design | P0 |
 
 ### 3.4 Slice 04 Outbound workspace (OUT-01..06; no design yet)
@@ -281,23 +282,23 @@ Checks that apply to **every** slice are listed once; slices refer to them as CM
 | Phase | Work | Effort | Exit |
 |---|---|---|---|
 | 0 Unblock | Fix e2e JAR hang (5.2); CI skeleton (section 6); OpenAPI-validation and ProblemDetail helpers | 3-4 d | PR pipeline green on `main` |
-| 1 Slice 03 BE tests (P0) | Design s9 tests: IdentityCheckIT, VerifiedCustomerAccessIT, Reactivation*IT, InboundAuthzIT/IdorIT, schema, lookup, notify; deferred E1/E2 | 8-10 d | INB-01/04 Covered |
+| 1 Slice 03 BE gaps (P0) | E1/E2 tests; review existing 03 ITs against design s9 for missing forbidden-role/concurrency cases; keep branch ITs green | 3 d | INB-01/04 BE Covered |
 | 2 Slice 02 gaps (P0) | Concurrency (initiate on one invoice, OTP parallel confirm, reconcile x2, double claim), log sweep, BR-04 DTO test | 3 d | 3.2 gaps closed |
-| 3 Slice 02 FE | RTL per page, MSW, vitest-axe; Playwright F21/F22 | 10 d | CUS-* Covered |
+| 3 Slice 02 FE | Audit RTL against CM-10, add vitest-axe; Playwright F21/F22 | 5 d | CUS-* Covered |
 | 4 Security pass 1 | ASVS checks in MockMvc (injection, XSS round trip, headers, CSRF), dependency/secret scans, ZAP baseline | 5 d | No High findings |
 | 5 Slice 03 FE + e2e | Per 3.3 FE row after design | 8 d | INB-* Covered |
 | 6 Slices 04-05 | Tests written with each task, not deferred again | 10 d each | OUT-*, BUS-* Covered |
 | 7 Non-functional | k6 profile + data generator, Lighthouse CI, Toxiproxy faults, restore drill | 8 d | 4.1 criteria met |
 | 8 Release | Full a11y sweep, UAT evidence pack (XC-09), real-adapter contract tests, go-live checklist | 6 d | Gate 5.3 |
 
-About 75 person-days; phases 1, 2, 4 first because they cover money, identity and authorization.
+About 60 person-days; phases 1, 2, 4 first because they cover money, identity and authorization.
 
 ### 5.2 Known open items
 
 | Item | Detail | Plan | Pri |
 |---|---|---|---|
 | Playwright F21 / F22 | `customer-portal.spec` and `payment.spec` are WIP; the JAR hangs under parallel load; payment spec must run serial on a fresh JAR | Reproduce with a thread dump (`jcmd <pid> Thread.print`) under 3-viewport parallelism; check Hikari/Tomcat thread exhaustion against session-JDBC and cron jobs; cap workers and pool sizes for `e2e`, wait on `/actuator/health`, add per-test timeouts; accept when green twice in a row (F22 criterion) | P0 |
-| Slice 03 E1/E2 tests | Deferred by the user | Do in Phase 1; list the items in `03-inbound/status.md` first | P1 |
+| Slice 03 E1/E2 tests | Deferred by the user; defined in 03 backend design s11 (3.3 table) | Do first in Phase 1; E1 is a concurrency/deadlock test, E2 a job-driven state test with mutable clock | P0 |
 | `ProdAdapterCheck` | Passes only with real adapters, which do not exist yet | Keep negative test (mocks refused); add positive + contract tests in slice 06 | P0 |
 | CUS-06.3 attachments | Deferred (OQ 4/5) | When designed: type/size allow-list, AV scan, authz, path traversal | P2 |
 | Module cycle rule | `ArchitectureTest` cannot assert cycle freedom (codebase fails it) | Refactor or document an exemption | P2 |
@@ -323,9 +324,9 @@ About 75 person-days; phases 1, 2, 4 first because they cover money, identity an
 | Status | Count | IDs |
 |---|---|---|
 | Covered | 4 | BR-01, BR-02, BR-07, NFR-MAINT |
-| Partial | 29 | CUS-01..08; BR-03, 04, 05/06, 08, 10; XC-01..08; NFR-SEC, PRIV, AVAIL, REL, A11Y, RESP, OBS, INTEG |
-| Deferred | 1 | CUS-06.3 (F21/F22 e2e and slice 03 E1/E2 are deferred work inside Partial / Not started rows) |
-| Not started | 16 | INB-01..04, OUT-01..06, BUS-01..03, BR-09, XC-09, NFR-PERF |
+| Partial | 33 | CUS-01..08; INB-01..04; BR-03, 04, 05/06, 08, 10; XC-01..08; NFR-SEC, PRIV, AVAIL, REL, A11Y, RESP, OBS, INTEG |
+| Deferred | 1 | CUS-06.3 (F21/F22 e2e and slice 03 E1/E2 are deferred work inside Partial rows) |
+| Not started | 12 | OUT-01..06, BUS-01..03, BR-09, XC-09, NFR-PERF |
 
 ## 6. CI pipeline proposal
 
