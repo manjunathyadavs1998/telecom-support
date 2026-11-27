@@ -8,7 +8,7 @@
 | Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☑ branch `slice/02-customer-fe` (F1–F20; F21/F22 e2e deferred by user 2026-11-27) |
 | Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☑ ci, typecheck, lint (0 warnings), 568 unit tests, gen:api:check at `e62c65d` (browser e2e deferred) |
 | Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☑ `review-frontend-code.md`: High 0, Medium 0 open (FC1, FC2 fixed); every finding has a disposition |
-| PR | ☑ #10 | ☐ #… |
+| PR | ☑ #10 | ☑ #12 |
 | Merged (by user) | ☑ #10 | ☐ |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
