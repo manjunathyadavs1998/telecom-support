@@ -12,6 +12,9 @@ export const FORBIDDEN_ACTION_MESSAGE = "You don't have permission to do that."
 /**
  * Mutation `meta` flag for a mutation that shows its own 403 (login: root form error after the CSRF retry), so the global
  * forbidden toast stays out of the way.
+ *
+ * On a **query** it changes nothing at runtime: query 403s have no global handler (see `onMutationError`). The 02 dashboard
+ * cards still pass it because frontend.md §3 (403 rule) asks for it; there it only marks "this section renders its own 403".
  */
 export const OWN_FORBIDDEN_HANDLING = { ownForbiddenHandling: true } as const
 

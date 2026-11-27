@@ -287,3 +287,13 @@ countdowns; `vitest-axe` on every page. Playwright e2e against the JAR.
 | D3 | E8 `Promotion`: `eligibleSubscriptionIds` excludes already-claimed subscriptions; new `claimedSubscriptionIds: int64[]`; `claimed` = claimed on at least one | F11, per-number claim state |
 
 Until D3 is approved, the FE uses only `eligibleSubscriptionIds` (CTA rule above) and maps a 422 on an already-claimed number by refetching.
+
+## 11. Errata
+
+### FE1 — Pay bill with a payment under review; status labels (code review FC1, FC10) · Status: **Approved** (user, 2026-11-27)
+**Change 1 (§3 Pay bill).** If the saved payment for a bill is REVIEW (or E15 returns 409 for a REVIEW payment), the bill
+shows an alert instead of the Pay button: "A payment for this bill is under review. Don't pay again — we'll update you."
+with a link to `/customer/payments/{reference}`. The saved record is kept (REVIEW is not terminal, as on the status page).
+**Change 2 (labels).** Service request status: Open, In progress, Awaiting your reply, Resolved, Closed. Severity: Low,
+Medium, High, Critical. Subscription status: Active, Suspended, Terminated.
+Tests: saved REVIEW → no Pay button, alert + link, record kept; 409 for REVIEW → same alert; label snapshot per value.

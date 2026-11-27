@@ -24,9 +24,10 @@ export function RailTooltip({ label, collapsed, children }: { label: string; col
 
 function NavEntry({ item, collapsed, onNavigate }: { item: NavItem; collapsed: boolean; onNavigate?: () => void }) {
   const Icon = item.icon
-  // `end`: Home (/customer) and Case queue (/outbound) are not active on their sub-pages.
+  // `end` only for items without child routes (frontend.md §2): Home (/customer) and Case queue (/outbound) are not active
+  // on other items' pages, while an item with children (Payment history) stays `aria-current="page"` on them.
   const link = (
-    <NavLink to={item.path} end onClick={onNavigate} className={({ isActive }) => sidebarItemClass(isActive, collapsed)}>
+    <NavLink to={item.path} end={!item.children?.length} onClick={onNavigate} className={({ isActive }) => sidebarItemClass(isActive, collapsed)}>
       <Icon aria-hidden="true" className="size-5 shrink-0" />
       <span className={collapsed ? 'sr-only' : undefined}>{item.label}</span>
     </NavLink>

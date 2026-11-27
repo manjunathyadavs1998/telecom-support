@@ -2,8 +2,9 @@ import { hashKey, queryOptions, useQuery, useQueryClient, type QueryClient } fro
 import { useSyncExternalStore } from 'react'
 import { ME_QUERY_KEY } from '@/app/queryClient'
 import { api, apiClient } from '@/services/api/client'
-import { authChannel } from '@/services/api/authChannel'
+import { authChannel, type AuthEvent } from '@/services/api/authChannel'
 import { bootstrapCsrf } from '@/services/api/csrf'
+import { claimIdempotencyRecords, clearIdempotencyRecords } from '@/services/api/idempotency'
 import type { Me } from '@/types/api'
 
 let csrfBootstrap: Promise<void> | null = null
@@ -26,7 +27,9 @@ export async function fetchMe(): Promise<Me | null> {
   await ensureCsrfBootstrapped()
   const result = await apiClient.GET('/api/v1/auth/me')
   if (result.response.status === 401) return null
-  return api.call(Promise.resolve(result))
+  const me = await api.call(Promise.resolve(result))
+  claimIdempotencyRecords(me.id) // records of another user are dropped (02 frontend.md §5, FC3)
+  return me
 }
 
 /** The session source of truth (§5, §7): `['me']`, 60 s fresh, refetched on window focus, no polling, no 4xx retry. */
@@ -56,21 +59,34 @@ export function useMeQuery() {
 
 const meQueryHash = hashKey(ME_QUERY_KEY)
 
-/** After a successful login (§7 After login): drop everything cached, store the new user, tell the other tabs. */
+/**
+ * After a successful login (§7 After login): drop everything cached, store the new user, tell the other tabs. Persisted E15
+ * records survive only when the same user signs in again (02 frontend.md §5, FC3).
+ */
 export function applySignedIn(client: QueryClient, me: Me): void {
   client.clear()
+  claimIdempotencyRecords(me.id)
   client.setQueryData(ME_QUERY_KEY, me)
   authChannel.post('login')
 }
 
-/** After logout (204 or 401, §7 Logout): drop everything cached and tell the other tabs. */
+/**
+ * After logout (204 or 401, §7 Logout): drop everything cached, with the persisted E15 idempotency records (02 frontend.md §5),
+ * and tell the other tabs.
+ */
 export function applySignedOut(client: QueryClient): void {
   client.clear()
+  clearIdempotencyRecords()
   authChannel.post('logout')
 }
 
-/** Another tab logged in or out (§7 Cross-tab): drop everything cached and re-bootstrap `/me`. */
-export function applySessionChangedElsewhere(client: QueryClient): void {
+/**
+ * Another tab logged in or out (§7 Cross-tab): drop everything cached and re-bootstrap `/me`. A logout elsewhere is a logout
+ * here, so it also drops the persisted E15 records; after a login elsewhere the `/me` re-bootstrap keeps them only for the same
+ * user (02 frontend.md §5, FC3).
+ */
+export function applySessionChangedElsewhere(client: QueryClient, event: AuthEvent): void {
   client.clear()
+  if (event === 'logout') clearIdempotencyRecords()
   void client.prefetchQuery(meQuery)
 }

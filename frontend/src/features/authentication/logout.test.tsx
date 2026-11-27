@@ -9,6 +9,7 @@ import { FORBIDDEN_ACTION_MESSAGE, ME_QUERY_KEY, queryClient } from '@/app/query
 import { registerRouter } from '@/app/router'
 import { appRoutes } from '@/app/routes'
 import { authChannel } from '@/services/api/authChannel'
+import { idempotencyStorageKey } from '@/services/api/idempotency'
 import { useUiStore } from '@/stores/uiStore'
 import { meCustomer, meInbound } from '@/test/fixtures/me'
 import { BOOTSTRAP_TOKEN, clearXsrfCookie, setXsrfCookie } from '@/test/msw/handlers'
@@ -20,6 +21,9 @@ import { LOGOUT_FAILED_MESSAGE, SIGNED_OUT_URL } from './useLogout'
 const OTHER_KEY = ['other']
 const CORRELATION_ID = '7d0c2f4e-1b2a-4c3d-8e9f-0a1b2c3d4e5f'
 const ROTATED_TOKEN = 'rotated-token'
+/** A persisted E15 record (02 frontend.md §5: cleared on logout with the query cache) and an unrelated session entry. */
+const IDEM_KEY = idempotencyStorageKey('PAYMENT_INITIATE', '/customers/me/payments', 801)
+const UNRELATED_KEY = 'unrelated'
 
 const problem = (status: number, extra: Record<string, unknown> = {}) =>
   HttpResponse.json(
@@ -83,6 +87,8 @@ async function renderApp(me: Me, path: string, firstHeading: string) {
   )
   expect(await screen.findByRole('heading', { level: 1, name: firstHeading })).toBeInTheDocument()
   queryClient.setQueryData(OTHER_KEY, 'cached')
+  sessionStorage.setItem(IDEM_KEY, JSON.stringify({ key: 'k', bodyHash: 'h', reference: 'PAY-20261125-000007', savedAt: Date.now() }))
+  sessionStorage.setItem(UNRELATED_KEY, 'kept')
   const locations: string[] = []
   let last = router.state.location.pathname + router.state.location.search
   router.subscribe((state) => {
@@ -95,7 +101,7 @@ async function renderApp(me: Me, path: string, firstHeading: string) {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
 
-/** Signed out: exactly one redirect to the signed-out login page, banner shown, cache empty, `logout` broadcast. */
+/** Signed out: one redirect to the signed-out login page, banner shown, cache and E15 records empty, `logout` broadcast. */
 async function expectSignedOut(locations: string[], received: unknown[]) {
   expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
   await settle()
@@ -103,6 +109,8 @@ async function expectSignedOut(locations: string[], received: unknown[]) {
   expect(screen.getByRole('status')).toHaveTextContent('You signed out.')
   expect(queryClient.getQueryData(OTHER_KEY)).toBeUndefined()
   expect(queryClient.getQueryData(ME_QUERY_KEY) ?? null).toBeNull() // the login page's re-bootstrap may store null
+  expect(sessionStorage.getItem(IDEM_KEY)).toBeNull()
+  expect(sessionStorage.getItem(UNRELATED_KEY)).toBe('kept')
   await waitFor(() => expect(received).toEqual([{ type: 'logout' }]))
   expect(useUiStore.getState().mobileNavOpen).toBe(false)
 }
@@ -115,6 +123,7 @@ async function expectStillSignedIn(locations: string[], received: unknown[], cor
   await settle()
   expect(locations).toEqual([])
   expect(queryClient.getQueryData(OTHER_KEY)).toBe('cached')
+  expect(sessionStorage.getItem(IDEM_KEY)).not.toBeNull()
   expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(meCustomer)
   expect(received).toEqual([])
 }
@@ -127,6 +136,7 @@ beforeEach(() => {
   logoutTokens = []
   logoutReplies = [noContent]
   localStorage.clear()
+  sessionStorage.clear()
   useUiStore.setState({ sidebarCollapsed: null, mobileNavOpen: false })
   resetCsrfBootstrap()
   toast.dismiss() // Sonner's queue is module state and outlives an unmounted Toaster
@@ -301,6 +311,25 @@ describe('cross-tab sign-out (frontend.md §7 Cross-tab)', () => {
     expect(router.state.location.search).toBe(`?returnTo=${encodeURIComponent('/customer/plan')}`)
     expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
     expect(queryClient.getQueryData(OTHER_KEY)).toBeUndefined()
+    expect(sessionStorage.getItem(IDEM_KEY)).toBeNull() // a logout elsewhere is a logout here (02 frontend.md §5, FC3)
+    expect(sessionStorage.getItem(UNRELATED_KEY)).toBe('kept')
     expect(calls.filter((c) => c === 'logout')).toHaveLength(0)
+  })
+
+  it('a login elsewhere by the same user keeps the E15 records; by another user it clears them (FC3)', async () => {
+    await renderApp(meCustomer, '/customer/plan', 'My plan')
+    const other = otherTab()
+    tab = other.tab
+
+    const mesBefore = calls.filter((c) => c === 'me').length
+    other.tab.postMessage({ type: 'login' })
+    await waitFor(() => expect(calls.filter((c) => c === 'me').length).toBeGreaterThan(mesBefore))
+    await screen.findByRole('heading', { level: 1, name: 'My plan' })
+    expect(sessionStorage.getItem(IDEM_KEY)).not.toBeNull()
+
+    meResponse = { ...meCustomer, id: meCustomer.id + 1000, username: '+919800000999' }
+    other.tab.postMessage({ type: 'login' })
+    await waitFor(() => expect(sessionStorage.getItem(IDEM_KEY)).toBeNull())
+    expect(sessionStorage.getItem(UNRELATED_KEY)).toBe('kept')
   })
 })

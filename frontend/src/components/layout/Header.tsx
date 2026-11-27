@@ -24,7 +24,7 @@ type HeaderProps = {
  */
 export function Header({ me, collapsed, onToggleCollapsed, mobileNavOpen, onOpenMobileNav, menuButtonRef, onSignOut }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 print:hidden">
       <Button
         ref={menuButtonRef}
         variant="ghost"
