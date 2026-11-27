@@ -8,7 +8,7 @@
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
-| PR | ☐ #… | ☐ #… |
+| PR | ☑ #13 | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
