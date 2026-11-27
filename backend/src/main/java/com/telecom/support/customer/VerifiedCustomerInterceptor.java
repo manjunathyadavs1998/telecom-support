@@ -22,8 +22,8 @@ import org.springframework.web.servlet.HandlerMapping;
  *
  * <p>A caller holding {@code customer.lookup} (inbound agents) needs {@link VerifiedCustomerAccess#require(long)}; the
  * result is stored as the request attribute {@link #ATTRIBUTE} for the {@link VerifiedCustomer} handler argument, and a
- * GET logs the first access under the check (R6). Without {@code customer.lookup} it does nothing and the handler's
- * {@code @PreAuthorize} denies with 403 {@code forbidden}.
+ * successful (2xx) GET logs the first access under the check (R6) in {@link #afterCompletion}. Without
+ * {@code customer.lookup} it does nothing and the handler's {@code @PreAuthorize} denies with 403 {@code forbidden}.
  */
 @Component
 public class VerifiedCustomerInterceptor implements HandlerInterceptor {
@@ -49,10 +49,22 @@ public class VerifiedCustomerInterceptor implements HandlerInterceptor {
         }
         VerifiedCustomer verified = access.require(customerId(request));
         request.setAttribute(ATTRIBUTE, verified);
-        if (HttpMethod.GET.matches(request.getMethod())) {
+        return true;
+    }
+
+    /**
+     * R6: the access row is written only for a protected read that succeeded (2xx GET), so after {@code @PreAuthorize}
+     * and the handler. A denied read (for example I13 without {@code reactivation.approve}) must not use up the
+     * once-per-check row (review C3).
+     */
+    @Override
+    public void afterCompletion(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+                                @NonNull Object handler, Exception ex) {
+        if (ex == null && request.getAttribute(ATTRIBUTE) instanceof VerifiedCustomer verified
+                && HttpMethod.GET.matches(request.getMethod())
+                && response.getStatus() >= 200 && response.getStatus() < 300) {
             access.logFirstAccess(verified, request.getRequestURI());
         }
-        return true;
     }
 
     /** True when the current principal holds {@code customer.lookup}. */

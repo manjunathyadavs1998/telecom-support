@@ -78,6 +78,15 @@ class ArchitectureTest {
                 .check(productionClasses);
     }
 
+    @Test
+    void servicecaseUsesNoCustomerConfiguration() {
+        noClasses()
+                .that().resideInAPackage(ROOT + ".servicecase..")
+                .should().dependOnClassesThat().haveFullyQualifiedName(ROOT + ".customer.InboundProperties")
+                .because("03-inbound backend §6.1: only the listed customer APIs cross the module edge (review C8)")
+                .check(productionClasses);
+    }
+
     /**
      * 00-overview rev 4 §1 / 03-inbound backend §1: the only allowed edges between feature modules. Every module may also
      * use {@code common.*} and {@code audit} (except {@code notification}, see below); anything else is a violation.

@@ -24,7 +24,9 @@ import org.testcontainers.containers.MySQLContainer;
                 // in-memory notification sender and provisioning; their jobs run only when a test calls them
                 "app.notification.mock.enabled=true", "app.notification.dispatch-cron=-",
                 "app.reactivation.provisioning.mock.enabled=true", "app.reactivation.reconcile-cron=-",
-                "app.reactivation.expiry-cron=-"})
+                "app.reactivation.expiry-cron=-",
+                // IdentityCheckCleanupJob runs only when a test calls run() (review C5: no wall-clock purges mid-test)
+                "app.inbound.identity-check.cleanup-cron=-"})
 public abstract class AbstractMySqlIT {
 
     /** Password of every user in {@code db/test-data/R__test_users.sql}. */

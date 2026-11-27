@@ -2,7 +2,6 @@ package com.telecom.support.servicecase;
 
 import com.telecom.support.common.error.ApiExceptions.BadRequestException;
 import com.telecom.support.common.error.ApiExceptions.NotFoundException;
-import com.telecom.support.customer.InboundProperties;
 import com.telecom.support.customer.VerifiedCustomer;
 import com.telecom.support.identity.CurrentUser;
 import com.telecom.support.identity.Permissions;
@@ -111,12 +110,13 @@ public class AgentCaseQueryService {
     private final ZoneId zone;
 
     AgentCaseQueryService(CaseRepository cases, CaseActivityRepository activity, UserDirectory users,
-                          InboundProperties inbound, Clock clock,
+                          // §6.1 lists no customer config API: read the key itself (validated by customer's binding)
+                          @Value("${app.inbound.related-window:30d}") Duration relatedWindow, Clock clock,
                           @Value("${app.display-time-zone:Asia/Kolkata}") ZoneId zone) {
         this.cases = cases;
         this.activity = activity;
         this.users = users;
-        this.relatedWindow = inbound.relatedWindow();
+        this.relatedWindow = relatedWindow;
         this.clock = clock;
         this.zone = zone;
     }

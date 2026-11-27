@@ -36,6 +36,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.scheduling.config.ScheduledTaskHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.web.servlet.MvcResult;
@@ -63,6 +64,9 @@ class IdentityCheckIT extends AbstractMySqlIT {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired
+    ScheduledTaskHolder scheduledTasks;
 
     @Autowired
     NamedParameterJdbcTemplate jdbc;
@@ -101,6 +105,14 @@ class IdentityCheckIT extends AbstractMySqlIT {
     }
 
     // ------------------------------------------------------------------ OTP
+
+    @Test
+    void theCleanupJobIsNotScheduledInTests() {
+        // review C5: the 5-minute wall-clock cron must not purge lookups or expire checks in the middle of a test
+        assertThat(scheduledTasks.getScheduledTasks())
+                .extracting(t -> String.valueOf(t.getTask().getRunnable()))
+                .noneMatch(r -> r.contains(IdentityCheckCleanupJob.class.getSimpleName()));
+    }
 
     @Test
     void otpStartThenConfirmVerifiesTheAgentForThirtyMinutes() throws Exception {

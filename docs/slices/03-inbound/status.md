@@ -7,7 +7,7 @@
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☐ |
 | Built | ☐ branch `slice/03-inbound-be` | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☐ | ☐ |
-| Review clean (no open High) | ☐ `review.md` | ☐ `review.md` |
+| Review clean (no open High) | ☐ `review.md`: no High; C3–C12 dispositioned; C1/C2 (Medium) pending user decision (E1/E2) | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
@@ -46,7 +46,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B20 (backend build complete). B18: `ReactivationReconcileJob`/`ReactivationExpiryJob` drive all job transitions through `ReactivationTransitionService` (guarded; retry guarded by `version`; backoff 1/2/5/15/60 min unlimited; attention/overdue flags once).
-  Late RESTORED → EXPIRING audited as `REACTIVATION_ACTIVATED` (to EXPIRING), no STARTED notification; ACTIVE → EXPIRING itself is not audited (not in §7).
-- B19: `InboundAuthzIT`, `InboundIdorIT` (customer package, shared inbound context). B20: slice 03 traceability rows `Built` (INB-03.3 partial), pattern skill `.claude/skills/guarded-transition`.
-- Full suite green after B20: 616 tests. Next: `reviewer` agent → `review.md`, then `merge-steward` PR.
+- Done: B1–B20 + review fixes (`docs/slices/03-inbound/review.md`). Fixed C3 (access row only after a 2xx GET), C4 (429 audited after the lock tx rolls back),
+  C5 (cleanup cron off in ITs), C8 (servicecase reads `related-window` via `@Value`), C12. C6/C7/C9/C10/C11 accepted or doc errata pending.
+- Open: C1 (agent KBA limit race) and C2 (restored-but-FAILED) need the user's design decision → `design/03-*` errata PR (E1/E2, plus C5/C6/C7/C9/C10 wording).
+- Full suite green after the fixes: 611 tests, 0 failures (clean report dir). Next: user decides E1/E2; then `merge-steward` PR.

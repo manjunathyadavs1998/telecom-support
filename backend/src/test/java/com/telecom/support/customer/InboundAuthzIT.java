@@ -186,6 +186,31 @@ class InboundAuthzIT extends AbstractMySqlIT {
     }
 
     @Test
+    void aDeniedReadDoesNotUseUpTheOncePerCheckAccessRow() throws Exception {
+        verify("T-IN", c6);
+        long check = jdbc.queryForObject("""
+                SELECT MAX(ic.id) FROM identity_checks ic JOIN users u ON u.id = ic.agent_user_id
+                WHERE u.username = 'T-IN' AND ic.customer_id = :customer
+                """, Map.of("customer", c6), Long.class);
+        Cookie agent = login("T-IN");
+        Endpoint eligibility = endpoints.stream().filter(e -> e.id().equals("I13")).findFirst().orElseThrow();
+        Endpoint profile = endpoints.stream().filter(e -> e.id().equals("I5")).findFirst().orElseThrow();
+
+        assertProblem(mvc.perform(call(eligibility, agent, true)).andReturn(), 403, "forbidden", eligibility.path());
+        assertThat(accessedPaths(check)).as("denied I13 writes no access row (R6, review C3)").isEmpty();
+        mvc.perform(call(profile, agent, true)).andExpect(status().isOk());
+        mvc.perform(call(profile, agent, true)).andExpect(status().isOk());
+        assertThat(accessedPaths(check)).containsExactly(profile.path());
+    }
+
+    private List<String> accessedPaths(long check) {
+        return jdbc.queryForList("""
+                SELECT JSON_UNQUOTE(JSON_EXTRACT(details, '$.path')) FROM audit_events
+                WHERE action = 'CUSTOMER_RECORD_ACCESSED' AND JSON_EXTRACT(details, '$.checkId') = :check
+                """, Map.of("check", check), String.class);
+    }
+
+    @Test
     void aPostWithoutCsrfIsForbidden() throws Exception {
         verify("T-IN-REACT", c6);
         Map<String, Long> before = writeCounts();

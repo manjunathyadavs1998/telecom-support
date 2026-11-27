@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -152,7 +153,7 @@ public class IdentityCheckService {
         String codeHmac = codec.hmac(code);
 
         record Started(IdentityCheck check, String destination) {}
-        Started started = tx.execute(status -> {
+        Started started = auditedAfterRollback(() -> tx.execute(status -> {
             lockCustomer(customerId);
             CustomerFacts facts = facts(customerId);
             if (facts.primaryMsisdn() == null) {
@@ -171,7 +172,7 @@ public class IdentityCheckService {
                     facts.customerRef(), details(Method.OTP, id, null));
             return new Started(new IdentityCheck(id, Method.OTP, IdentityCheckRepository.PENDING,
                     CustomerLookupService.maskMsisdn(facts.primaryMsisdn()), expiresAt, null), facts.primaryMsisdn());
-        });
+        }));
 
         try {
             sender.send(Channel.PRIMARY_MSISDN, started.destination(), code);
@@ -197,7 +198,7 @@ public class IdentityCheckService {
         }
 
         // tx A: the attempt is committed (and counts) before anything is compared
-        long[] attempt = newTx.execute(status -> {
+        long[] attempt = auditedAfterRollback(() -> newTx.execute(status -> {
             lockCustomer(customerId);
             Instant now = clock.instant();
             Window ofCustomer = checks.kbaAttemptsOfCustomerSince(customerId, now.minus(RATE_WINDOW));
@@ -209,7 +210,7 @@ public class IdentityCheckService {
                 throw rateLimited(agent, facts, Method.KBA, ofAgent, now, "KBA attempts per agent exceeded");
             }
             return new long[] {checks.insertKbaChecking(agent.id(), customerId, now), ofCustomer.count() + 1L};
-        });
+        }));
         long id = attempt[0];
         int remaining = (int) Math.max(0, inbound.kbaCustomerPerHour() - attempt[1]);
 
@@ -373,18 +374,48 @@ public class IdentityCheckService {
         return details;
     }
 
-    /** Audits a 429 in its own transaction (reason {@code rate_limited}) and returns it to throw. */
-    private TooManyRequestsException rateLimited(Actor agent, CustomerFacts facts, Method method, Window window,
-                                                 Instant now, String message) {
-        Map<String, Object> details = new HashMap<>();
-        details.put("method", method.name());
-        details.put("reason", "rate_limited");
-        details.put("attemptsRemaining", 0);
-        audit.recordIndependently(FAILED, Outcome.FAILURE, agent.id(), agent.username(),
-                CustomerLookupService.ENTITY_CUSTOMER, facts.customerRef(), details);
+    /**
+     * A 429 decided under the customer row lock. It is thrown out of the transaction (rolling it back and releasing
+     * the lock) and audited only then by {@link #auditedAfterRollback}, so the audit's own pool connection is never
+     * taken while the lock is held (review C4).
+     */
+    private static final class RateLimited extends RuntimeException {
+        private final transient Actor agent;
+        private final String customerRef;
+        private final Method method;
+        private final TooManyRequestsException problem;
+
+        RateLimited(Actor agent, String customerRef, Method method, TooManyRequestsException problem) {
+            super(problem.getMessage(), null, false, false);
+            this.agent = agent;
+            this.customerRef = customerRef;
+            this.method = method;
+            this.problem = problem;
+        }
+    }
+
+    /** Runs {@code body} (a transaction); a {@link RateLimited} is audited after the rollback and rethrown as 429. */
+    private <T> T auditedAfterRollback(Supplier<T> body) {
+        try {
+            return body.get();
+        } catch (RateLimited limited) {
+            Map<String, Object> details = new HashMap<>();
+            details.put("method", limited.method.name());
+            details.put("reason", "rate_limited");
+            details.put("attemptsRemaining", 0);
+            audit.recordIndependently(FAILED, Outcome.FAILURE, limited.agent.id(), limited.agent.username(),
+                    CustomerLookupService.ENTITY_CUSTOMER, limited.customerRef, details);
+            throw limited.problem;
+        }
+    }
+
+    /** The 429 to throw inside the transaction (reason {@code rate_limited}); audited after the rollback. */
+    private RateLimited rateLimited(Actor agent, CustomerFacts facts, Method method, Window window,
+                                    Instant now, String message) {
         Instant freeAt = window.oldest().orElse(now).plus(RATE_WINDOW);
-        return new TooManyRequestsException(message + " (customer " + facts.customerId() + ", agent " + agent.id() + ")",
-                (Duration.between(now, freeAt).toMillis() + 999) / 1000);
+        return new RateLimited(agent, facts.customerRef(), method, new TooManyRequestsException(
+                message + " (customer " + facts.customerId() + ", agent " + agent.id() + ")",
+                (Duration.between(now, freeAt).toMillis() + 999) / 1000));
     }
 
     /** Audits the refusal in its own transaction (§7) and returns the 422 to throw. */
