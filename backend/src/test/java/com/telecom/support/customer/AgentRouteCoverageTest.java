@@ -58,6 +58,18 @@ class AgentRouteCoverageTest {
                     .contains(VerifiedCustomer.class);
         }
         assertThat(verified).as("verified routes").isNotEmpty();
+        assertThat(verified).extracting(Route::path).as("the shipped verified routes are covered").contains(
+                CUSTOMERS + "{customerId}/profile", CUSTOMERS + "{customerId}/subscriptions",
+                CUSTOMERS + "{customerId}/invoices", CUSTOMERS + "{customerId}/payments",
+                CUSTOMERS + "{customerId}/cases", CUSTOMERS + "{customerId}/cases/{reference}");
+        assertThat(verified).filteredOn(r -> r.path().equals(CUSTOMERS + "{customerId}/cases"))
+                .extracting(r -> r.handler().getName()).as("I9 and I12").contains("listCases", "createOnBehalf");
+    }
+
+    @Test
+    void agentRoutesOutsideACustomerAreNotBehindTheVerifiedScope() {
+        assertThat(INCLUDE.matches(PathContainer.parsePath("/api/v1/agent/case-categories"))).isFalse();
+        assertThat(INCLUDE.matches(PathContainer.parsePath("/api/v1/agent/customer-searches"))).isFalse();
     }
 
     @Test

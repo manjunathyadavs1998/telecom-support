@@ -81,8 +81,8 @@ class VerifiedCustomerAccessIT extends AbstractMySqlIT {
 
     private void cleanTables() {
         jdbc.update("DELETE FROM identity_checks WHERE created_at >= :t", Map.of("t", utc(T0.minus(Duration.ofDays(2)))));
-        jdbc.update("DELETE FROM idempotency_keys WHERE operation = :op",
-                Map.of("op", VerifiedProbeController.OPERATION));
+        jdbc.update("DELETE FROM idempotency_keys WHERE operation IN (:ops)",
+                Map.of("ops", List.of(VerifiedProbeController.OPERATION, "CASE_CREATE_ONBEHALF")));
     }
 
     @Test
@@ -204,20 +204,23 @@ class VerifiedCustomerAccessIT extends AbstractMySqlIT {
         assertThat(accessedRows(check)).isEmpty();
     }
 
+    /** Through the real idempotent create I12 (R12), so the interceptor-before-idempotency order is the shipped one. */
     @Test
-    void anIdempotentReplayAfterExpiryIsVerificationRequired() throws Exception {
+    void anIdempotentReplayOfCreateOnBehalfAfterExpiryIsVerificationRequired() throws Exception {
         Cookie agent = login("T-IN");
         insertVerified("T-IN", c6, T0.plus(Duration.ofMinutes(30)));
-        int before = VerifiedProbeController.CREATES.get();
+        String path = "/api/v1/agent/customers/" + c6 + "/cases";
 
-        Map<String, Object> first = json(create(agent, c6, "k-replay", "a").andExpect(status().isCreated()).andReturn());
-        Map<String, Object> replay = json(create(agent, c6, "k-replay", "a").andExpect(status().isCreated())
+        Map<String, Object> first = json(createCase(agent, path, "k-replay").andExpect(status().isCreated())
+                .andReturn());
+        Map<String, Object> replay = json(createCase(agent, path, "k-replay").andExpect(status().isCreated())
                 .andReturn());
         assertThat(replay).isEqualTo(first);
 
         InboundTestClock.CLOCK.set(T0.plus(Duration.ofMinutes(30)));
-        assertProblem(create(agent, c6, "k-replay", "a").andReturn(), 403, "verification-required", probe(c6));
-        assertThat(VerifiedProbeController.CREATES.get()).isEqualTo(before + 1);
+        assertProblem(createCase(agent, path, "k-replay").andReturn(), 403, "verification-required", path);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cases WHERE subject = 'Replay probe request'",
+                Map.of(), Long.class)).isEqualTo(1);
     }
 
     // ------------------------------------------------------------------ helpers
@@ -265,6 +268,17 @@ class VerifiedCustomerAccessIT extends AbstractMySqlIT {
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("name", name))));
+    }
+
+    private ResultActions createCase(Cookie session, String path, String key) throws Exception {
+        return mvc.perform(post(path)
+                .cookie(session, new Cookie("XSRF-TOKEN", XSRF))
+                .header("X-XSRF-TOKEN", XSRF)
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("categoryCode", "OTHER",
+                        "subject", "Replay probe request", "customerStatement", "The customer asks for a replay probe.",
+                        "preferredContact", "SMS"))));
     }
 
     private static String probe(long customerId) {

@@ -31,7 +31,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B10 | Verified view I5–I8 | `customer/CustomerService.java` (`profileOf`, `contactsOf`), `customer/SubscriptionService.java` (`subscriptionsOf`, `liveSubscription`), `customer/AgentCustomerController.java`, `payment/{PaymentQueryService,AgentPaymentController}.java`, `AgentCustomerViewIT` | R7, §6.1 | INB-01.3 | `AgentCustomerViewIT` passes; 02 ITs green | ☑ |
 | B11 | Case list + detail I9, I10 | `servicecase/AgentCaseQueryService.java`, `servicecase/CaseRepository.java`, `servicecase/CaseActivityRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseQueryIT` | R8–R10 | INB-02, BR-04 | `AgentCaseQueryIT` passes | ☑ |
 | B12 | Extract `CaseCreationService` | `servicecase/CaseCreationService.java`, `servicecase/CustomerCaseService.java`, `CaseCreationServiceIT` | R12 | BR-01/02/07 | `CaseCreationServiceIT` + unchanged `CustomerCaseIT` pass | ☑ |
-| B13 | Categories + create on behalf I11, I12 | `servicecase/AgentCaseService.java`, `servicecase/CategoryRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseCreateIT`, `AgentRouteCoverageTest` | R11, R12 | INB-03, §14 #4, NFR-REL | both pass (replay after expiry → 403) | ☐ |
+| B13 | Categories + create on behalf I11, I12 | `servicecase/AgentCaseService.java`, `servicecase/CategoryRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseCreateIT`, `AgentRouteCoverageTest` | R11, R12 | INB-03, §14 #4, NFR-REL | both pass (replay after expiry → 403) | ☑ |
 | B14 | Notification module | `notification/{NotificationSender,MockNotificationSender,NotificationRepository,NotificationService,NotificationDispatchJob}.java`, `application.yml` (`app.notification.*`) (+ `NotificationDispatchIT`) | R16 | INB-04.7 | `NotificationDispatchIT` passes (parallel runs → one send) | ☐ |
 | B15 | Provisioning port, properties, crons, prod guards | `reactivation/{ProvisioningClient,MockProvisioningClient,ReactivationProperties}.java`, `application.yml` (`app.reactivation.*`), `common/{ProfileGuard,ProdAdapterCheck}.java` (+ `ProvisioningMockTest`, `ProdAdapterCheckIT`) | §6, §8 | INB-04.4, NFR-SEC | the tests + extended `ProfileGuardIT` pass | ☐ |
 | B16 | Eligibility I13 | `reactivation/{ReactivationPolicyRepository,ReactivationRepository,ReactivationEligibilityService,ReactivationController}.java`, `ReactivationEligibilityIT` | R13 | INB-04.1/04.2/04.6 | `ReactivationEligibilityIT` passes | ☐ |
@@ -46,8 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B8 (schema, seed, cross-module APIs, `OtpCodec`, search I1, identity checks I2–I4). B9: `VerifiedCustomerInterceptor` +
-  `VerifiedCustomerWebConfig` (resolver, fail-closed) → `VerifiedCustomerAccess.require`/`logFirstAccess` (GET only, once per check);
-  403 `verification-required` = `ApiExceptions.VerificationRequiredException`; `AgentRouteCoverageTest`; inbound ITs share one context incl. `@Import(VerifiedProbeController)`.
-- B10: I5/I6 in `AgentCustomerController` (`profileOf`, `subscriptionsOf`), I7/I8 in `payment/AgentPaymentController` (`invoicesOf`/`paymentsOf`);
-  `contactsOf` + `liveSubscription` (404 unless live) ready for B13. Next: B11 (cases I9, I10; handlers must take `VerifiedCustomer`).
+- Done: B1–B13. B11: `AgentCaseQueryService` + `AgentCaseController` (I9/I10; `CaseWindow` shared window; INTERNAL activity via `CurrentUser.has(case.note.internal)`).
+  B12: `CaseCreationService` (classify on a given tree, `slaFor`, `create` MANDATORY tx); `CustomerCaseService` delegates. B13: I11/I12 in `AgentCaseController`/`AgentCaseService`
+  (service-level 403 = `AccessDeniedException` → ACCESS_DENIED `permission`; idempotency hash `KeyedRequest(customerId, body)`); `VerifiedCustomerAccessIT` replay now via I12.
+- Test helpers: `identity/TestPrincipals.without(...)` (reduced-authority principal), `InboundTestClock` now public. Targeted ITs green; the FULL suite run after B13 was
+  killed by the host for low memory and has NOT completed — run `bash scripts/check-backend.sh` (via heavy.sh) before B14. Next: B14 (notification module).
