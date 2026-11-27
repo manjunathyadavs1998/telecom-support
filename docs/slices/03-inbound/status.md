@@ -38,7 +38,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B17 | Create + history I14, I15 | `reactivation/{ReactivationService,ReactivationTransitionService,ReactivationRepository,ReactivationController}.java`, `ReactivationCreateIT` | R14, R15, §3.1 | INB-04.1–04.4/04.6/04.7, NFR-REL | `ReactivationCreateIT` passes (agent-level parallel limit) | ☑ |
 | B18 | Reconcile + expiry jobs | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob,ReactivationTransitionService}.java`, `ReactivationJobsIT` | §3.1 | INB-04.5, BR-03, BR-08 | `ReactivationJobsIT` passes (10 failed suspends then EXPIRED, late RESTORED → EXPIRING → EXPIRED) | ☑ |
 | B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☑ |
-| B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☐ |
+| B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☑ |
 
 ## Tasks — frontend
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
@@ -46,7 +46,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B17. B16: `ReactivationEligibilityService.evaluate(CustomerAccount, agentId)` (every failing rule adds its code; FRAUD/LEGAL/REGULATORY hard-coded), `ReactivationPolicyRepository` (non-final, IT stubs it).
-  B17: `ReactivationService.create` (ref drawn first; tx1 = user lock → account lock → R13 → PENDING with `next_attempt_at` now+1 min; restore outside tx) and `history`; `ReactivationTransitionService` (single writer: `activate`/`fail`/`markOutcomeUnknown`, guarded `status IN (:from)`, notify + audit only on 1 row) — B18 adds the job transitions there.
-- 422/503 bodies via `ReactivationProblemException` + controller handler (`reasons`, `reference`, `reactivationStatus`); OPEN_REQUEST/UK → 409. Tests: `TestPrincipals.with(...)` adds permissions; `ProblemAssert.assertProblem(…, extensions)`.
-- Full suite green after B17: 592 tests. Next: B18 (reconcile + expiry jobs).
+- Done: B1–B20 (backend build complete). B18: `ReactivationReconcileJob`/`ReactivationExpiryJob` drive all job transitions through `ReactivationTransitionService` (guarded; retry guarded by `version`; backoff 1/2/5/15/60 min unlimited; attention/overdue flags once).
+  Late RESTORED → EXPIRING audited as `REACTIVATION_ACTIVATED` (to EXPIRING), no STARTED notification; ACTIVE → EXPIRING itself is not audited (not in §7).
+- B19: `InboundAuthzIT`, `InboundIdorIT` (customer package, shared inbound context). B20: slice 03 traceability rows `Built` (INB-03.3 partial), pattern skill `.claude/skills/guarded-transition`.
+- Full suite green after B20: 616 tests. Next: `reviewer` agent → `review.md`, then `merge-steward` PR.
