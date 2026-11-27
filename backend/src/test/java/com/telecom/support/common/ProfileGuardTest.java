@@ -105,6 +105,36 @@ class ProfileGuardTest {
         assertThatCode(() -> new ProfileGuard().postProcessEnvironment(dev, null)).doesNotThrowAnyException();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"app.notification.mock.enabled", "app.reactivation.provisioning.mock.enabled"})
+    void prodRefusesAnInboundMock(String property) {
+        // 03 backend §6, §8: the in-memory notification sender / provisioning deliver nothing
+        assertThatThrownBy(() -> new ProfileGuard().postProcessEnvironment(prod().withProperty(property, "true"), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'" + property + "'")
+                .hasMessageContaining("'prod'");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(prod().withProperty(property, "false"), null))
+                .doesNotThrowAnyException();
+        MockEnvironment dev = new MockEnvironment().withProperty(property, "true");
+        dev.setActiveProfiles("dev");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(dev, null)).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"app.notification.dispatch-cron", "app.reactivation.reconcile-cron",
+        "app.reactivation.expiry-cron"})
+    void prodRefusesADisabledInboundSchedule(String property) {
+        // 03 backend R16, §3.1: notifications must be sent and restorations reconciled and ended
+        assertThatThrownBy(() -> new ProfileGuard().postProcessEnvironment(prod().withProperty(property, " - "), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'" + property + "'")
+                .hasMessageContaining("'prod'");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(
+                prod().withProperty(property, "0 * * * * *"), null)).doesNotThrowAnyException();
+        MockEnvironment test = new MockEnvironment().withProperty(property, "-");
+        assertThatCode(() -> new ProfileGuard().postProcessEnvironment(test, null)).doesNotThrowAnyException();
+    }
+
     private static MockEnvironment prod() {
         MockEnvironment env = new MockEnvironment()
                 .withProperty("app.customer.otp.hmac-secret", "otp-secret")

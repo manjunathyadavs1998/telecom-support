@@ -83,6 +83,19 @@ app:
       enabled: false              # mock checkout page (dev/test only)
       mode: NORMAL                # NORMAL | UNAVAILABLE | TIMEOUT
       webhook-url: http://localhost:${server.port:8080}/api/v1/payment-gateway/webhooks
+  reactivation:                   # temporary reactivation (03 backend §6 config, R13, R14, §3.1, §8)
+    account-limit: 1              # non-FAILED requests per account per account-window (OQ 13)
+    account-window: 30d
+    agent-daily-limit: 10         # non-FAILED requests per agent per day (Asia/Kolkata)
+    attention-after: 30m          # unresolved PENDING -> needs_attention (alert only)
+    attention-failures: 5         # failed suspends -> needs_attention; retries never stop
+    reconcile-cron: "30 * * * * *"   # ReactivationReconcileJob; "-" disables it (tests only; refused in prod)
+    expiry-cron: "0 * * * * *"       # ReactivationExpiryJob (precision <= 60 s); "-" tests only, refused in prod
+    provisioning:
+      timeout: 5s                 # past it the outcome is unknown and reconciled by reference
+      mock:
+        enabled: false            # in-memory provisioning (dev/test only; refused with prod by ProfileGuard)
+        mode: NORMAL              # NORMAL | REJECT | UNAVAILABLE | TIMEOUT | SUSPEND_FAIL
   notification:                   # customer notification outbox (03 backend R16, §6, §8)
     dispatch-cron: "*/30 * * * * *"   # NotificationDispatchJob; "-" disables it (tests only; refused in prod)
     max-attempts: 3               # the 3rd failed send makes a row FAILED (backoff 1 / 5 / 15 min)

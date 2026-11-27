@@ -33,7 +33,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B12 | Extract `CaseCreationService` | `servicecase/CaseCreationService.java`, `servicecase/CustomerCaseService.java`, `CaseCreationServiceIT` | R12 | BR-01/02/07 | `CaseCreationServiceIT` + unchanged `CustomerCaseIT` pass | ☑ |
 | B13 | Categories + create on behalf I11, I12 | `servicecase/AgentCaseService.java`, `servicecase/CategoryRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseCreateIT`, `AgentRouteCoverageTest` | R11, R12 | INB-03, §14 #4, NFR-REL | both pass (replay after expiry → 403) | ☑ |
 | B14 | Notification module | `notification/{NotificationSender,MockNotificationSender,NotificationRepository,NotificationService,NotificationDispatchJob}.java`, `application.yml` (`app.notification.*`) (+ `NotificationDispatchIT`) | R16 | INB-04.7 | `NotificationDispatchIT` passes (parallel runs → one send) | ☑ |
-| B15 | Provisioning port, properties, crons, prod guards | `reactivation/{ProvisioningClient,MockProvisioningClient,ReactivationProperties}.java`, `application.yml` (`app.reactivation.*`), `common/{ProfileGuard,ProdAdapterCheck}.java` (+ `ProvisioningMockTest`, `ProdAdapterCheckIT`) | §6, §8 | INB-04.4, NFR-SEC | the tests + extended `ProfileGuardIT` pass | ☐ |
+| B15 | Provisioning port, properties, crons, prod guards | `reactivation/{ProvisioningClient,MockProvisioningClient,ReactivationProperties}.java`, `application.yml` (`app.reactivation.*`), `common/{ProfileGuard,ProdAdapterCheck}.java` (+ `ProvisioningMockTest`, `ProdAdapterCheckIT`) | §6, §8 | INB-04.4, NFR-SEC | the tests + extended `ProfileGuardIT` pass | ☑ |
 | B16 | Eligibility I13 | `reactivation/{ReactivationPolicyRepository,ReactivationRepository,ReactivationEligibilityService,ReactivationController}.java`, `ReactivationEligibilityIT` | R13 | INB-04.1/04.2/04.6 | `ReactivationEligibilityIT` passes | ☐ |
 | B17 | Create + history I14, I15 | `reactivation/{ReactivationService,ReactivationTransitionService,ReactivationRepository,ReactivationController}.java`, `ReactivationCreateIT` | R14, R15, §3.1 | INB-04.1–04.4/04.6/04.7, NFR-REL | `ReactivationCreateIT` passes (agent-level parallel limit) | ☐ |
 | B18 | Reconcile + expiry jobs | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob,ReactivationTransitionService}.java`, `ReactivationJobsIT` | §3.1 | INB-04.5, BR-03, BR-08 | `ReactivationJobsIT` passes (10 failed suspends then EXPIRED, late RESTORED → EXPIRING → EXPIRED) | ☐ |
@@ -46,8 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B13. B11: `AgentCaseQueryService` + `AgentCaseController` (I9/I10; `CaseWindow` shared window; INTERNAL activity via `CurrentUser.has(case.note.internal)`).
-  B12: `CaseCreationService` (classify on a given tree, `slaFor`, `create` MANDATORY tx); `CustomerCaseService` delegates. B13: I11/I12 in `AgentCaseController`/`AgentCaseService`
-  (service-level 403 = `AccessDeniedException` → ACCESS_DENIED `permission`; idempotency hash `KeyedRequest(customerId, body)`); `VerifiedCustomerAccessIT` replay now via I12.
-- Test helpers: `identity/TestPrincipals.without(...)` (reduced-authority principal), `InboundTestClock` now public. Targeted ITs green; the FULL suite run after B13 was
-  killed by the host for low memory and has NOT completed — run `bash scripts/check-backend.sh` (via heavy.sh) before B14. Next: B14 (notification module).
+- Done: B1–B15. B14: `notification` module — `NotificationService.enqueue(customerId, template, params{reference,…}, Contacts)` (MANDATORY tx, UK-idempotent),
+  `NotificationDispatchJob.run()` (guarded claim, 1/5/15 min backoff, FAILED + mask, stale SENDING reset); `MockNotificationSender` (`sent()`, `setFailing`, `setDelay`, `reset`).
+  B15: `ProvisioningClient` (+ Rejected/Unavailable/Timeout exceptions), `MockProvisioningClient` (modes, `putStatus`, `callsFor`, `setTimeoutDelay`), `ReactivationProperties` (registered on the mock only — add `@EnableConfigurationProperties` to B16 services), `ProdAdapterCheck`, ProfileGuard 03 checks.
+- Tests: new mocks are `@ConditionalOnProperty`; AbstractMySqlIT/SpaForwardIT enable them and set the 3 new crons `-`; prod-start tests use `support/StubProdAdapters` (`test.stub-adapters=all|new-ports`).
+- Full suite green after B15: 561 tests. Next: B16 (eligibility I13).

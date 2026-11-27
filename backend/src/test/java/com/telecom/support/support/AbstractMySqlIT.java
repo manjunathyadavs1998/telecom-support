@@ -21,8 +21,10 @@ import org.testcontainers.containers.MySQLContainer;
 @SpringBootTest(properties = {"spring.flyway.locations=classpath:db/migration,classpath:db/test-data",
         // PaymentReconciliationJob runs only when a test calls it (it polls every PENDING payment)
         "app.payment.reconcile.pending-cron=-", "app.payment.reconcile.late-capture-cron=-",
-                // in-memory notification sender; NotificationDispatchJob runs only when a test calls it
-                "app.notification.mock.enabled=true", "app.notification.dispatch-cron=-"})
+                // in-memory notification sender and provisioning; their jobs run only when a test calls them
+                "app.notification.mock.enabled=true", "app.notification.dispatch-cron=-",
+                "app.reactivation.provisioning.mock.enabled=true", "app.reactivation.reconcile-cron=-",
+                "app.reactivation.expiry-cron=-"})
 public abstract class AbstractMySqlIT {
 
     /** Password of every user in {@code db/test-data/R__test_users.sql}. */
