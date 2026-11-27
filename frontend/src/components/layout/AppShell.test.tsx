@@ -33,7 +33,8 @@ function renderShell(me: Me, path = landingFor(me) ?? '/') {
   return { router, ...view }
 }
 
-const h1 = (name: string) => screen.findByRole('heading', { level: 1, name })
+// Real pages load via `route.lazy`; a cold import under a parallel run can take over the default 1 s.
+const h1 = (name: string) => screen.findByRole('heading', { level: 1, name }, { timeout: 3000 })
 const menuButton = () => screen.getByRole('button', { name: 'Open navigation menu' })
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -89,6 +90,61 @@ describe('AppShell keyboard and focus (frontend.md §8; XC-08, NFR-A11Y)', () =>
     expect(within(menu).getByText('Business analyst')).toBeInTheDocument()
     expect(within(menu).getByText('Business auditor')).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
+  })
+})
+
+describe('AppShell breadcrumbs and active nav on child routes (frontend.md §2; XC-08, NFR-A11Y)', () => {
+  const REF = 'PAY-20261125-000007'
+  const crumbNav = () => screen.getByRole('navigation', { name: 'Breadcrumb' })
+  const mainNav = () => screen.getByRole('navigation', { name: 'Main' })
+  const crumbTexts = () => within(crumbNav()).getAllByRole('listitem').map((item) => item.textContent)
+
+  it('receipt: crumbs "Payment history › PAY-… › Receipt", earlier crumbs link up, the parent nav item is current', async () => {
+    renderShell(meFixtures.customer, `/customer/payments/${REF}/receipt`)
+    await h1('Receipt')
+    expect(crumbTexts()).toEqual(['Payment history', REF, 'Receipt'])
+    expect(within(crumbNav()).getByRole('link', { name: 'Payment history' })).toHaveAttribute('href', '/customer/payments')
+    expect(within(crumbNav()).getByRole('link', { name: REF })).toHaveAttribute('href', `/customer/payments/${REF}`)
+    expect(within(crumbNav()).queryByRole('link', { name: 'Receipt' })).not.toBeInTheDocument()
+    expect(within(crumbNav()).getByText('Receipt')).toHaveAttribute('aria-current', 'page')
+    expect(within(mainNav()).getByRole('link', { name: 'Payment history' })).toHaveAttribute('aria-current', 'page')
+    expect(within(mainNav()).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('receipt printing: the header and the sidebar are hidden in print (frontend.md §3 Receipt)', async () => {
+    renderShell(meFixtures.customer, `/customer/payments/${REF}/receipt`)
+    await h1('Receipt')
+    expect(screen.getByRole('banner')).toHaveClass('print:hidden')
+    expect(mainNav().closest('.bg-sidebar')).toHaveClass('print:hidden')
+  })
+
+  it.each([
+    ['/customer/requests/new', 'New request', ['Service requests', 'New request'], 'Service requests'],
+    ['/customer/payments/pay', 'Pay bill', ['Payment history', 'Pay bill'], 'Payment history'],
+    [`/customer/payments/${REF}`, REF, ['Payment history', REF], 'Payment history'],
+  ])('%s: crumbs and the current nav item', async (path, title, crumbs, current) => {
+    renderShell(meFixtures.customer, path)
+    await h1(title)
+    expect(crumbTexts()).toEqual(crumbs)
+    const links = within(mainNav()).getAllByRole('link')
+    expect(links.filter((link) => link.getAttribute('aria-current') === 'page').map((link) => link.textContent)).toEqual([current])
+  })
+
+  it('Home (no children) is not current on other pages; a crumb link navigates up', async () => {
+    const user = userEvent.setup()
+    renderShell(meFixtures.customer, `/customer/payments/${REF}/receipt`)
+    await h1('Receipt')
+    await user.click(within(crumbNav()).getByRole('link', { name: REF }))
+    await h1(REF)
+    expect(crumbTexts()).toEqual(['Payment history', REF])
+    expect(within(mainNav()).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
+    expect(within(mainNav()).getByRole('link', { name: 'Payment history' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('a child route is axe clean', async () => {
+    const { container } = renderShell(meFixtures.customer, `/customer/payments/${REF}/receipt`)
+    await h1('Receipt')
+    expect(await axe(container)).toHaveNoViolations()
   })
 })
 

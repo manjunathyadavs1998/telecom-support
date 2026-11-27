@@ -1,17 +1,23 @@
 import { ChevronRight } from 'lucide-react'
-import { Link, useMatches } from 'react-router'
+import { Link, useMatches, type Params } from 'react-router'
 
 type Crumb = { id: string; label: string; path: string }
 
-function crumbOf(handle: unknown): string | null {
+/** `handle.crumb: string | (params) => string` (frontend.md §2); anything else, or an empty label, has no crumb. */
+function crumbOf(handle: unknown, params: Params): string | null {
   if (typeof handle !== 'object' || handle === null || !('crumb' in handle)) return null
-  return typeof handle.crumb === 'string' ? handle.crumb : null
+  const { crumb } = handle
+  const label = typeof crumb === 'function' ? (crumb as (params: Params) => unknown)(params) : crumb
+  return typeof label === 'string' && label !== '' ? label : null
 }
 
-/** Breadcrumbs from the matched routes' `handle.crumb` (frontend.md §3 Application shell, §4); the last one is the page. */
+/**
+ * Breadcrumbs from the matched routes' `handle.crumb` (frontend.md §2, §3 Application shell, §4): one crumb per matched route
+ * that has one, e.g. "Payment history › PAY-… › Receipt"; non-last crumbs are links, the last one is the page.
+ */
 export function Breadcrumbs() {
   const crumbs: Crumb[] = useMatches().flatMap((match) => {
-    const label = crumbOf(match.handle)
+    const label = crumbOf(match.handle, match.params)
     return label ? [{ id: match.id, label, path: match.pathname }] : []
   })
   if (crumbs.length === 0) return null

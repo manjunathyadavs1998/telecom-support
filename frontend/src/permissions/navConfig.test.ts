@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { meFixtures } from '@/test/fixtures/me'
 import type { Me } from '@/types/api'
-import { landingFor, NAV_ITEMS, visibleNav } from './navConfig'
+import { landingFor, NAV_ITEMS, ROUTE_PARAM_PATTERNS, visibleNav } from './navConfig'
 
 type Group = { heading: string | null; labels: string[] }
 
@@ -66,6 +66,59 @@ describe('navConfig registry (frontend.md §2, §10)', () => {
         '/audit',
       ].sort(),
     )
+  })
+})
+
+describe('navConfig child routes (frontend.md §2 route table; XC-02, BR-10)', () => {
+  const children = NAV_ITEMS.flatMap((item) => (item.children ?? []).map((child) => ({ item, child })))
+
+  it('holds exactly the §2 child routes, each under its nav item and customer-only through it', () => {
+    expect(children.map(({ item, child }) => [item.id, child.path])).toEqual([
+      ['customer-requests', '/customer/requests/new'],
+      ['customer-payments', '/customer/payments/pay'],
+      ['customer-payments', '/customer/payments/:reference'],
+      ['customer-payments', '/customer/payments/:reference/receipt'],
+    ])
+    for (const { item, child } of children) {
+      expect(child.path.startsWith(`${item.path}/`), child.id).toBe(true)
+      expect(item.userType, child.id).toBe('CUSTOMER')
+    }
+  })
+
+  it('gives every route (nav items and children) a unique id and path', () => {
+    const ids = [...NAV_ITEMS.map((item) => item.id), ...children.map(({ child }) => child.id)]
+    const paths = [...NAV_ITEMS.map((item) => item.path), ...children.map(({ child }) => child.path)]
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(new Set(paths).size).toBe(paths.length)
+  })
+
+  it('adds the §2 extra permissions on top of the inherited ones', () => {
+    const requires = Object.fromEntries(children.map(({ item, child }) => [child.path, [...item.requires, ...(child.requires ?? [])].sort()]))
+    expect(requires).toEqual({
+      '/customer/requests/new': ['case.create', 'case.read', 'customer.profile.read'],
+      '/customer/payments/pay': ['payment.initiate', 'payment.read'],
+      '/customer/payments/:reference': ['payment.read'],
+      '/customer/payments/:reference/receipt': ['payment.read'],
+    })
+  })
+
+  it('labels the crumbs, the payment status one with its reference', () => {
+    const labels = children.map(({ child }) =>
+      typeof child.label === 'function' ? child.label({ reference: 'PAY-20261125-000007' }) : child.label,
+    )
+    expect(labels).toEqual(['New request', 'Pay bill', 'PAY-20261125-000007', 'Receipt'])
+  })
+
+  it.each([
+    ['PAY-20261125-000007', true],
+    ['PAY-20261125-1234567', true],
+    ['PAY-20261125-00007', false],
+    ['pay-20261125-000007', false],
+    ['PAY-2026112-000007', false],
+    ['PAY-20261125-000007x', false],
+    ['pay', false],
+  ])('the :reference pattern on %s is %s', (reference, ok) => {
+    expect(ROUTE_PARAM_PATTERNS.reference?.test(reference)).toBe(ok)
   })
 })
 

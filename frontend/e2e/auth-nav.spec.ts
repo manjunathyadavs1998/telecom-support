@@ -54,6 +54,7 @@ const BUSINESS: Expected = {
 
 const EXPECTED: Record<SeedUserKey, Expected> = {
   customer: CUSTOMER,
+  customer5: CUSTOMER,
   inbound: INBOUND,
   inboundApprover: INBOUND,
   outbound: OUTBOUND,

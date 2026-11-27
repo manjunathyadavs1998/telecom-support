@@ -12,9 +12,25 @@ import {
   User,
   type LucideIcon,
 } from 'lucide-react'
+import type { Params } from 'react-router'
 import type { Me, Permission } from '@/types/api'
 
 export type Section = 'customer' | 'inbound' | 'outbound' | 'operations' | 'business'
+
+/** A breadcrumb / page label: fixed, or built from the route params (e.g. the payment reference). */
+export type RouteLabel = string | ((params: Params) => string)
+
+/**
+ * A non-nav protected route under a nav item (frontend.md §2). `path` is absolute. It inherits the parent's `requires` and
+ * `userType`; its own `requires` are added (all-of). A child whose path extends another child's path nests under it (receipt
+ * under payment status), so it also inherits that child's gate and crumb.
+ */
+export type NavChild = {
+  id: string
+  path: string
+  label: RouteLabel
+  requires?: readonly Permission[]
+}
 
 export type NavItem = {
   id: string
@@ -29,6 +45,8 @@ export type NavItem = {
   userType?: 'CUSTOMER'
   brd: string
   slice: '02' | '03' | '04' | '05'
+  /** Child routes (no nav entry); the nav item stays active (`aria-current`) on them. */
+  children?: readonly NavChild[]
 }
 
 export type NavGroup = {
@@ -57,8 +75,34 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'customer-profile', label: 'Profile', icon: User, path: '/customer/profile', section: 'customer', requires: ['customer.profile.read'], userType: 'CUSTOMER', brd: 'CUS-02', slice: '02' },
   { id: 'customer-plan', label: 'My plan', icon: Smartphone, path: '/customer/plan', section: 'customer', requires: ['plan.read'], userType: 'CUSTOMER', brd: 'CUS-03', slice: '02' },
   { id: 'customer-promotions', label: 'Promotions', icon: Tag, path: '/customer/promotions', section: 'customer', requires: ['promotion.read'], userType: 'CUSTOMER', brd: 'CUS-04', slice: '02' },
-  { id: 'customer-requests', label: 'Service requests', icon: MessageSquare, path: '/customer/requests', section: 'customer', requires: ['case.read'], userType: 'CUSTOMER', brd: 'CUS-05/06', slice: '02' },
-  { id: 'customer-payments', label: 'Payment history', icon: CreditCard, path: '/customer/payments', section: 'customer', requires: ['payment.read'], userType: 'CUSTOMER', brd: 'CUS-07/08', slice: '02' },
+  {
+    id: 'customer-requests',
+    label: 'Service requests',
+    icon: MessageSquare,
+    path: '/customer/requests',
+    section: 'customer',
+    requires: ['case.read'],
+    userType: 'CUSTOMER',
+    brd: 'CUS-05/06',
+    slice: '02',
+    children: [{ id: 'customer-request-new', path: '/customer/requests/new', label: 'New request', requires: ['case.create', 'customer.profile.read'] }],
+  },
+  {
+    id: 'customer-payments',
+    label: 'Payment history',
+    icon: CreditCard,
+    path: '/customer/payments',
+    section: 'customer',
+    requires: ['payment.read'],
+    userType: 'CUSTOMER',
+    brd: 'CUS-07/08',
+    slice: '02',
+    children: [
+      { id: 'customer-payment-pay', path: '/customer/payments/pay', label: 'Pay bill', requires: ['payment.initiate'] },
+      { id: 'customer-payment-status', path: '/customer/payments/:reference', label: (params) => params.reference ?? '' },
+      { id: 'customer-payment-receipt', path: '/customer/payments/:reference/receipt', label: 'Receipt' },
+    ],
+  },
   { id: 'inbound-search', label: 'Customer search', icon: Search, path: '/inbound', section: 'inbound', requires: ['customer.lookup'], brd: 'INB-01..04', slice: '03' },
   { id: 'outbound-queue', label: 'Case queue', icon: ListTodo, path: '/outbound', section: 'outbound', requires: ['case.read.queue'], brd: 'OUT-01..05', slice: '04' },
   { id: 'outbound-bookmarks', label: 'Bookmarks', icon: Bookmark, path: '/outbound/bookmarks', section: 'outbound', requires: ['case.bookmark'], brd: 'OUT-06', slice: '04' },
@@ -75,6 +119,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { id: 'audit', label: 'Audit & export', icon: ShieldCheck, path: '/audit', section: 'business', requires: ['audit.read'], brd: 'BUS-03', slice: '05' },
 ]
+
+/**
+ * Route params that must match a pattern (frontend.md §2): a mismatch renders `NotFoundPage` before any page mounts, so no
+ * API call is made.
+ */
+export const ROUTE_PARAM_PATTERNS: Readonly<Record<string, RegExp>> = {
+  reference: /^PAY-\d{8}-\d{6,}$/,
+}
 
 /** True if `me` may open `item` (UI gating only; the server enforces every API, BR-10). */
 export function canOpen(me: Me | null | undefined, item: NavItem): boolean {
