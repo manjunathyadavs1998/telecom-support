@@ -2,8 +2,8 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` — **Proposed** rev 2 (review F1–F10 addressed; branch `design/03-inbound-fe`) |
-| Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☐ |
+| Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☑ `docs/design/03-inbound/frontend.md` — **Approved** rev 2 (review F1–F10 addressed; branch `design/03-inbound-fe`) |
+| Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☑ 2026-11-27 (OQ defaults kept) |
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☐ draft F1–F14 below (confirmed after approval) |
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
@@ -65,5 +65,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Backend: B1–B20 + review fixes C3–C12; errata E1 (a0ec005, V10 `agent_kba_windows`) and E2 (4cf756d, FAILED re-checked 24 h); E1/E2 tests deferred by the user; next for BE: E1/E2 tests, then `merge-steward` PR (#13).
-- Frontend: `frontend.md` **Proposed** rev 2 (2026-11-27, review F1–F10 addressed, branch `design/03-inbound-fe`, tests deferred by user).
+- Frontend: `frontend.md` **Approved** rev 2 (2026-11-27, review F1–F10 addressed, branch `design/03-inbound-fe`, tests deferred by user).
 - Next: user reviews/approves the FE design (OQ defaults) → confirm F1–F14 → cut `slice/03-inbound-fe`.

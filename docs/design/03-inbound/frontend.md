@@ -1,6 +1,6 @@
 # 03 Inbound assistant workspace — frontend design
 
-- Status: **Proposed** (awaiting approval), revision 2 (review F1–F10 addressed) · Date: 2026-11-27
+- Status: **Approved** (revision 2, review F1–F10 addressed) · Date: 2026-11-27 · approved by user 2026-11-27 with OQ defaults
 - BRD: INB-01..INB-04, BR-04, BR-05/06, BR-10, XC-02..XC-05, XC-07, XC-08, NFR-PRIV, NFR-REL, NFR-SEC, §14 #4
 - Backend contract: [`openapi.yaml`](openapi.yaml) I1–I15, [`backend.md`](backend.md) (Approved rev 2; §11 errata E1/E2 add
   audit/limit behaviour only, no API change)
