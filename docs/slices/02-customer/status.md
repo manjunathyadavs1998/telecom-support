@@ -5,8 +5,8 @@
 | Design | ☑ `docs/design/02-customer/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D23 addressed) | ☑ `docs/design/02-customer/frontend.md` — **Approved** rev 2 (review F1–F24 addressed; needs backend errata D1–D3) (branch `design/02-customer-fe`) |
 | Approved by user | ☑ 2026-11-25 (also 00-overview §1 rev 3; OQ defaults kept) | ☑ 2026-11-25 (OQ defaults kept; backend errata E4–E6) |
 | Tasks planned | ☑ B1–B21 confirmed 2026-11-25 | ☑ F1–F22 confirmed 2026-11-26 |
-| Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☐ branch `slice/02-customer-fe` |
-| Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☐ |
+| Built | ☑ branch `slice/02-customer-be` (B1–B21, errata E1–E6) | ☑ branch `slice/02-customer-fe` (F1–F20; F21/F22 e2e deferred by user 2026-11-27) |
+| Checks green | ☑ 419 tests, 0 failures at `a71e2ca` (docs-only merge of `origin/main` since) | ☑ ci, typecheck, lint (0 warnings), 568 unit tests, gen:api:check at `e62c65d` (browser e2e deferred) |
 | Review clean (no open High) | ☑ `review.md` parts 1–2: High 0, every finding has a disposition (design review: `review-backend-design.md`) | ☑ `review-frontend-code.md`: High 0, Medium 0 open (FC1, FC2 fixed); every finding has a disposition |
 | PR | ☑ #10 | ☐ #… |
 | Merged (by user) | ☑ #10 | ☐ |
