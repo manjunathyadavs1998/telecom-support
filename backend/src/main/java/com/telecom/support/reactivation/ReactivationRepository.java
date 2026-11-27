@@ -117,6 +117,101 @@ class ReactivationRepository {
             WHERE id = :id AND status IN (:from)
             """;
 
+    /** Reconcile job: PENDING requests whose next attempt is due, keyset by id. */
+    private static final String FIND_DUE_PENDING = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status = 'PENDING' AND next_attempt_at <= :now AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** Reconcile job: PENDING requests created at or before {@code :cutoff} not yet flagged, keyset by id. */
+    private static final String FIND_UNFLAGGED_PENDING = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status = 'PENDING' AND needs_attention = FALSE AND created_at <= :cutoff AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** Expiry job: every ACTIVE request (due, or its account's reason may now be prohibited), keyset by id. */
+    private static final String FIND_ACTIVE = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status = 'ACTIVE' AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** Expiry job: EXPIRING requests whose (next) suspend is due, keyset by id. */
+    private static final String FIND_DUE_EXPIRING = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status = 'EXPIRING' AND next_attempt_at <= :now AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** Expiry job: restored (ACTIVE/EXPIRING) at or before {@code :cutoff} and not yet alerted, keyset by id. */
+    private static final String FIND_OVERDUE = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status IN ('ACTIVE', 'EXPIRING') AND overdue_alerted_at IS NULL AND activated_at <= :cutoff
+              AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** §3.1 reconcile: RESTORED with the window already over → EXPIRING, suspended by the expiry job next. */
+    private static final String RESTORED_LATE = """
+            UPDATE reactivation_requests
+            SET status = 'EXPIRING', provider_ref = :providerRef, activated_at = :activatedAt, expires_at = :expiresAt,
+                end_reason = 'expired', failure_reason = NULL, attempts = 0, next_attempt_at = :now,
+                needs_attention = FALSE, attention_reason = NULL, version = version + 1, updated_at = :now
+            WHERE id = :id AND status IN (:from)
+            """;
+
+    /** §3.1 expiry: ACTIVE → ENDED (account ACTIVE again; no provider call). */
+    private static final String END = """
+            UPDATE reactivation_requests
+            SET status = 'ENDED', end_reason = :endReason, ended_at = :now, next_attempt_at = NULL,
+                needs_attention = FALSE, attention_reason = NULL, version = version + 1, updated_at = :now
+            WHERE id = :id AND status IN (:from)
+            """;
+
+    /** §3.1 expiry claim: ACTIVE → EXPIRING, suspend due now. */
+    private static final String START_EXPIRING = """
+            UPDATE reactivation_requests
+            SET status = 'EXPIRING', end_reason = :endReason, attempts = 0, next_attempt_at = :now,
+                needs_attention = FALSE, attention_reason = NULL, version = version + 1, updated_at = :now
+            WHERE id = :id AND status IN (:from)
+            """;
+
+    /** §3.1 EXPIRING → EXPIRED (suspend confirmed or provider reports SUSPENDED). */
+    private static final String EXPIRE = """
+            UPDATE reactivation_requests
+            SET status = 'EXPIRED', ended_at = :now, next_attempt_at = NULL, needs_attention = FALSE,
+                attention_reason = NULL, version = version + 1, updated_at = :now
+            WHERE id = :id AND status IN (:from)
+            """;
+
+    /** §3.1 retry bookkeeping: guarded by the version read, so parallel runs count one failure once. */
+    private static final String RETRY = """
+            UPDATE reactivation_requests
+            SET attempts = attempts + 1, next_attempt_at = :nextAttemptAt, version = version + 1, updated_at = :now
+            WHERE id = :id AND status = :status AND version = :version
+            """;
+
+    /** §3.1 alert flag (not a state): set once while the row keeps its status. */
+    private static final String FLAG_ATTENTION = """
+            UPDATE reactivation_requests
+            SET needs_attention = TRUE, attention_reason = :reason, updated_at = :now
+            WHERE id = :id AND status = :status AND needs_attention = FALSE
+            """;
+
+    /** §3.1 restored past 24 h: alerted once. */
+    private static final String MARK_OVERDUE = """
+            UPDATE reactivation_requests
+            SET overdue_alerted_at = :now, updated_at = :now
+            WHERE id = :id AND status IN ('ACTIVE', 'EXPIRING') AND overdue_alerted_at IS NULL
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -216,6 +311,94 @@ class ReactivationRepository {
                 .addValue("failureReason", failureReason)
                 .addValue("nextAttemptAt", utc(nextAttemptAt))
                 .addValue("now", utc(now))) == 1;
+    }
+
+    List<RequestRow> findDuePending(Instant now, long after, int limit) {
+        return page(FIND_DUE_PENDING, new MapSqlParameterSource("now", utc(now)), after, limit);
+    }
+
+    List<RequestRow> findUnflaggedPending(Instant cutoff, long after, int limit) {
+        return page(FIND_UNFLAGGED_PENDING, new MapSqlParameterSource("cutoff", utc(cutoff)), after, limit);
+    }
+
+    List<RequestRow> findActive(long after, int limit) {
+        return page(FIND_ACTIVE, new MapSqlParameterSource(), after, limit);
+    }
+
+    List<RequestRow> findDueExpiring(Instant now, long after, int limit) {
+        return page(FIND_DUE_EXPIRING, new MapSqlParameterSource("now", utc(now)), after, limit);
+    }
+
+    List<RequestRow> findOverdue(Instant cutoff, long after, int limit) {
+        return page(FIND_OVERDUE, new MapSqlParameterSource("cutoff", utc(cutoff)), after, limit);
+    }
+
+    /** Guarded {@code from → EXPIRING} with the restore times; true when exactly this row changed. */
+    boolean restoredLate(long id, List<String> from, String providerRef, Instant activatedAt, Instant expiresAt,
+                         Instant now) {
+        return jdbc.update(RESTORED_LATE, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("from", from)
+                .addValue("providerRef", providerRef)
+                .addValue("activatedAt", utc(activatedAt))
+                .addValue("expiresAt", utc(expiresAt))
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** Guarded {@code from → ENDED}; true when exactly this row changed. */
+    boolean end(long id, List<String> from, String endReason, Instant now) {
+        return jdbc.update(END, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("from", from)
+                .addValue("endReason", endReason)
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** Guarded {@code from → EXPIRING}; true when exactly this row changed. */
+    boolean startExpiring(long id, List<String> from, String endReason, Instant now) {
+        return jdbc.update(START_EXPIRING, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("from", from)
+                .addValue("endReason", endReason)
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** Guarded {@code from → EXPIRED}; true when exactly this row changed. */
+    boolean expire(long id, List<String> from, Instant now) {
+        return jdbc.update(EXPIRE, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("from", from)
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** One failed attempt ({@code attempts + 1}, next at {@code nextAttemptAt}); true when this call counted it. */
+    boolean retry(long id, String status, int version, Instant nextAttemptAt, Instant now) {
+        return jdbc.update(RETRY, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("status", status)
+                .addValue("version", version)
+                .addValue("nextAttemptAt", utc(nextAttemptAt))
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** Sets {@code needs_attention} once while the row is in {@code status}; true when this call set it. */
+    boolean flagAttention(long id, String status, String reason, Instant now) {
+        return jdbc.update(FLAG_ATTENTION, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("status", status)
+                .addValue("reason", reason)
+                .addValue("now", utc(now))) == 1;
+    }
+
+    /** Sets {@code overdue_alerted_at} once; true when this call set it. */
+    boolean markOverdue(long id, Instant now) {
+        return jdbc.update(MARK_OVERDUE, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("now", utc(now))) == 1;
+    }
+
+    private List<RequestRow> page(String sql, MapSqlParameterSource params, long after, int limit) {
+        return jdbc.query(sql, params.addValue("after", after).addValue("limit", limit), (rs, n) -> map(rs));
     }
 
     private RequestRow map(ResultSet rs) throws SQLException {
