@@ -14,6 +14,9 @@
   --sidebar-ring: #ffffff;
   --success: #15803d;
   --warning: #b45309;
+  /* Text on a 10 % success/warning tint (badges): one step darker, 4.5:1 for small text (NFR-A11Y, review FC11). */
+  --success-foreground: #166534;
+  --warning-foreground: #92400e;
   --destructive: #b91c1c;
   --ring: #2563eb;
 }
@@ -35,6 +38,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning-foreground: var(--warning-foreground);
   --color-destructive: var(--destructive);
   --color-ring: var(--ring);
 }

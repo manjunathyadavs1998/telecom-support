@@ -1,10 +1,8 @@
 package com.telecom.support.servicecase;
 
-import com.telecom.support.audit.AuditService;
 import com.telecom.support.common.error.ApiExceptions.BadRequestException;
 import com.telecom.support.common.error.ApiExceptions.BusinessRuleException;
 import com.telecom.support.common.error.ApiExceptions.NotFoundException;
-import com.telecom.support.common.reference.ReferenceGenerator;
 import com.telecom.support.common.security.ActorProvider;
 import com.telecom.support.common.security.ActorProvider.Actor;
 import com.telecom.support.common.security.CustomerScope;
@@ -13,22 +11,18 @@ import com.telecom.support.customer.AccountLookup.CustomerAccount;
 import com.telecom.support.customer.CustomerService;
 import com.telecom.support.customer.CustomerService.Profile;
 import com.telecom.support.customer.SubscriptionService;
+import com.telecom.support.servicecase.CaseCreationService.CaseSpec;
+import com.telecom.support.servicecase.CaseCreationService.Classification;
+import com.telecom.support.servicecase.CaseCreationService.CreatedCase;
 import com.telecom.support.servicecase.CaseRepository.CaseSummaryRow;
-import com.telecom.support.servicecase.CaseRepository.NewCase;
 import com.telecom.support.servicecase.CaseRepository.Order;
-import com.telecom.support.servicecase.CategoryRepository.CategoryRow;
 import com.telecom.support.servicecase.SlaPolicyRepository.SlaPolicyRow;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,14 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CustomerCaseService {
 
-    static final String CASE_CREATED = "CASE_CREATED";
-    static final String ENTITY_CASE = "CASE";
     static final String CHANNEL_CUSTOMER_PORTAL = "CUSTOMER_PORTAL";
-    static final String STATUS_CREATED = "CREATED";
-
-    /** Default list window (00-overview §3, BR-05/06) and the largest allowed one. */
-    static final int DEFAULT_WINDOW_MONTHS = 3;
-    static final long MAX_WINDOW_DAYS = 366;
 
     public enum Severity { LOW, MEDIUM, HIGH, CRITICAL }
 
@@ -117,34 +104,27 @@ public class CustomerCaseService {
                               Instant createdAt, String contactMsisdn, String accountRef) {}
 
     private final CaseRepository cases;
-    private final CaseActivityRepository activity;
     private final CategoryRepository categories;
-    private final SlaPolicyRepository slaPolicies;
+    private final CaseCreationService creation;
     private final AccountLookup accounts;
     private final CustomerService customers;
     private final SubscriptionService subscriptions;
     private final CustomerScope scope;
-    private final ReferenceGenerator references;
-    private final AuditService audit;
     private final ActorProvider actors;
     private final Clock clock;
     private final ZoneId zone;
 
-    CustomerCaseService(CaseRepository cases, CaseActivityRepository activity, CategoryRepository categories,
-                        SlaPolicyRepository slaPolicies, AccountLookup accounts, CustomerService customers,
-                        SubscriptionService subscriptions, CustomerScope scope, ReferenceGenerator references,
-                        AuditService audit, ActorProvider actors, Clock clock,
+    CustomerCaseService(CaseRepository cases, CategoryRepository categories, CaseCreationService creation,
+                        AccountLookup accounts, CustomerService customers, SubscriptionService subscriptions,
+                        CustomerScope scope, ActorProvider actors, Clock clock,
                         @Value("${app.display-time-zone:Asia/Kolkata}") ZoneId zone) {
         this.cases = cases;
-        this.activity = activity;
         this.categories = categories;
-        this.slaPolicies = slaPolicies;
+        this.creation = creation;
         this.accounts = accounts;
         this.customers = customers;
         this.subscriptions = subscriptions;
         this.scope = scope;
-        this.references = references;
-        this.audit = audit;
         this.actors = actors;
         this.clock = clock;
         this.zone = zone;
@@ -159,20 +139,10 @@ public class CustomerCaseService {
      */
     @Transactional(readOnly = true)
     public CasePage listMyCases(LocalDate from, LocalDate to, String reference, int page, int size, CaseSort sort) {
-        LocalDate today = LocalDate.ofInstant(clock.instant(), zone);
-        LocalDate end = to != null ? to : today;
-        LocalDate start = from != null ? from : end.minusMonths(DEFAULT_WINDOW_MONTHS);
-        if (start.isAfter(end)) {
-            throw new BadRequestException("Case list from " + start + " after to " + end,
-                    "The start date must not be after the end date.");
-        }
-        if (ChronoUnit.DAYS.between(start, end) > MAX_WINDOW_DAYS) {
-            throw new BadRequestException("Case list range " + start + ".." + end + " over " + MAX_WINDOW_DAYS + " days",
-                    "The date range can be at most 366 days.");
-        }
+        CaseWindow window = CaseWindow.resolve(from, to, clock, zone);
         long accountId = myAccount().accountId();
-        Instant fromInclusive = start.atStartOfDay(zone).toInstant();
-        Instant toExclusive = end.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant fromInclusive = window.fromInclusive();
+        Instant toExclusive = window.toExclusive();
 
         long total = cases.count(accountId, fromInclusive, toExclusive, reference);
         List<CaseSummary> items = total == 0 ? List.of()
@@ -201,7 +171,10 @@ public class CustomerCaseService {
         }
         account.requireMutable();
 
-        Classification classification = classify(draft.categoryCode(), draft.subcategoryCode());
+        Classification classification = creation.classify(categories.findCustomerTree(), draft.categoryCode(),
+                draft.subcategoryCode());
+        String severity = classification.derivedSeverity();
+        SlaPolicyRow sla = creation.slaFor(classification, severity);
         Profile profile = customers.myProfile();
         if (draft.preferredContact() == PreferredContact.EMAIL && !profile.emailVerified()) {
             throw new BusinessRuleException("EMAIL contact without a verified email for account " + account.accountId(),
@@ -213,74 +186,13 @@ public class CustomerCaseService {
         }
 
         Actor actor = actors.currentActor().orElseThrow();
-        Instant now = clock.instant();
-        CategoryRow leaf = classification.leaf();
-        SlaPolicyRow sla = classification.sla();
-        String reference = references.next(ReferenceGenerator.SERVICE_REQUEST);
-        long caseId = cases.insert(new NewCase(reference, account.accountId(), draft.subscriptionId(), leaf.id(),
-                leaf.caseType(), CHANNEL_CUSTOMER_PORTAL, draft.subject(), draft.description(),
-                classification.severity(), STATUS_CREATED, draft.preferredContact().name(), profile.primaryMsisdn(),
-                actor.id(), now.plus(Duration.ofMinutes(sla.responseMinutes())),
-                now.plus(Duration.ofMinutes(sla.resolutionMinutes())), now));
-        activity.insertCreated(caseId, actor.id(), now);
+        CreatedCase created = creation.create(new CaseSpec(account.accountId(), draft.subscriptionId(), classification,
+                severity, sla, CHANNEL_CUSTOMER_PORTAL, draft.subject(), draft.description(),
+                draft.preferredContact().name(), profile.primaryMsisdn(), actor, null, Map.of()));
 
-        Map<String, Object> details = new LinkedHashMap<>();
-        details.put("category", leaf.code());
-        details.put("caseType", leaf.caseType());
-        details.put("severity", classification.severity());
-        details.put("channel", CHANNEL_CUSTOMER_PORTAL);
-        audit.record(CASE_CREATED, actor.id(), actor.username(), ENTITY_CASE, reference, details);
-
-        return new CaseCreated(reference, CaseType.valueOf(leaf.caseType()), PublicCaseStatus.SUBMITTED,
-                Severity.valueOf(classification.severity()), now, profile.primaryMsisdn(), account.accountRef());
-    }
-
-    /** The stored leaf, its resolved severity and the SLA row that applies (R10, BR-07). */
-    private record Classification(CategoryRow leaf, String severity, SlaPolicyRow sla) {}
-
-    /**
-     * R10: {@code categoryCode} must be an active CUSTOMER top level; {@code subcategoryCode} is required exactly when
-     * it has active CUSTOMER children and must be one of them. Severity = leaf default, else the parent's; SLA = (leaf,
-     * severity), else (parent, severity); none → 422.
-     */
-    private Classification classify(String categoryCode, String subcategoryCode) {
-        List<CategoryRow> tree = categories.findCustomerTree();
-        CategoryRow top = tree.stream()
-                .filter(c -> c.parentId() == null && c.code().equals(categoryCode))
-                .findFirst()
-                .orElseThrow(() -> new BusinessRuleException("Category " + categoryCode + " is not selectable",
-                        "Choose one of the listed categories."));
-        List<CategoryRow> children = tree.stream().filter(c -> Objects.equals(c.parentId(), top.id())).toList();
-
-        CategoryRow leaf;
-        CategoryRow parent;
-        if (children.isEmpty()) {
-            if (subcategoryCode != null) {
-                throw new BusinessRuleException("Category " + categoryCode + " has no subcategory " + subcategoryCode,
-                        "This category has no subcategories.");
-            }
-            leaf = top;
-            parent = null;
-        } else {
-            leaf = children.stream()
-                    .filter(c -> c.code().equals(subcategoryCode))
-                    .findFirst()
-                    .orElseThrow(() -> new BusinessRuleException(
-                            "Subcategory " + subcategoryCode + " is not selectable under " + categoryCode,
-                            "Choose one of the listed subcategories."));
-            parent = top;
-        }
-
-        String severity = leaf.defaultSeverity() != null ? leaf.defaultSeverity()
-                : parent != null ? parent.defaultSeverity() : null;
-        SlaPolicyRow sla = severity == null ? null : slaPolicies.findActive(leaf.id(), severity)
-                .or(() -> parent == null ? Optional.empty() : slaPolicies.findActive(parent.id(), severity))
-                .orElse(null);
-        if (sla == null) {
-            throw new BusinessRuleException("No SLA policy for category " + leaf.code() + " severity " + severity,
-                    "Requests of this type cannot be raised right now. Please choose another category or try later.");
-        }
-        return new Classification(leaf, severity, sla);
+        return new CaseCreated(created.reference(), CaseType.valueOf(created.caseType()), PublicCaseStatus.SUBMITTED,
+                Severity.valueOf(created.severity()), created.createdAt(), profile.primaryMsisdn(),
+                account.accountRef());
     }
 
     private CustomerAccount myAccount() {

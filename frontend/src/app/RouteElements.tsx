@@ -1,8 +1,11 @@
-import { Navigate } from 'react-router'
+import type { ReactNode } from 'react'
+import { Navigate, useParams } from 'react-router'
 import { useShellContext } from '@/components/layout/shellContext'
 import { useMeQuery } from '@/features/authentication/meQuery'
+import { ComingSoonPage } from '@/pages/ComingSoonPage'
 import { NoAccessPage } from '@/pages/NoAccessPage'
-import { landingFor } from '@/permissions/navConfig'
+import { NotFoundPage } from '@/pages/NotFoundPage'
+import { landingFor, ROUTE_PARAM_PATTERNS, type NavItem, type RouteLabel } from '@/permissions/navConfig'
 
 /** `/` (frontend.md §2): the user's first visible nav item; none → `NoAccessPage`. */
 export function LandingRedirect() {
@@ -10,4 +13,20 @@ export function LandingRedirect() {
   const shell = useShellContext()
   const landing = landingFor(me)
   return landing ? <Navigate to={landing} replace /> : <NoAccessPage onSignOut={shell?.logout} />
+}
+
+/** A page id without a registry entry: the slice placeholder, titled with the route's label (frontend.md §2). */
+export function ComingSoonRoute({ item, label }: { item: NavItem; label: RouteLabel }) {
+  const params = useParams()
+  return <ComingSoonPage item={{ ...item, label: typeof label === 'function' ? label(params) : label }} />
+}
+
+/** A route param that fails its §2 pattern (e.g. a malformed payment reference) → `NotFoundPage`; the page never mounts. */
+export function ParamGate({ children }: { children: ReactNode }) {
+  const params = useParams()
+  const bad = Object.entries(params).some(([name, value]) => {
+    const pattern = ROUTE_PARAM_PATTERNS[name]
+    return pattern !== undefined && (value === undefined || !pattern.test(value))
+  })
+  return <>{bad ? <NotFoundPage /> : children}</>
 }

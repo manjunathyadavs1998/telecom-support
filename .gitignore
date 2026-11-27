@@ -26,6 +26,8 @@ Thumbs.db
 
 # Runtime data
 data/
+# ...but not the shared list/table components (02-customer/frontend.md §4)
+!frontend/src/components/data/
 uploads/
 *.log
 

@@ -127,7 +127,7 @@ export interface components {
             permissions: components["schemas"]["Permission"][];
         };
         /** @enum {string} */
-        Permission: "customer.profile.read" | "customer.profile.update" | "customer.lookup" | "customer.verify" | "plan.read" | "plan.change" | "promotion.read" | "promotion.claim" | "case.create" | "case.create.onbehalf" | "case.category.internal" | "case.read" | "case.read.queue" | "case.assign" | "case.assign.any" | "case.status.update" | "case.note.internal" | "case.bookmark" | "service.reactivate" | "payment.read" | "payment.initiate" | "analytics.read" | "audit.read" | "reports.export" | "reports.export.pii";
+        Permission: "customer.profile.read" | "customer.profile.update" | "customer.lookup" | "customer.verify" | "plan.read" | "plan.change" | "promotion.read" | "promotion.claim" | "case.create" | "case.create.onbehalf" | "case.category.internal" | "case.severity.override" | "case.read" | "case.read.queue" | "case.assign" | "case.assign.any" | "case.status.update" | "case.note.internal" | "case.bookmark" | "service.reactivate" | "payment.read" | "payment.initiate" | "analytics.read" | "audit.read" | "reports.export" | "reports.export.pii";
         Health: {
             /** @enum {string} */
             status: "UP" | "DOWN";

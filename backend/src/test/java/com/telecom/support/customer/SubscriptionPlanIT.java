@@ -86,7 +86,7 @@ class SubscriptionPlanIT extends AbstractMySqlIT {
                 SET s.plan_id = p.id, s.status = 'ACTIVE'
                 WHERE s.status <> 'TERMINATED'
                 """, Map.of());
-        jdbc.update("UPDATE accounts SET status = 'ACTIVE' WHERE account_ref IN ('ACC-T-0001', 'ACC-T-0002')", Map.of());
+        reinstateAccount("ACC-T-0001", "ACC-T-0002");
     }
 
     // ------------------------------------------------------------------ E5
@@ -347,10 +347,10 @@ class SubscriptionPlanIT extends AbstractMySqlIT {
         // OQ 12: a SUSPENDED account cannot change plan (customer 1's account, otherwise eligible)
         long sub = subscriptionId("+919900000011");
         Cookie session = login("+919900000001");
-        jdbc.update("UPDATE accounts SET status = 'SUSPENDED' WHERE account_ref = 'ACC-T-0001'", Map.of());
+        suspendAccount("ACC-T-0001", "OTHER");
         assertProblem(change(session, sub, "k-susp", "PRE_299", "2026-05-05", "0.00").andReturn(), 422,
                 "business-rule", changes(sub));
-        jdbc.update("UPDATE accounts SET status = 'ACTIVE' WHERE account_ref = 'ACC-T-0001'", Map.of());
+        reinstateAccount("ACC-T-0001");
 
         long terminated = terminatedSubscriptionId();
         assertProblem(change(login("+919900000003"), terminated, "k-closed", "PRE_299", "2026-06-01", "0.00")

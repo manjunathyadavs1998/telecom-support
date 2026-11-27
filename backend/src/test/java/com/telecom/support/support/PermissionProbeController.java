@@ -87,6 +87,12 @@ public class PermissionProbeController {
         return granted(Permissions.CASE_CATEGORY_INTERNAL);
     }
 
+    @GetMapping("/" + Permissions.CASE_SEVERITY_OVERRIDE)
+    @PreAuthorize("hasAuthority(T(com.telecom.support.identity.Permissions).CASE_SEVERITY_OVERRIDE)")
+    Map<String, String> caseSeverityOverride() {
+        return granted(Permissions.CASE_SEVERITY_OVERRIDE);
+    }
+
     @GetMapping("/" + Permissions.CASE_READ)
     @PreAuthorize("hasAuthority(T(com.telecom.support.identity.Permissions).CASE_READ)")
     Map<String, String> caseRead() {

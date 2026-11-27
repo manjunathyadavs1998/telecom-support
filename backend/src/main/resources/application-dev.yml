@@ -16,3 +16,10 @@ app:
     return-url-base: http://localhost:5173   # SPA origin in local dev (01 frontend §9); E15 builds returnUrl from it
     mock:
       enabled: true               # mock checkout page /mock-gateway/checkout/{sessionId}; refused with prod by ProfileGuard
+  reactivation:
+    provisioning:
+      mock:
+        enabled: true             # in-memory provisioning (03 backend §8); refused with prod by ProfileGuard
+  notification:
+    mock:
+      enabled: true               # in-memory notification sender (03 backend §8, OQ 9); refused with prod by ProfileGuard

@@ -1,6 +1,7 @@
 package com.telecom.support.audit;
 
 import com.telecom.support.audit.AuditEvent.Outcome;
+import com.telecom.support.common.error.ApiExceptions.VerificationRequiredException;
 import com.telecom.support.common.security.AccessDeniedListener;
 import com.telecom.support.common.security.ActorProvider;
 import com.telecom.support.common.security.ActorProvider.Actor;
@@ -85,13 +86,21 @@ public class DeniedAccessRecorder implements AccessDeniedListener {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("method", request.getMethod());
         details.put("path", path);
-        details.put("reason", denial instanceof CsrfException ? "csrf" : "permission");
+        details.put("reason", reason(denial));
         String required = requiredAuthority(denial);
         if (required != null) {
             details.put("requiredAuthority", required);
         }
         audit.recordIndependently(ACTION, Outcome.DENIED, user != null ? user.id() : null,
                 user != null ? user.username() : null, null, null, details);
+    }
+
+    /** {@code csrf}, {@code verification_required} (03 backend §4) or {@code permission}. */
+    static String reason(AccessDeniedException denial) {
+        if (denial instanceof CsrfException) {
+            return "csrf";
+        }
+        return denial instanceof VerificationRequiredException ? "verification_required" : "permission";
     }
 
     /** The path as stored in {@code details} and in the sampling key: at most {@value #MAX_PATH_LENGTH} characters. */

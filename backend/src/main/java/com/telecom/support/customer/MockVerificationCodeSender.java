@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * In-memory {@link VerificationCodeSender} (design 02-customer backend §8, OQ 11): nothing is delivered; the last code per
- * destination is kept so tests can read it. In dev the optional fixed code ({@code app.customer.otp.dev-fixed-code},
+ * destination is kept so tests can read it, for every channel (incl. 03's {@code PRIMARY_MSISDN}). In dev the optional fixed code ({@code app.customer.otp.dev-fixed-code},
  * which {@code ProfileGuard} refuses with the {@code prod} profile) makes the code known without reading it here.
  * Nothing is logged, so the code never reaches a log. The map is bounded ({@link #MAX_DESTINATIONS}, oldest evicted).
  */

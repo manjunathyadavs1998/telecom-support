@@ -2,6 +2,7 @@ package com.telecom.support.common.error;
 
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
 import java.util.Optional;
+import org.springframework.security.access.AccessDeniedException;
 
 /**
  * Exceptions that services throw for the non-framework rows of the 00-overview §4 table. {@link GlobalExceptionHandler}
@@ -102,6 +103,17 @@ public final class ApiExceptions {
     public static class IdempotencyMismatchException extends ApiException {
         public IdempotencyMismatchException(String message) {
             super(Problem.IDEMPOTENCY_MISMATCH, message);
+        }
+    }
+
+    /**
+     * 403 {@code verification-required} (00-overview §4 rev 4, 03 backend R5): the inbound agent has no valid identity
+     * check for the customer in the path. An {@link AccessDeniedException}, so the denial is recorded like any 403
+     * (reason {@code verification_required}); {@link GlobalExceptionHandler} maps it to its own problem type.
+     */
+    public static class VerificationRequiredException extends AccessDeniedException {
+        public VerificationRequiredException(String message) {
+            super(message);
         }
     }
 }

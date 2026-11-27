@@ -9,6 +9,7 @@ import { registerRouter } from '@/app/router'
 import { appRoutes } from '@/app/routes'
 import { ME_QUERY_KEY, queryClient, shouldRetryQuery } from '@/app/queryClient'
 import { authChannel } from '@/services/api/authChannel'
+import { claimIdempotencyRecords, idempotencyStorageKey } from '@/services/api/idempotency'
 import { ApiError } from '@/services/api/errors'
 import { meCustomer, meFixtures, meInbound } from '@/test/fixtures/me'
 import { BOOTSTRAP_TOKEN, clearXsrfCookie, setXsrfCookie } from '@/test/msw/handlers'
@@ -227,6 +228,23 @@ describe('login and logout', () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(1)
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(meInbound)
     await waitFor(() => expect(received).toEqual([{ type: 'login' }]))
+    tab.close()
+  })
+
+  it('login after an expiry keeps the E15 records for the same user and clears them for another user (FC3)', async () => {
+    const { tab } = otherTab()
+    const idemKey = idempotencyStorageKey('PAYMENT_INITIATE', '/customers/me/payments', 801)
+    const record = JSON.stringify({ key: 'k', bodyHash: 'h', reference: 'PAY-20261125-000007', savedAt: Date.now() })
+    sessionStorage.clear()
+    claimIdempotencyRecords(meCustomer.id) // the /me bootstrap before the session expired
+    sessionStorage.setItem(idemKey, record)
+
+    applySignedIn(queryClient, meCustomer)
+    expect(sessionStorage.getItem(idemKey)).toBe(record)
+
+    applySignedIn(queryClient, meInbound)
+    expect(sessionStorage.getItem(idemKey)).toBeNull()
+    sessionStorage.clear()
     tab.close()
   })
 

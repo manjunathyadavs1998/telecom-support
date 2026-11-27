@@ -6,8 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.telecom.support.support.AbstractMySqlIT;
+import com.telecom.support.support.StubProdAdapters;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -22,7 +24,12 @@ import org.springframework.test.web.servlet.MvcResult;
 // crons, so the jobs get a valid schedule that never fires during the test (1 Jan, 00:00)
 @TestPropertySource(properties = {"app.customer.otp.hmac-secret=it-otp-secret",
         "app.payment.gateway.webhook-secret=it-webhook-secret", "app.payment.return-url-base=https://portal.example",
-        "app.payment.reconcile.pending-cron=0 0 0 1 1 *", "app.payment.reconcile.late-capture-cron=0 0 0 1 1 *"})
+        "app.payment.reconcile.pending-cron=0 0 0 1 1 *", "app.payment.reconcile.late-capture-cron=0 0 0 1 1 *",
+        // 03 backend §6, §8: prod refuses the in-memory mocks and disabled 03 jobs, and needs non-mock adapters
+        "app.notification.mock.enabled=false", "app.reactivation.provisioning.mock.enabled=false",
+        "app.notification.dispatch-cron=0 0 0 1 1 *", "app.reactivation.reconcile-cron=0 0 0 1 1 *",
+        "app.reactivation.expiry-cron=0 0 0 1 1 *", "test.stub-adapters=all"})
+@Import(StubProdAdapters.class)
 class ProdCookieIT extends AbstractMySqlIT {
 
     private static final String TOKEN = "prod-xsrf-token";

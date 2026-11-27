@@ -57,6 +57,15 @@ app:
       dev-fixed-code: ""          # set only in dev; ProfileGuard refuses it with prod
     plan-change:
       apply-cron: "0 5 0 * * *"   # daily 00:05 in app.display-time-zone (02 backend R6)
+  inbound:                        # inbound workspace (03 backend §6); the identity check OTP reuses app.customer.otp.*
+    searches-per-minute: 30       # customer searches per agent per minute -> 429 (per instance, OQ 15)
+    lookup-token-ttl: 15m         # a search hit's lookup token (R1, R2)
+    identity-check:
+      validity: 30m               # VERIFIED window per agent + customer, never extended (R5)
+      cleanup-cron: "0 */5 * * * *"   # IdentityCheckCleanupJob: expire PENDING OTP checks, purge lookups older than 24 h
+    kba-customer-per-hour: 3      # KBA attempts (CHECKING|FAILED) per customer per rolling hour -> 429 (R4)
+    kba-agent-per-hour: 10        # KBA attempts (CHECKING|FAILED) per agent per rolling hour -> 429 (R4)
+    related-window: 30d           # possible duplicates +/- around a case (R10)
   payment:                        # hosted payment gateway (02 backend §6, §8, §3.1)
     return-url-base: ${PAYMENT_RETURN_URL_BASE:http://localhost:${server.port:8080}}   # SPA origin; E15 returnUrl = base + /customer/payments/{ref} (E4); required in prod
     gateway:
@@ -74,6 +83,24 @@ app:
       enabled: false              # mock checkout page (dev/test only)
       mode: NORMAL                # NORMAL | UNAVAILABLE | TIMEOUT
       webhook-url: http://localhost:${server.port:8080}/api/v1/payment-gateway/webhooks
+  reactivation:                   # temporary reactivation (03 backend §6 config, R13, R14, §3.1, §8)
+    account-limit: 1              # non-FAILED requests per account per account-window (OQ 13)
+    account-window: 30d
+    agent-daily-limit: 10         # non-FAILED requests per agent per day (Asia/Kolkata)
+    attention-after: 30m          # unresolved PENDING -> needs_attention (alert only)
+    attention-failures: 5         # failed suspends -> needs_attention; retries never stop
+    reconcile-cron: "30 * * * * *"   # ReactivationReconcileJob; "-" disables it (tests only; refused in prod)
+    expiry-cron: "0 * * * * *"       # ReactivationExpiryJob (precision <= 60 s); "-" tests only, refused in prod
+    provisioning:
+      timeout: 5s                 # past it the outcome is unknown and reconciled by reference
+      mock:
+        enabled: false            # in-memory provisioning (dev/test only; refused with prod by ProfileGuard)
+        mode: NORMAL              # NORMAL | REJECT | UNAVAILABLE | TIMEOUT | SUSPEND_FAIL
+  notification:                   # customer notification outbox (03 backend R16, §6, §8)
+    dispatch-cron: "*/30 * * * * *"   # NotificationDispatchJob; "-" disables it (tests only; refused in prod)
+    max-attempts: 3               # the 3rd failed send makes a row FAILED (backoff 1 / 5 / 15 min)
+    mock:
+      enabled: false              # in-memory sender (dev/test only; refused with prod by ProfileGuard)
   session:
     absolute-timeout: 12h
   idempotency:
