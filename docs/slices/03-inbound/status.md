@@ -5,8 +5,8 @@
 | Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☐ `docs/design/03-inbound/frontend.md` |
 | Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☐ |
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☐ |
-| Built | ☐ branch `slice/03-inbound-be` | ☐ branch `slice/03-inbound-fe` |
-| Checks green | ☐ | ☐ |
+| Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☐ branch `slice/03-inbound-fe` |
+| Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
 | PR | ☐ #… | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
