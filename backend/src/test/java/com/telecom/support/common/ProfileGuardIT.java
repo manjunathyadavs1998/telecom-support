@@ -6,10 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.telecom.support.SupportApplication;
 import com.telecom.support.identity.LoginLimitProperties;
 import com.telecom.support.support.AbstractMySqlIT;
+import com.telecom.support.support.StubProdAdapters;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -48,11 +51,14 @@ class ProfileGuardIT extends AbstractMySqlIT {
 
     @Test
     void prodAloneStillStarts() {
-        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class)
+        // prod has no mock sender/provisioning and ProdAdapterCheck refuses mock-only ports (03 backend §6, §8)
+        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class, StubProdAdapters.class)
                 .web(WebApplicationType.SERVLET)
                 .profiles("prod");
 
-        try (var context = app.run(args())) {
+        String[] withStubs = Stream.concat(Arrays.stream(args()), Stream.of("--test.stub-adapters=all"))
+                .toArray(String[]::new);
+        try (var context = app.run(withStubs)) {
             assertThat(context.getBean(LoginLimitProperties.class).ipAttemptsPerMinute()).isEqualTo(20);
         }
     }
@@ -87,6 +93,24 @@ class ProfileGuardIT extends AbstractMySqlIT {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("'prod'")
                 .hasMessageContaining("app.customer.otp.hmac-secret");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"--app.notification.mock.enabled=true",
+        "--app.reactivation.provisioning.mock.enabled=true", "--app.notification.dispatch-cron=-",
+        "--app.reactivation.reconcile-cron=-", "--app.reactivation.expiry-cron=-"})
+    void prodWithAnInboundMockOrDisabledJobFailsToStart(String arg) {
+        // 03 backend §6, §8: nothing would be delivered / provisioned, or restorations never reconciled or ended
+        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class, StubProdAdapters.class)
+                .web(WebApplicationType.SERVLET)
+                .profiles("prod");
+        String[] withArg = Stream.concat(Arrays.stream(args()), Stream.of("--test.stub-adapters=all", arg))
+                .toArray(String[]::new);
+
+        assertThatThrownBy(() -> app.run(withArg))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'prod'")
+                .hasMessageContaining(arg.substring(2, arg.indexOf('=')));
     }
 
     @Test

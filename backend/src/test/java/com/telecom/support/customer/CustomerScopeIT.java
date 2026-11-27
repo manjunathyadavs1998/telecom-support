@@ -8,6 +8,7 @@ import com.telecom.support.common.error.ApiExceptions.BusinessRuleException;
 import com.telecom.support.common.security.CustomerScope;
 import com.telecom.support.customer.AccountLookup.AccountStatus;
 import com.telecom.support.customer.AccountLookup.CustomerAccount;
+import com.telecom.support.customer.AccountLookup.SuspensionReason;
 import com.telecom.support.identity.AppUserDetailsService;
 import com.telecom.support.identity.CurrentUser;
 import com.telecom.support.support.AbstractMySqlIT;
@@ -111,9 +112,10 @@ class CustomerScopeIT extends AbstractMySqlIT {
 
     @Test
     void inactiveCustomerRejectsMutations() {
-        CustomerAccount account = new CustomerAccount(1L, 1L, "ACC-X", AccountStatus.ACTIVE, false);
+        CustomerAccount account = new CustomerAccount(1L, 1L, "ACC-X", AccountStatus.ACTIVE, false, null, null);
         assertThatThrownBy(account::requireMutable).isInstanceOf(BusinessRuleException.class);
-        CustomerAccount suspended = new CustomerAccount(1L, 1L, "ACC-X", AccountStatus.SUSPENDED, true);
+        CustomerAccount suspended = new CustomerAccount(1L, 1L, "ACC-X", AccountStatus.SUSPENDED, true,
+                SuspensionReason.OTHER, java.time.Instant.EPOCH);
         assertThatCode(suspended::requireMutable).doesNotThrowAnyException();
     }
 

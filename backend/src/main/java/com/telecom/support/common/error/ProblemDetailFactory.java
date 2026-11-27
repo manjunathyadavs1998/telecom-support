@@ -29,6 +29,9 @@ public class ProblemDetailFactory {
         BAD_REQUEST(HttpStatus.BAD_REQUEST, "bad-request", "Bad request", "The request could not be read."),
         UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "unauthenticated", "Unauthenticated", "Please sign in to continue."),
         FORBIDDEN(HttpStatus.FORBIDDEN, "forbidden", "Forbidden", "You do not have permission to perform this action."),
+        /** Rev 4: an inbound agent has no valid identity check for the customer in the path (03 backend R5). */
+        VERIFICATION_REQUIRED(HttpStatus.FORBIDDEN, "verification-required", "Verification required",
+                "Verify the customer's identity before opening this record."),
         NOT_FOUND(HttpStatus.NOT_FOUND, "not-found", "Not found", "The requested resource was not found."),
         METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "method-not-allowed", "Method not allowed",
                 "This HTTP method is not supported on this path."),

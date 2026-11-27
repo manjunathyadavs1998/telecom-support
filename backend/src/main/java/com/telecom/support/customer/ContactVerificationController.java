@@ -112,6 +112,14 @@ public class ContactVerificationController {
             if (start == null || start.channel() == null || start.value() == null) {
                 return true; // @NotNull reports these
             }
+            if (start.channel() == Channel.PRIMARY_MSISDN) {
+                // 03's identity check channel (B6): not a contact the customer can verify, 400 on "channel"
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate("must be EMAIL or SECONDARY_MSISDN")
+                        .addPropertyNode("channel")
+                        .addConstraintViolation();
+                return false;
+            }
             String value = start.value().trim();
             boolean valid = start.channel() == Channel.EMAIL ? EMAIL.matcher(value).matches()
                     : MSISDN.matcher(value).matches();

@@ -72,38 +72,38 @@ then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1�
 
 ## Slice 03 — Inbound assistant workspace
 
-Design: `03-inbound/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-26, review D1–D22 addressed, branch `design/03-inbound`). Rows stay `Proposed`
-until the user approves, then become `Designed`. Section refs are to `03-inbound/backend.md`; endpoints I1–I15.
+Design: `03-inbound/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-26, review D1–D22 addressed, branch `design/03-inbound`). Backend built on `slice/03-inbound-be` (B1–B20);
+rows become `Built` on merge. Section refs are to `03-inbound/backend.md`; endpoints I1–I15.
 
 | BRD ID | Requirement (short) | Design | Code | Tests | Status |
 |---|---|---|---|---|---|
-| INB-01.1 | Search by mobile, scoped to authorized records | R1, R2 (lookup token), R5, I1, §4 | | | Designed |
-| INB-01.2 | Verification before protected actions | R3–R5 (race-safe limits, central interceptor), I2–I4 | | | Designed |
-| INB-01.3 | Identity, account status, plan, contacts, case/payment context | R7, I5–I9, I15 | | | Designed |
-| INB-01.4 | Log customer-record access | R1, R6, §7 `CUSTOMER_LOOKUP`, `CUSTOMER_RECORD_ACCESSED` | | | Designed |
-| INB-02.1 | Case list: ref, category, severity, status, owner, dates | R8, I9 | | | Designed |
-| INB-02.2 | Description + activity timeline | R9, I10 | | | Designed |
-| INB-02.3 | Related/duplicate cases | R10, I10 (OQ 11) | | | Designed |
-| INB-02.4 | Internal notes never shown to customers | R9, BR-04 | | | Designed |
-| INB-03.1 | Mobile/account populated from the selected customer | R12 | | | Designed |
-| INB-03.2 | Internal categories permission-controlled | R11, R12, I11, V8 categories | | | Designed |
-| INB-03.3 | Summary, statement, agent notes, severity, attachments | R12 (attachments deferred, OQ 5) | | | Designed (partial) |
-| INB-03.4 | Created-by agent and channel inbound | R12, §7 `CASE_CREATED` | | | Designed |
-| INB-03.5 | Reference number returned | R12, I12 | | | Designed |
-| INB-04.1 | Check suspension reason and eligibility first | R13, I13, R14 | | | Designed |
-| INB-04.2 | Prohibited reasons never overridable | R13, §3.1 early end, §2 CHECK on `reactivation_policies` | | | Designed |
-| INB-04.3 | Reason, agent, time, approval evidence | R14, §2 `reactivation_requests`, §7 (OQ 7) | | | Designed |
-| INB-04.4 | Provisioning via backend integration | R15, §3.1, §8 `ProvisioningClient` | | | Designed |
-| INB-04.5 | Backend-enforced expiry ≤ 24 h | §3.1 (unlimited suspend retries with backoff, late restore → EXPIRING, overdue alert), §2 24 h CHECK | | | Designed |
-| INB-04.6 | Prevent repeated extensions / abuse | R13, R14 (agent lock, OQ 13) | | | Designed |
-| INB-04.7 | Notify customer + immutable audit | R16 (claimed outbox), §7, §8 `NotificationSender` | | | Designed |
-| BR-01/02/04/07 | Reference, channel, separate notes, SLA by category | R12, V8 SLA rows | | | Designed |
-| BR-03 | Reactivation transitions record actor, time, old/new | §3.1, §7 (from/to, source) |  |  | Designed |
-| §14 #12 | In-app + email notifications | R16, §8 — mock SMS/EMAIL only (OQ 9) | | | Designed (deviation) |
-| BR-08 | Provisioning confirmed by provider | §3.1 | | | Designed |
-| BR-10 / XC-02 | Server-side authorization | §4, §9 `InboundAuthzIT` | | | Designed |
-| XC-06 / XC-07 | Privileged actions audited; success only when confirmed | §3.1, §7 | | | Designed |
-| NFR-AVAIL | Degrade when provisioning/notification is down | §3.1, §8 | | | Designed |
-| NFR-PRIV | Masked search (POST body), minimised view, masked outbox | R1, R7, R16, §7 | | | Designed |
-| NFR-REL | Idempotent case create and reactivation (replay re-checks verification) | §5 I12, I14, R5 | | | Designed |
-| NFR-SEC | Race-safe OTP/KBA limits, prod guards for mocks | R3, R4, §6 | | | Designed |
+| INB-01.1 | Search by mobile, scoped to authorized records | R1, R2 (lookup token), R5, I1, §4 | `customer/{CustomerLookupService,CustomerLookupRepository,LookupRateLimiter,AgentCustomerController,IdentityCheckService,VerifiedCustomerInterceptor}` | CustomerLookupIT, IdentityCheckIT, VerifiedCustomerAccessIT, InboundIdorIT | Built |
+| INB-01.2 | Verification before protected actions | R3–R5 (race-safe limits, central interceptor), I2–I4 | `customer/{IdentityCheckService,IdentityCheckRepository,IdentityCheckController,IdentityCheckCleanupJob,OtpCodec,VerifiedCustomer,VerifiedCustomerAccess,VerifiedCustomerInterceptor}` | IdentityCheckIT, OtpCodecTest, VerifiedCustomerAccessIT, AgentRouteCoverageTest, InboundAuthzIT | Built |
+| INB-01.3 | Identity, account status, plan, contacts, case/payment context | R7, I5–I9, I15 | `customer/{CustomerService,SubscriptionService,AgentCustomerController}`, `payment/{PaymentQueryService,AgentPaymentController}`, `reactivation/ReactivationController` (I15) | AgentCustomerViewIT, ReactivationCreateIT (history) | Built |
+| INB-01.4 | Log customer-record access | R1, R6, §7 `CUSTOMER_LOOKUP`, `CUSTOMER_RECORD_ACCESSED` | `customer/{CustomerLookupService,VerifiedCustomerAccess}` (`CUSTOMER_LOOKUP`, `CUSTOMER_RECORD_ACCESSED`) | CustomerLookupIT, VerifiedCustomerAccessIT (5 parallel first reads → 1 row) | Built |
+| INB-02.1 | Case list: ref, category, severity, status, owner, dates | R8, I9 | `servicecase/{AgentCaseQueryService,CaseRepository,AgentCaseController}`, `identity/UserDirectory` | AgentCaseQueryIT | Built |
+| INB-02.2 | Description + activity timeline | R9, I10 | `servicecase/{AgentCaseQueryService,CaseActivityRepository}` | AgentCaseQueryIT, InboundIdorIT | Built |
+| INB-02.3 | Related/duplicate cases | R10, I10 (OQ 11) | `servicecase/AgentCaseQueryService` (duplicates) | AgentCaseQueryIT | Built |
+| INB-02.4 | Internal notes never shown to customers | R9, BR-04 | `servicecase/AgentCaseQueryService` (`case.note.internal`) | AgentCaseQueryIT | Built |
+| INB-03.1 | Mobile/account populated from the selected customer | R12 | `servicecase/{AgentCaseService,CaseCreationService}`, `customer/SubscriptionService.liveSubscription` | AgentCaseCreateIT, InboundIdorIT | Built |
+| INB-03.2 | Internal categories permission-controlled | R11, R12, I11, V8 categories | `servicecase/{CategoryRepository,AgentCaseService}`, `db/migration/V8__inbound.sql` | AgentCaseCreateIT, SchemaV7toV9IT | Built |
+| INB-03.3 | Summary, statement, agent notes, severity, attachments | R12 (attachments deferred, OQ 5) | `servicecase/{AgentCaseService,CaseCreationService}` (no attachments) | AgentCaseCreateIT | Built (partial: attachments deferred) |
+| INB-03.4 | Created-by agent and channel inbound | R12, §7 `CASE_CREATED` | `servicecase/{AgentCaseService,CaseCreationService}` | AgentCaseCreateIT, CaseCreationServiceIT | Built |
+| INB-03.5 | Reference number returned | R12, I12 | `servicecase/AgentCaseController` (I12) | AgentCaseCreateIT | Built |
+| INB-04.1 | Check suspension reason and eligibility first | R13, I13, R14 | `reactivation/{ReactivationEligibilityService,ReactivationPolicyRepository,ReactivationService,ReactivationController}` | ReactivationEligibilityIT, ReactivationCreateIT | Built |
+| INB-04.2 | Prohibited reasons never overridable | R13, §3.1 early end, §2 CHECK on `reactivation_policies` | `reactivation/{ReactivationEligibilityService,ReactivationTransitionService}` (early end), `db/migration/V9__reactivation_notification.sql` | ReactivationEligibilityIT, ReactivationJobsIT, SchemaV7toV9IT | Built |
+| INB-04.3 | Reason, agent, time, approval evidence | R14, §2 `reactivation_requests`, §7 (OQ 7) | `reactivation/{ReactivationService,ReactivationRepository}` | ReactivationCreateIT | Built |
+| INB-04.4 | Provisioning via backend integration | R15, §3.1, §8 `ProvisioningClient` | `reactivation/{ProvisioningClient,MockProvisioningClient,ReactivationService,ReactivationTransitionService}` | ReactivationCreateIT, ProvisioningMockTest | Built |
+| INB-04.5 | Backend-enforced expiry ≤ 24 h | §3.1 (unlimited suspend retries with backoff, late restore → EXPIRING, overdue alert), §2 24 h CHECK | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob,ReactivationTransitionService,ReactivationRepository}` | ReactivationJobsIT (10 failed suspends → EXPIRED, late restore → EXPIRING → EXPIRED, parallel runs), SchemaV7toV9IT | Built |
+| INB-04.6 | Prevent repeated extensions / abuse | R13, R14 (agent lock, OQ 13) | `reactivation/{ReactivationEligibilityService,ReactivationService}`, `identity/UserDirectory.lockForUpdate` | ReactivationEligibilityIT, ReactivationCreateIT (11 parallel → 10) | Built |
+| INB-04.7 | Notify customer + immutable audit | R16 (claimed outbox), §7, §8 `NotificationSender` | `notification/{NotificationService,NotificationRepository,NotificationDispatchJob,NotificationSender,MockNotificationSender}`, `reactivation/ReactivationTransitionService` | NotificationDispatchIT, ReactivationCreateIT, ReactivationJobsIT | Built |
+| BR-01/02/04/07 | Reference, channel, separate notes, SLA by category | R12, V8 SLA rows | `servicecase/CaseCreationService`, `db/migration/V8__inbound.sql` (SLA rows) | CaseCreationServiceIT, AgentCaseCreateIT, SchemaV7toV9IT | Built |
+| BR-03 | Reactivation transitions record actor, time, old/new | §3.1, §7 (from/to, source) | `reactivation/ReactivationTransitionService` (from/to, source) | ReactivationCreateIT, ReactivationJobsIT | Built |
+| §14 #12 | In-app + email notifications | R16, §8 — mock SMS/EMAIL only (OQ 9) | `notification/MockNotificationSender` | NotificationDispatchIT | Built (deviation) |
+| BR-08 | Provisioning confirmed by provider | §3.1 | `reactivation/{ReactivationService,ReactivationReconcileJob,ReactivationExpiryJob}` | ReactivationCreateIT, ReactivationJobsIT | Built |
+| BR-10 / XC-02 | Server-side authorization | §4, §9 `InboundAuthzIT` | `@PreAuthorize` on every `/agent/**` handler, `customer/VerifiedCustomerInterceptor`, `audit/DeniedAccessRecorder` | InboundAuthzIT, InboundIdorIT, VerifiedCustomerAccessIT, AgentRouteCoverageTest, PermissionMatrixIT | Built |
+| XC-06 / XC-07 | Privileged actions audited; success only when confirmed | §3.1, §7 | `reactivation/ReactivationTransitionService`, `audit/AuditService` | ReactivationCreateIT, ReactivationJobsIT, IdentityCheckIT | Built |
+| NFR-AVAIL | Degrade when provisioning/notification is down | §3.1, §8 | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob}`, `notification/NotificationDispatchJob` | ReactivationCreateIT, ReactivationJobsIT, NotificationDispatchIT | Built |
+| NFR-PRIV | Masked search (POST body), minimised view, masked outbox | R1, R7, R16, §7 | `customer/{CustomerLookupService,CustomerService}`, `notification/NotificationRepository` (masked) | CustomerLookupIT, AgentCustomerViewIT, NotificationDispatchIT | Built |
+| NFR-REL | Idempotent case create and reactivation (replay re-checks verification) | §5 I12, I14, R5 | `servicecase/AgentCaseController`, `reactivation/ReactivationController` (`IdempotencyService`) | AgentCaseCreateIT, ReactivationCreateIT, VerifiedCustomerAccessIT | Built |
+| NFR-SEC | Race-safe OTP/KBA limits, prod guards for mocks | R3, R4, §6 | `customer/IdentityCheckService`, `common/{ProfileGuard,ProdAdapterCheck}` | IdentityCheckIT, ProfileGuardIT, ProdAdapterCheckIT | Built |

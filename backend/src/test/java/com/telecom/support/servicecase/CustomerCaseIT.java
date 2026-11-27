@@ -57,7 +57,7 @@ class CustomerCaseIT extends AbstractMySqlIT {
                 Map.of());
         jdbc.update("DELETE FROM categories WHERE code LIKE 'T\\_%' AND parent_id IS NOT NULL", Map.of());
         jdbc.update("DELETE FROM categories WHERE code LIKE 'T\\_%'", Map.of());
-        jdbc.update("UPDATE accounts SET status = 'ACTIVE' WHERE account_ref IN ('ACC-T-0001', 'ACC-T-0002')", Map.of());
+        reinstateAccount("ACC-T-0001", "ACC-T-0002");
     }
 
     // ------------------------------------------------------------------ E11
@@ -385,7 +385,7 @@ class CustomerCaseIT extends AbstractMySqlIT {
         assertProblem(create(login("+919900000003"), "k-closed", request("OTHER", null, "PHONE")).andReturn(), 422,
                 "business-rule", PATH);
 
-        jdbc.update("UPDATE accounts SET status = 'SUSPENDED' WHERE account_ref = 'ACC-T-0002'", Map.of());
+        suspendAccount("ACC-T-0002", "OTHER");
         create(login("+919900000002"), "k-susp", request("OTHER", null, "PHONE")).andExpect(status().isCreated());
     }
 

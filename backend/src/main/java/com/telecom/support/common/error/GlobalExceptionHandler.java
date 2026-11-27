@@ -2,6 +2,7 @@ package com.telecom.support.common.error;
 
 import com.telecom.support.common.error.ApiExceptions.ApiException;
 import com.telecom.support.common.error.ApiExceptions.TooManyRequestsException;
+import com.telecom.support.common.error.ApiExceptions.VerificationRequiredException;
 import com.telecom.support.common.error.ProblemDetailFactory.FieldViolation;
 import com.telecom.support.common.error.ProblemDetailFactory.Problem;
 import com.telecom.support.common.security.AccessDeniedListener;
@@ -53,6 +54,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         deniedAccess.orderedStream().forEach(listener -> listener.onAccessDenied(request, ex));
         return respond(problems.create(Problem.FORBIDDEN, request.getRequestURI()), HttpHeaders.EMPTY);
+    }
+
+    /**
+     * No valid identity check for the customer in the path (03 backend R5): one sampled ACCESS_DENIED row (reason
+     * {@code verification_required}), 403 {@code verification-required}.
+     */
+    @ExceptionHandler(VerificationRequiredException.class)
+    ResponseEntity<ProblemDetail> handleVerificationRequired(VerificationRequiredException ex,
+                                                             HttpServletRequest request) {
+        log.debug("Verification required on {}: {}", request.getRequestURI(), ex.getMessage());
+        deniedAccess.orderedStream().forEach(listener -> listener.onAccessDenied(request, ex));
+        return respond(problems.create(Problem.VERIFICATION_REQUIRED, request.getRequestURI()), HttpHeaders.EMPTY);
     }
 
     /**

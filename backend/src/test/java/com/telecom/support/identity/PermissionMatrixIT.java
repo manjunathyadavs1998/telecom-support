@@ -59,8 +59,8 @@ class PermissionMatrixIT extends AbstractMySqlIT {
                     "promotion.claim", "case.create", "case.read", "payment.read", "payment.initiate"),
             "INBOUND_AGENT", Set.of(
                     "customer.profile.read", "customer.lookup", "customer.verify", "plan.read", "promotion.read",
-                    "case.create.onbehalf", "case.category.internal", "case.read", "case.note.internal",
-                    "payment.read"),
+                    "case.create.onbehalf", "case.category.internal", "case.severity.override", "case.read",
+                    "case.note.internal", "payment.read"),
             "REACTIVATION_APPROVER", Set.of("service.reactivate"),
             "OUTBOUND_AGENT", Set.of(
                     "case.read", "case.read.queue", "case.assign", "case.status.update", "case.note.internal",
@@ -124,7 +124,7 @@ class PermissionMatrixIT extends AbstractMySqlIT {
         Set<String> constants = permissionConstants();
         List<String> seeded = jdbc.queryForList("SELECT code FROM permissions", Map.of(), String.class);
 
-        assertThat(constants).hasSize(25);
+        assertThat(constants).hasSize(26);
         assertThat(seeded).containsExactlyInAnyOrderElementsOf(constants);
         assertThat(openapiPermissionEnum()).containsExactlyInAnyOrderElementsOf(constants);
         assertThat(MATRIX.values().stream().flatMap(Set::stream).collect(Collectors.toSet())).isEqualTo(constants);

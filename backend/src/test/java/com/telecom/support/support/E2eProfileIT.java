@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * The {@code dev,e2e} profile starts from a fresh database with the customer portal e2e seed (design 02-customer
  * backend erratum E5, frontend design D2) and returns from the mock gateway to the e2e origin (erratum E4). It runs on
  * its own schema in the shared container, so Flyway clean never touches the test database of the other ITs.
+ * Slice 03 (design 03-inbound backend §2): the inbound customers 6–8 and the INTERNAL-category cases on customer 1.
  */
 class E2eProfileIT {
 
@@ -96,6 +97,36 @@ class E2eProfileIT {
                 FROM accounts a JOIN users u ON u.customer_id = a.customer_id
                 WHERE u.username = '+919800000005'""")
         ).isZero();
+
+        // 03 (R__03_inbound): customer 6 SUSPENDED NON_PAYMENT with 2 SUSPENDED subs and a verified email,
+        // 7 SUSPENDED FRAUD, 8 INACTIVE; no suspended account without its reason and time (V7 CHECK)
+        assertThat(jdbc.queryForList("""
+                SELECT CONCAT(s.msisdn, '/', c.status, '/', a.status, '/', COALESCE(a.suspension_reason, '-'), '/',
+                              (SELECT GROUP_CONCAT(x.status ORDER BY x.msisdn) FROM subscriptions x
+                               WHERE x.account_id = a.id), '/', c.email_verified_at IS NOT NULL)
+                FROM customers c JOIN accounts a ON a.customer_id = c.id
+                JOIN subscriptions s ON s.account_id = a.id AND s.is_primary
+                WHERE c.customer_ref IN ('CUST-D-0006', 'CUST-D-0007', 'CUST-D-0008')
+                ORDER BY c.customer_ref""", String.class)
+        ).containsExactly(
+                "+919800000006/ACTIVE/SUSPENDED/NON_PAYMENT/SUSPENDED,SUSPENDED/1",
+                "+919800000007/ACTIVE/SUSPENDED/FRAUD/SUSPENDED/0",
+                "+919800000008/INACTIVE/ACTIVE/-/ACTIVE/0");
+        assertThat(count(jdbc, """
+                SELECT COUNT(*) FROM accounts
+                WHERE (status = 'SUSPENDED') <> (suspension_reason IS NOT NULL AND suspended_at IS NOT NULL)""")
+        ).isZero();
+
+        // 03 (R__03_inbound_e2e): customer 1 has 2 INTERNAL-category inbound cases, each with one INTERNAL note
+        assertThat(count(jdbc, """
+                SELECT COUNT(*) FROM cases c JOIN accounts a ON a.id = c.account_id
+                JOIN categories cat ON cat.id = c.category_id
+                JOIN categories tl ON tl.id = COALESCE(cat.parent_id, cat.id)
+                JOIN users u ON u.customer_id = a.customer_id
+                WHERE u.username = '+919800000001' AND tl.audience = 'INTERNAL' AND c.channel = 'INBOUND_AGENT'
+                  AND (SELECT COUNT(*) FROM case_activity x WHERE x.case_id = c.id
+                       AND x.activity_type = 'NOTE' AND x.visibility = 'INTERNAL') = 1""")
+        ).isEqualTo(2);
     }
 
     private static int count(JdbcTemplate jdbc, String sql) {

@@ -14,20 +14,13 @@ import com.telecom.support.customer.ContactVerificationRepository.VerificationRo
 import com.telecom.support.customer.CustomerRepository.ProfileRow;
 import com.telecom.support.customer.CustomerService.Profile;
 import com.telecom.support.customer.VerificationCodeSender.Channel;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -51,6 +44,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * independently, 422 with {@code attemptsRemaining}; (4) right → guarded PENDING → VERIFIED and, only for the single
  * winner, the contact is written and {@code PROFILE_CONTACT_CHANGED} audited in the same transaction.
  *
+ * <p>Code generation, HMAC and the constant-time compare are {@link OtpCodec}'s (03 B6, behaviour unchanged).
+ *
  * <p>The code is never logged, audited, put in an exception message or returned.
  */
 @Service
@@ -63,7 +58,6 @@ public class ContactVerificationService {
     static final Duration RATE_WINDOW = Duration.ofHours(1);
 
     private static final Logger log = LoggerFactory.getLogger(ContactVerificationService.class);
-    private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     /** The {@code ContactVerification} schema of openapi.yaml. */
     public record ContactVerification(long id, Channel channel, String maskedDestination, Instant expiresAt) {}
@@ -119,13 +113,13 @@ public class ContactVerificationService {
     private final Clock clock;
     private final TransactionTemplate tx;
     private final TransactionTemplate newTx;
-    private final SecretKeySpec hmacKey;
-    private final SecureRandom random = new SecureRandom();
+    private final OtpCodec codec;
 
     ContactVerificationService(ContactVerificationRepository verifications, CustomerRepository customers,
                                CustomerService profiles, AccountLookup accounts, CustomerScope scope,
                                VerificationCodeSender sender, AuditService audit, ActorProvider actors,
-                               OtpProperties otp, Clock clock, PlatformTransactionManager transactions) {
+                               OtpProperties otp, OtpCodec codec, Clock clock,
+                               PlatformTransactionManager transactions) {
         this.verifications = verifications;
         this.customers = customers;
         this.profiles = profiles;
@@ -139,14 +133,7 @@ public class ContactVerificationService {
         this.tx = new TransactionTemplate(transactions);
         this.newTx = new TransactionTemplate(transactions);
         this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        byte[] key = new byte[32];
-        if (otp.hmacSecret() != null) {
-            key = otp.hmacSecret().getBytes(StandardCharsets.UTF_8);
-        } else {
-            random.nextBytes(key);
-            log.info("app.customer.otp.hmac-secret is not set: using a random per-process key");
-        }
-        this.hmacKey = new SecretKeySpec(key, HMAC_ALGORITHM);
+        this.codec = codec;
     }
 
     /**
@@ -157,8 +144,8 @@ public class ContactVerificationService {
         long customerId = scope.requireCustomerId();
         Actor actor = actors.currentActor().orElseThrow();
         String destination = channel == Channel.EMAIL ? value.trim().toLowerCase(Locale.ROOT) : value.trim();
-        String code = newCode();
-        String codeHmac = hmac(code);
+        String code = codec.newCode();
+        String codeHmac = codec.hmac(code);
 
         ContactVerification started = tx.execute(status -> {
             if (!customers.lockForUpdate(customerId)) {
@@ -226,8 +213,7 @@ public class ContactVerificationService {
         VerificationRow row = counted.get();
 
         // step 2: constant time, over the stored HMACs only
-        boolean match = MessageDigest.isEqual(hmac(code).getBytes(StandardCharsets.US_ASCII),
-                row.codeHmac().getBytes(StandardCharsets.US_ASCII));
+        boolean match = codec.matches(code, row.codeHmac());
         if (!match) {
             // step 3
             if (row.attempts() >= max) {
@@ -276,21 +262,6 @@ public class ContactVerificationService {
         audit.recordIndependently(FAILED, Outcome.FAILURE, actor.id(), actor.username(),
                 CustomerService.ENTITY_CUSTOMER, String.valueOf(row.customerId()), details);
         return new VerificationFailedException(row.id(), reason, remaining);
-    }
-
-    private String newCode() {
-        return otp.devFixedCode() != null ? otp.devFixedCode() : String.format("%06d", random.nextInt(1_000_000));
-    }
-
-    /** Hex HMAC-SHA256 of the code (64 characters, the {@code code_hmac} column). */
-    String hmac(String code) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(hmacKey);
-            return HexFormat.of().formatHex(mac.doFinal(code.getBytes(StandardCharsets.UTF_8)));
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
-        }
     }
 
     /** §7 masking: email {@code ra***@ex***.com}; MSISDN only its last 4 digits. */

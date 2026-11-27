@@ -72,7 +72,7 @@ class PaymentInitiateIT extends AbstractMySqlIT {
                 DELETE p FROM payments p JOIN invoices i ON i.id = p.invoice_id WHERE i.invoice_ref LIKE 'INV-T-Z%'
                 """, Map.of());
         jdbc.update("DELETE FROM invoices WHERE invoice_ref LIKE 'INV-T-Z%'", Map.of());
-        jdbc.update("UPDATE accounts SET status = 'ACTIVE' WHERE account_ref = 'ACC-T-0001'", Map.of());
+        reinstateAccount("ACC-T-0001");
         jdbc.update("UPDATE customers SET status = 'ACTIVE' WHERE customer_ref = 'CUST-T-0001'", Map.of());
     }
 
@@ -126,7 +126,7 @@ class PaymentInitiateIT extends AbstractMySqlIT {
 
     @Test
     void partlyPaidInvoicePaysTheOutstandingAndSuspendedAccountMayPay() throws Exception {
-        jdbc.update("UPDATE accounts SET status = 'SUSPENDED' WHERE account_ref = 'ACC-T-0001'", Map.of());
+        suspendAccount("ACC-T-0001", "OTHER");
         Invoice invoice = invoice("ACC-T-0001", "399.00", "200.00", "OPEN");
 
         String reference = reference(initiate(login(CUSTOMER_1), key(), request(invoice.id, "199.00"))

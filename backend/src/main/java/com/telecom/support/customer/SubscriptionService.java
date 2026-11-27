@@ -4,6 +4,7 @@ import com.telecom.support.catalog.CatalogService;
 import com.telecom.support.catalog.CatalogService.BenefitType;
 import com.telecom.support.catalog.CatalogService.Plan;
 import com.telecom.support.catalog.CatalogService.PlanType;
+import com.telecom.support.common.error.ApiExceptions.NotFoundException;
 import com.telecom.support.common.security.CustomerScope;
 import com.telecom.support.customer.PlanChangeRepository.PlanChangeRow;
 import com.telecom.support.customer.SubscriptionRepository.SubscriptionRow;
@@ -21,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Own subscriptions with plan summary and benefits (design 02-customer backend R1, R4; CUS-03.1–03.3). The account
- * always comes from {@link CustomerScope}. No usage fields (CUS-03.3).
+ * always comes from {@link CustomerScope}. No usage fields (CUS-03.3). Inbound agent reads (03 R7, §6.1) take a
+ * {@link VerifiedCustomer} and return the same data.
  */
 @Service
 public class SubscriptionService {
@@ -45,6 +47,9 @@ public class SubscriptionService {
     public record Subscription(long id, String msisdn, boolean primary, SubscriptionStatus status, int billingCycleDay,
                                PlanSummary plan, PlanChange pendingPlanChange) {}
 
+    /** A subscription of the verified customer's account that is not TERMINATED (03 §6.1, R12). */
+    public record LiveSubscription(long id, String msisdn, boolean primary, SubscriptionStatus status) {}
+
     private final SubscriptionRepository subscriptions;
     private final PlanChangeRepository planChanges;
     private final AccountLookup accounts;
@@ -67,6 +72,27 @@ public class SubscriptionService {
         long accountId = accounts.accountFor(customerId)
                 .orElseThrow(() -> new IllegalStateException("Customer " + customerId + " has no account"))
                 .accountId();
+        return subscriptionsOfAccount(accountId);
+    }
+
+    /** I6 (03 R7 = 02 R4 data): every subscription of the verified customer's account, primary first. */
+    @Transactional(readOnly = true)
+    public List<Subscription> subscriptionsOf(VerifiedCustomer verified) {
+        return subscriptionsOfAccount(verified.accountId());
+    }
+
+    /** 03 §6.1 (R12): the account's subscription {@code subscriptionId} unless TERMINATED; else 404. */
+    @Transactional(readOnly = true)
+    public LiveSubscription liveSubscription(VerifiedCustomer verified, long subscriptionId) {
+        return subscriptions.findOwned(verified.accountId(), subscriptionId)
+                .filter(row -> !SubscriptionStatus.TERMINATED.name().equals(row.status()))
+                .map(row -> new LiveSubscription(row.id(), row.msisdn(), row.primary(),
+                        SubscriptionStatus.valueOf(row.status())))
+                .orElseThrow(() -> new NotFoundException("No live subscription " + subscriptionId + " in account "
+                        + verified.accountId()));
+    }
+
+    private List<Subscription> subscriptionsOfAccount(long accountId) {
         List<SubscriptionRow> rows = subscriptions.findByAccountId(accountId);
         Map<Long, PlanChangeRow> pending = planChanges.findScheduled(rows.stream().map(SubscriptionRow::id).toList())
                 .stream()

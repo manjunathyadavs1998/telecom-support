@@ -26,7 +26,13 @@ import org.springframework.util.StringUtils;
  *   <li>{@code app.payment.reconcile.pending-cron} or {@code app.payment.reconcile.late-capture-cron} is {@code -}
  *       (disabled): PENDING payments would never reach REVIEW and late captures would never be applied (02 backend
  *       §3.1, review C18; NFR-REL). Their defaults are every 60 s and every 15 min.</li>
+ *   <li>{@code app.notification.mock.enabled} or {@code app.reactivation.provisioning.mock.enabled} is true: nothing
+ *       would be delivered or provisioned (03-inbound backend §6, §8);</li>
+ *   <li>{@code app.notification.dispatch-cron}, {@code app.reactivation.reconcile-cron} or
+ *       {@code app.reactivation.expiry-cron} is {@code -}: notifications would never be sent and temporary
+ *       restorations never reconciled or ended (03-inbound backend R16, §3.1; INB-04.5, BR-08).</li>
  * </ul>
+ * Bean-level checks (only mock adapters present) are {@code ProdAdapterCheck}'s.
  */
 public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
 
@@ -38,6 +44,11 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
     static final String FLYWAY_CLEAN_DISABLED = "spring.flyway.clean-disabled";
     static final String RECONCILE_PENDING_CRON = "app.payment.reconcile.pending-cron";
     static final String RECONCILE_LATE_CAPTURE_CRON = "app.payment.reconcile.late-capture-cron";
+    static final String NOTIFICATION_MOCK_ENABLED = "app.notification.mock.enabled";
+    static final String PROVISIONING_MOCK_ENABLED = "app.reactivation.provisioning.mock.enabled";
+    static final String NOTIFICATION_DISPATCH_CRON = "app.notification.dispatch-cron";
+    static final String REACTIVATION_RECONCILE_CRON = "app.reactivation.reconcile-cron";
+    static final String REACTIVATION_EXPIRY_CRON = "app.reactivation.expiry-cron";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -81,6 +92,19 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
             if ("-".equals(environment.getProperty(cron, "").trim())) {
                 throw new IllegalStateException("Property '" + cron + "' must not be '-' (disabled) with the 'prod' "
                         + "profile: payment reconciliation must run (02 backend §3.1)");
+            }
+        }
+        for (String mock : new String[] {NOTIFICATION_MOCK_ENABLED, PROVISIONING_MOCK_ENABLED}) {
+            if (Boolean.TRUE.equals(environment.getProperty(mock, Boolean.class, Boolean.FALSE))) {
+                throw new IllegalStateException("Property '" + mock + "' must not be true with the 'prod' profile: "
+                        + "the in-memory mock delivers and provisions nothing (03 backend §6, §8)");
+            }
+        }
+        for (String cron : new String[] {NOTIFICATION_DISPATCH_CRON, REACTIVATION_RECONCILE_CRON,
+                REACTIVATION_EXPIRY_CRON}) {
+            if ("-".equals(environment.getProperty(cron, "").trim())) {
+                throw new IllegalStateException("Property '" + cron + "' must not be '-' (disabled) with the 'prod' "
+                        + "profile: notifications and temporary restorations must be processed (03 backend R16, §3.1)");
             }
         }
     }

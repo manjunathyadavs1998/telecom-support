@@ -30,6 +30,21 @@ class CustomerRepository {
             WHERE c.id = :customerId
             """;
 
+    /** Notification contacts of an account's customer (03 R16, §6.1). */
+    record ContactsRow(long customerId, String primaryMsisdn, String verifiedEmail) {}
+
+    /**
+     * 03 R16: SMS goes to the primary MSISDN (primary subscription unless TERMINATED), EMAIL only to a verified email.
+     */
+    private static final String FIND_CONTACTS_BY_ACCOUNT = """
+            SELECT c.id, s.msisdn AS primary_msisdn,
+                   CASE WHEN c.email_verified_at IS NOT NULL THEN c.email END AS verified_email
+            FROM accounts a
+            JOIN customers c ON c.id = a.customer_id
+            LEFT JOIN subscriptions s ON s.account_id = a.id AND s.is_primary = TRUE AND s.status <> 'TERMINATED'
+            WHERE a.id = :accountId
+            """;
+
     /** Optimistic lock (R2): no row updated means the version is stale. */
     private static final String UPDATE_ALIAS = """
             UPDATE customers
@@ -70,6 +85,13 @@ class CustomerRepository {
                         rs.getString("email"), rs.getObject("email_verified_at", Timestamp.class) != null,
                         rs.getString("secondary_msisdn"), rs.getObject("secondary_verified_at", Timestamp.class) != null,
                         rs.getString("billing_address"), rs.getInt("version")))
+                .stream()
+                .findFirst();
+    }
+
+    Optional<ContactsRow> findContactsByAccount(long accountId) {
+        return jdbc.query(FIND_CONTACTS_BY_ACCOUNT, Map.of("accountId", accountId), (rs, i) -> new ContactsRow(
+                        rs.getLong("id"), rs.getString("primary_msisdn"), rs.getString("verified_email")))
                 .stream()
                 .findFirst();
     }
