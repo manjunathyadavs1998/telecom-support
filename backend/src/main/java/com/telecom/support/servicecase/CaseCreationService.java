@@ -120,7 +120,8 @@ class CaseCreationService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     CreatedCase create(CaseSpec spec) {
-        Instant now = clock.instant();
+        // DATETIME(6) keeps microseconds (and MySQL rounds extra digits), so the returned time matches the stored one
+        Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         CategoryRow leaf = spec.classification().leaf();
         String reference = references.next(ReferenceGenerator.SERVICE_REQUEST);
         long caseId = cases.insert(new NewCase(reference, spec.accountId(), spec.subscriptionId(), leaf.id(),

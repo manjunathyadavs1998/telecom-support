@@ -368,6 +368,8 @@ class SchemaV7toV9IT extends AbstractMySqlIT {
                 JOIN categories p ON p.id = COALESCE(cat.parent_id, cat.id)
                 JOIN users u ON u.id = c.created_by_user_id
                 WHERE a.account_ref = 'ACC-T-0006'
+                  -- only the seeded test-data cases; other ITs create more cases on this customer
+                  AND c.reference LIKE 'SR-%-9001%'
                 ORDER BY cat.code
                 """, Map.of(), String.class)).containsExactly(
                 "INT_BILL_ADJUST/INTERNAL/INBOUND_AGENT/T-IN/1", "INT_ESCALATION/INTERNAL/INBOUND_AGENT/T-IN/1");
@@ -375,6 +377,8 @@ class SchemaV7toV9IT extends AbstractMySqlIT {
                 SELECT COUNT(*) FROM case_activity x JOIN cases c ON c.id = x.case_id
                 JOIN accounts a ON a.id = c.account_id
                 WHERE a.account_ref = 'ACC-T-0001' AND x.visibility = 'INTERNAL'
+                  -- the test data's own cases; inbound ITs create agent cases with internal notes on this customer
+                  AND c.channel <> 'INBOUND_AGENT'
                 """, Map.of(), Long.class)).isZero();
     }
 
