@@ -35,7 +35,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B14 | Notification module | `notification/{NotificationSender,MockNotificationSender,NotificationRepository,NotificationService,NotificationDispatchJob}.java`, `application.yml` (`app.notification.*`) (+ `NotificationDispatchIT`) | R16 | INB-04.7 | `NotificationDispatchIT` passes (parallel runs → one send) | ☑ |
 | B15 | Provisioning port, properties, crons, prod guards | `reactivation/{ProvisioningClient,MockProvisioningClient,ReactivationProperties}.java`, `application.yml` (`app.reactivation.*`), `common/{ProfileGuard,ProdAdapterCheck}.java` (+ `ProvisioningMockTest`, `ProdAdapterCheckIT`) | §6, §8 | INB-04.4, NFR-SEC | the tests + extended `ProfileGuardIT` pass | ☑ |
 | B16 | Eligibility I13 | `reactivation/{ReactivationPolicyRepository,ReactivationRepository,ReactivationEligibilityService,ReactivationController}.java`, `ReactivationEligibilityIT` | R13 | INB-04.1/04.2/04.6 | `ReactivationEligibilityIT` passes | ☑ |
-| B17 | Create + history I14, I15 | `reactivation/{ReactivationService,ReactivationTransitionService,ReactivationRepository,ReactivationController}.java`, `ReactivationCreateIT` | R14, R15, §3.1 | INB-04.1–04.4/04.6/04.7, NFR-REL | `ReactivationCreateIT` passes (agent-level parallel limit) | ☐ |
+| B17 | Create + history I14, I15 | `reactivation/{ReactivationService,ReactivationTransitionService,ReactivationRepository,ReactivationController}.java`, `ReactivationCreateIT` | R14, R15, §3.1 | INB-04.1–04.4/04.6/04.7, NFR-REL | `ReactivationCreateIT` passes (agent-level parallel limit) | ☑ |
 | B18 | Reconcile + expiry jobs | `reactivation/{ReactivationReconcileJob,ReactivationExpiryJob,ReactivationTransitionService}.java`, `ReactivationJobsIT` | §3.1 | INB-04.5, BR-03, BR-08 | `ReactivationJobsIT` passes (10 failed suspends then EXPIRED, late RESTORED → EXPIRING → EXPIRED) | ☐ |
 | B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☐ |
 | B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☐ |
@@ -46,8 +46,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B15. B14: `notification` module — `NotificationService.enqueue(customerId, template, params{reference,…}, Contacts)` (MANDATORY tx, UK-idempotent),
-  `NotificationDispatchJob.run()` (guarded claim, 1/5/15 min backoff, FAILED + mask, stale SENDING reset); `MockNotificationSender` (`sent()`, `setFailing`, `setDelay`, `reset`).
-  B15: `ProvisioningClient` (+ Rejected/Unavailable/Timeout exceptions), `MockProvisioningClient` (modes, `putStatus`, `callsFor`, `setTimeoutDelay`), `ReactivationProperties` (registered on the mock only — add `@EnableConfigurationProperties` to B16 services), `ProdAdapterCheck`, ProfileGuard 03 checks.
-- Tests: new mocks are `@ConditionalOnProperty`; AbstractMySqlIT/SpaForwardIT enable them and set the 3 new crons `-`; prod-start tests use `support/StubProdAdapters` (`test.stub-adapters=all|new-ports`).
-- Full suite green after B15: 561 tests. Next: B16 (eligibility I13).
+- Done: B1–B17. B16: `ReactivationEligibilityService.evaluate(CustomerAccount, agentId)` (every failing rule adds its code; FRAUD/LEGAL/REGULATORY hard-coded), `ReactivationPolicyRepository` (non-final, IT stubs it).
+  B17: `ReactivationService.create` (ref drawn first; tx1 = user lock → account lock → R13 → PENDING with `next_attempt_at` now+1 min; restore outside tx) and `history`; `ReactivationTransitionService` (single writer: `activate`/`fail`/`markOutcomeUnknown`, guarded `status IN (:from)`, notify + audit only on 1 row) — B18 adds the job transitions there.
+- 422/503 bodies via `ReactivationProblemException` + controller handler (`reasons`, `reference`, `reactivationStatus`); OPEN_REQUEST/UK → 409. Tests: `TestPrincipals.with(...)` adds permissions; `ProblemAssert.assertProblem(…, extensions)`.
+- Full suite green after B17: 592 tests. Next: B18 (reconcile + expiry jobs).

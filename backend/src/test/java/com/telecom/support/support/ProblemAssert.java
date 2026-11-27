@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.MediaType;
@@ -26,13 +27,21 @@ public final class ProblemAssert {
 
     public static Map<String, Object> assertProblem(MvcResult result, int status, String typeSuffix, String instance)
             throws Exception {
+        return assertProblem(result, status, typeSuffix, instance, Set.of());
+    }
+
+    /** As above, also allowing the problem type's own {@code extensions} (e.g. 03 {@code ReactivationProblem}). */
+    public static Map<String, Object> assertProblem(MvcResult result, int status, String typeSuffix, String instance,
+                                                    Set<String> extensions) throws Exception {
+        Set<String> allowed = new HashSet<>(ALLOWED_KEYS);
+        allowed.addAll(extensions);
         assertThat(result.getResponse().getStatus()).isEqualTo(status);
         assertThat(MediaType.parseMediaType(result.getResponse().getContentType())
                 .isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .as("content type " + result.getResponse().getContentType()).isTrue();
         String raw = result.getResponse().getContentAsString();
         Map<String, Object> body = MAPPER.readValue(raw, new TypeReference<>() {});
-        assertThat(body.keySet()).isSubsetOf(ALLOWED_KEYS)
+        assertThat(body.keySet()).isSubsetOf(allowed)
                 .contains("type", "title", "status", "detail", "instance", "correlationId");
         assertThat(body.get("status")).isEqualTo(status);
         assertThat(body.get("type")).isEqualTo(TYPE_BASE + typeSuffix);

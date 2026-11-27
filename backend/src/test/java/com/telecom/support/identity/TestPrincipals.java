@@ -27,4 +27,18 @@ public final class TestPrincipals {
         reduced.eraseCredentials();
         return new UsernamePasswordAuthenticationToken(reduced, null, reduced.getAuthorities());
     }
+
+    /**
+     * {@code username} as loaded by {@link AppUserDetailsService}, plus {@code added} permissions: a second holder of a
+     * permission that only one seeded user has (e.g. two reactivation approvers acting in parallel).
+     */
+    public static Authentication with(AppUserDetailsService users, String username, String... added) {
+        CurrentUser full = users.loadUserByUsername(username);
+        Set<String> permissions = new HashSet<>(full.permissions());
+        permissions.addAll(List.of(added));
+        CurrentUser extended = new CurrentUser(full.id(), full.getUsername(), full.getPassword(), full.displayName(),
+                full.userType(), full.customerId(), full.teamId(), full.isEnabled(), full.roles(), permissions);
+        extended.eraseCredentials();
+        return new UsernamePasswordAuthenticationToken(extended, null, extended.getAuthorities());
+    }
 }
