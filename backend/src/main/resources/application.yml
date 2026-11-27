@@ -83,6 +83,11 @@ app:
       enabled: false              # mock checkout page (dev/test only)
       mode: NORMAL                # NORMAL | UNAVAILABLE | TIMEOUT
       webhook-url: http://localhost:${server.port:8080}/api/v1/payment-gateway/webhooks
+  notification:                   # customer notification outbox (03 backend R16, §6, §8)
+    dispatch-cron: "*/30 * * * * *"   # NotificationDispatchJob; "-" disables it (tests only; refused in prod)
+    max-attempts: 3               # the 3rd failed send makes a row FAILED (backoff 1 / 5 / 15 min)
+    mock:
+      enabled: false              # in-memory sender (dev/test only; refused with prod by ProfileGuard)
   session:
     absolute-timeout: 12h
   idempotency:

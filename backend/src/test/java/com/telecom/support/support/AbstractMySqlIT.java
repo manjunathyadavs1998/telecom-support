@@ -20,7 +20,9 @@ import org.testcontainers.containers.MySQLContainer;
 @AutoConfigureMockMvc
 @SpringBootTest(properties = {"spring.flyway.locations=classpath:db/migration,classpath:db/test-data",
         // PaymentReconciliationJob runs only when a test calls it (it polls every PENDING payment)
-        "app.payment.reconcile.pending-cron=-", "app.payment.reconcile.late-capture-cron=-"})
+        "app.payment.reconcile.pending-cron=-", "app.payment.reconcile.late-capture-cron=-",
+                // in-memory notification sender; NotificationDispatchJob runs only when a test calls it
+                "app.notification.mock.enabled=true", "app.notification.dispatch-cron=-"})
 public abstract class AbstractMySqlIT {
 
     /** Password of every user in {@code db/test-data/R__test_users.sql}. */

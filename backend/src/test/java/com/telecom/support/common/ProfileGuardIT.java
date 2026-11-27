@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.telecom.support.SupportApplication;
 import com.telecom.support.identity.LoginLimitProperties;
 import com.telecom.support.support.AbstractMySqlIT;
+import com.telecom.support.support.StubProdAdapters;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -48,11 +49,14 @@ class ProfileGuardIT extends AbstractMySqlIT {
 
     @Test
     void prodAloneStillStarts() {
-        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class)
+        // prod has no mock notification sender, so the stand-in adapters supply the ports (03 backend §6, §8)
+        SpringApplicationBuilder app = new SpringApplicationBuilder(SupportApplication.class, StubProdAdapters.class)
                 .web(WebApplicationType.SERVLET)
                 .profiles("prod");
 
-        try (var context = app.run(args())) {
+        String[] withStubs = Stream.concat(Arrays.stream(args()), Stream.of("--test.stub-adapters=true"))
+                .toArray(String[]::new);
+        try (var context = app.run(withStubs)) {
             assertThat(context.getBean(LoginLimitProperties.class).ipAttemptsPerMinute()).isEqualTo(20);
         }
     }
