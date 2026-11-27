@@ -246,3 +246,23 @@ bean-level checks are `ProdAdapterCheck`'s.
 | 15 | Search rate limiter per instance | Accepted until multi-instance (06) |
 | 16 | Free-text reactivation reason goes into the immutable audit row | Accepted; ≤ 500 chars, UI hint "no personal data" |
 | 17 | Ops actions on `needs_attention` reactivations (force end, mark resolved) | Alert only (audit + ERROR log); automation never stops; ops UI in 06 |
+
+## 11. Errata
+
+### E1 — per-agent KBA limit serialised (code review C1, C6) · Status: **Approved** (user, 2026-11-27)
+**Problem.** R4 counts the 10-per-hour agent KBA limit under the customer row lock only, so one agent running parallel
+KBA checks on different customers can exceed it; KBA/OTP and reactivation also take locks in different orders (C6).
+**Change.** New table (V10, `customer` module) `agent_kba_windows(agent_user_id, window_start, attempts, PK(agent_user_id, window_start))`.
+A KBA attempt first upserts and locks (`SELECT … FOR UPDATE`) the agent's current-hour row, then locks the customer row,
+counts and commits as R4 already describes. Lock order everywhere: agent-scoped row → customer/account row (§3.1 updated).
+Tests: one agent, 15 parallel KBA attempts on 15 customers → exactly 10 evaluated, 5 × 429; no deadlock under the mixed
+KBA + reactivation parallel test.
+
+### E2 — late provider restore never left unsuspended (code review C2) · Status: **Approved** (user, 2026-11-27)
+**Problem.** When the provider restores a line after our request was marked FAILED (NOT_FOUND → `not_created`, or a
+restore confirmed while the row is already FAILED), no job suspends it again (INB-04.5, BR-08).
+**Change.** §3.1: the reconcile job keeps re-checking FAILED requests for 24 h after they failed. Whenever the provider
+reports the line RESTORED, the request moves FAILED → EXPIRING (or straight to suspension if its window has passed),
+audited `REACTIVATION_LATE_RESTORE`; the expiry job then suspends it with the normal never-give-up retries.
+Tests: NOT_FOUND → FAILED, provider restores at +5 min → EXPIRING → EXPIRED; restore confirmed on an already FAILED
+row → suspended; parallel reconcile runs act once.
