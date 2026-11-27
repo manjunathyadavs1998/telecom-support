@@ -28,7 +28,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B7 | Search I1 + lookup tokens | `customer/CustomerLookupService.java`, `customer/CustomerLookupRepository.java`, `customer/LookupRateLimiter.java`, `customer/InboundProperties.java`, `customer/AgentCustomerController.java` (+ `CustomerLookupIT`) | R1 | INB-01.1/01.4, NFR-PRIV | `CustomerLookupIT` passes | ☑ |
 | B8 | Identity checks I2–I4 + cleanup job | `customer/IdentityCheckRepository.java`, `customer/IdentityCheckService.java`, `customer/IdentityCheckController.java`, `customer/IdentityCheckCleanupJob.java`, `IdentityCheckIT` | R2–R4 | INB-01.1/01.2, NFR-SEC | `IdentityCheckIT` passes (parallel OTP starts = 5, parallel KBA = 3 evaluated, token 404s identical) | ☑ |
 | B9 | Central verified scope + problem type | `customer/VerifiedCustomer.java`, `customer/VerifiedCustomerAccess.java`, `customer/VerifiedCustomerInterceptor.java` (+ resolver, `WebMvcConfigurer`), `common/error/{ApiExceptions,ProblemDetailFactory,GlobalExceptionHandler}.java`, `VerifiedCustomerAccessIT` | R5, R6, §4 | INB-01.2/01.4, BR-10 | `VerifiedCustomerAccessIT` passes (incl. parallel first reads) | ☑ |
-| B10 | Verified view I5–I8 | `customer/CustomerService.java` (`profileOf`, `contactsOf`), `customer/SubscriptionService.java` (`subscriptionsOf`, `liveSubscription`), `customer/AgentCustomerController.java`, `payment/{PaymentQueryService,AgentPaymentController}.java`, `AgentCustomerViewIT` | R7, §6.1 | INB-01.3 | `AgentCustomerViewIT` passes; 02 ITs green | ☐ |
+| B10 | Verified view I5–I8 | `customer/CustomerService.java` (`profileOf`, `contactsOf`), `customer/SubscriptionService.java` (`subscriptionsOf`, `liveSubscription`), `customer/AgentCustomerController.java`, `payment/{PaymentQueryService,AgentPaymentController}.java`, `AgentCustomerViewIT` | R7, §6.1 | INB-01.3 | `AgentCustomerViewIT` passes; 02 ITs green | ☑ |
 | B11 | Case list + detail I9, I10 | `servicecase/AgentCaseQueryService.java`, `servicecase/CaseRepository.java`, `servicecase/CaseActivityRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseQueryIT` | R8–R10 | INB-02, BR-04 | `AgentCaseQueryIT` passes | ☐ |
 | B12 | Extract `CaseCreationService` | `servicecase/CaseCreationService.java`, `servicecase/CustomerCaseService.java`, `CaseCreationServiceIT` | R12 | BR-01/02/07 | `CaseCreationServiceIT` + unchanged `CustomerCaseIT` pass | ☐ |
 | B13 | Categories + create on behalf I11, I12 | `servicecase/AgentCaseService.java`, `servicecase/CategoryRepository.java`, `servicecase/AgentCaseController.java`, `AgentCaseCreateIT`, `AgentRouteCoverageTest` | R11, R12 | INB-03, §14 #4, NFR-REL | both pass (replay after expiry → 403) | ☐ |
@@ -46,9 +46,8 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | F1 | (planned after the frontend design is approved) | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: B1–B8 (schema, seed, cross-module APIs, `OtpCodec`, search I1 + lookup tokens, identity checks I2–I4 + cleanup job).
-- B9: `VerifiedCustomerInterceptor` (+ `VerifiedCustomerWebConfig`: patterns `VERIFIED_ROUTES` minus identity-checks, argument resolver,
-  fail-closed) → `VerifiedCustomerAccess.require` / `logFirstAccess` (GET only, guarded `access_logged_at`); 403 `verification-required`
-  = `ApiExceptions.VerificationRequiredException` (ACCESS_DENIED reason `verification_required`). `AgentRouteCoverageTest` scans all
-  `@RestController`s. Inbound ITs share one context incl. `@Import(VerifiedProbeController)` (test-only GET + idempotent POST).
-- Next: B10 (I5–I8 via `profileOf`, `subscriptionsOf`, `invoicesOf`/`paymentsOf`).
+- Done: B1–B8 (schema, seed, cross-module APIs, `OtpCodec`, search I1, identity checks I2–I4). B9: `VerifiedCustomerInterceptor` +
+  `VerifiedCustomerWebConfig` (resolver, fail-closed) → `VerifiedCustomerAccess.require`/`logFirstAccess` (GET only, once per check);
+  403 `verification-required` = `ApiExceptions.VerificationRequiredException`; `AgentRouteCoverageTest`; inbound ITs share one context incl. `@Import(VerifiedProbeController)`.
+- B10: I5/I6 in `AgentCustomerController` (`profileOf`, `subscriptionsOf`), I7/I8 in `payment/AgentPaymentController` (`invoicesOf`/`paymentsOf`);
+  `contactsOf` + `liveSubscription` (404 unless live) ready for B13. Next: B11 (cases I9, I10; handlers must take `VerifiedCustomer`).

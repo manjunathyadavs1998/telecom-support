@@ -7,6 +7,7 @@ import com.telecom.support.common.security.CustomerScope;
 import com.telecom.support.customer.AccountLookup;
 import com.telecom.support.customer.AccountLookup.CustomerAccount;
 import com.telecom.support.customer.CustomerService;
+import com.telecom.support.customer.VerifiedCustomer;
 import com.telecom.support.payment.InvoiceRepository.InvoiceRow;
 import com.telecom.support.payment.PaymentGateway.Method;
 import com.telecom.support.payment.PaymentRepository.Order;
@@ -28,6 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 02-customer backend R1, R11, R15; CUS-07.1–07.4, CUS-08.1, CUS-08.3–08.5). The account always comes from the principal
  * ({@link CustomerScope}, {@link AccountLookup}); another account's payment reference is simply not found (404). Reads are
  * allowed in every account state (R16). Read-only: payment status changes only through §3.1.
+ *
+ * <p>Inbound agent reads I7, I8 (design 03-inbound backend R7, §6.1; INB-01.3) take a {@link VerifiedCustomer} and return
+ * the same data (no receipts).
  */
 @Service
 public class PaymentQueryService {
@@ -110,7 +114,24 @@ public class PaymentQueryService {
     /** E13: the account's latest 12 invoices, newest issue date first, optionally only {@code status}. */
     @Transactional(readOnly = true)
     public List<Invoice> myInvoices(InvoiceStatus status) {
-        return invoices.findLatest(myAccount().accountId(), status == null ? null : status.name(), LATEST_INVOICES)
+        return invoicesOfAccount(myAccount().accountId(), status);
+    }
+
+    /** I7 (03 R7): the verified customer's latest 12 invoices, as E13. */
+    @Transactional(readOnly = true)
+    public List<Invoice> invoicesOf(VerifiedCustomer verified, InvoiceStatus status) {
+        return invoicesOfAccount(verified.accountId(), status);
+    }
+
+    /** I8 (03 R7): the verified customer's payments, window and paging as E14. */
+    @Transactional(readOnly = true)
+    public PaymentPage paymentsOf(VerifiedCustomer verified, LocalDate from, LocalDate to, int page, int size,
+                                  PaymentSort sort) {
+        return paymentsOfAccount(verified.accountId(), from, to, page, size, sort);
+    }
+
+    private List<Invoice> invoicesOfAccount(long accountId, InvoiceStatus status) {
+        return invoices.findLatest(accountId, status == null ? null : status.name(), LATEST_INVOICES)
                 .stream()
                 .map(PaymentQueryService::toInvoice)
                 .toList();
@@ -124,6 +145,11 @@ public class PaymentQueryService {
      */
     @Transactional(readOnly = true)
     public PaymentPage myPayments(LocalDate from, LocalDate to, int page, int size, PaymentSort sort) {
+        return paymentsOfAccount(myAccount().accountId(), from, to, page, size, sort);
+    }
+
+    private PaymentPage paymentsOfAccount(long accountId, LocalDate from, LocalDate to, int page, int size,
+                                          PaymentSort sort) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), zone);
         LocalDate end = to != null ? to : today;
         LocalDate start = from != null ? from : end.minusMonths(DEFAULT_WINDOW_MONTHS);
@@ -136,7 +162,6 @@ public class PaymentQueryService {
                     "Payment list range " + start + ".." + end + " over " + MAX_WINDOW_DAYS + " days",
                     "The date range can be at most 366 days.");
         }
-        long accountId = myAccount().accountId();
         Instant fromInclusive = start.atStartOfDay(zone).toInstant();
         Instant toExclusive = end.plusDays(1).atStartOfDay(zone).toInstant();
 

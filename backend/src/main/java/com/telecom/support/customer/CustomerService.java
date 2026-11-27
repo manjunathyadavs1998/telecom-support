@@ -7,8 +7,12 @@ import com.telecom.support.common.error.ApiExceptions.ConflictException;
 import com.telecom.support.common.security.ActorProvider;
 import com.telecom.support.common.security.ActorProvider.Actor;
 import com.telecom.support.common.security.CustomerScope;
+import com.telecom.support.customer.AccountLookup.AccountStatus;
+import com.telecom.support.customer.AccountLookup.CustomerAccount;
+import com.telecom.support.customer.AccountLookup.SuspensionReason;
 import com.telecom.support.customer.CustomerRepository.ProfileRow;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Own profile read and alias edit (design 02-customer backend R1, R2, R16, §7; CUS-01.1, CUS-02.1, CUS-02.3–02.5). The
  * customer id always comes from {@link CustomerScope}. Contacts change only through verification (R3, not here).
+ *
+ * <p>Inbound agent reads (design 03-inbound backend R7, §6.1; INB-01.3) take a {@link VerifiedCustomer}, never a raw id.
  */
 @Service
 public class CustomerService {
@@ -33,6 +39,35 @@ public class CustomerService {
     public record Profile(String customerRef, String accountRef, String fullName, String aliasName,
                           String primaryMsisdn, String secondaryMsisdn, boolean secondaryMsisdnVerified, String email,
                           boolean emailVerified, BillingAddress billingAddress, int version) {}
+
+    public enum CustomerStatus { ACTIVE, INACTIVE }
+
+    /** Why and since when the account is suspended. */
+    public record Suspension(SuspensionReason reason, Instant since) {}
+
+    /**
+     * The {@code AgentCustomerProfile} schema (03 R7): identity, statuses, suspension context and contacts with their
+     * verified flags. No billing address (data minimisation: it is a KBA answer).
+     */
+    public record AgentCustomerProfile(long customerId, String customerRef, String accountRef, String fullName,
+                                       String aliasName, CustomerStatus customerStatus, AccountStatus accountStatus,
+                                       Suspension suspension, String primaryMsisdn, String email,
+                                       boolean emailVerified, String secondaryMsisdn,
+                                       boolean secondaryMsisdnVerified) {}
+
+    /**
+     * Where the customer can be contacted (03 §6.1, R12): the primary MSISDN (primary subscription unless TERMINATED,
+     * else null) and the email only when verified (else null).
+     */
+    public record Contacts(String primaryMsisdn, String verifiedEmail) {
+
+        /** Never print contact data. */
+        @Override
+        public String toString() {
+            return "Contacts[primaryMsisdn=" + (primaryMsisdn == null ? null : "***") + ", verifiedEmail="
+                    + (verifiedEmail == null ? null : "***") + "]";
+        }
+    }
 
     private final CustomerRepository customers;
     private final AccountLookup accounts;
@@ -83,6 +118,30 @@ public class CustomerService {
         audit.record(PROFILE_UPDATED, actor.id(), actor.username(), ENTITY_CUSTOMER, String.valueOf(customerId),
                 details);
         return toProfile(load(customerId));
+    }
+
+    /** I5 (03 R7): the verified customer's profile, in every account state. */
+    @Transactional(readOnly = true)
+    public AgentCustomerProfile profileOf(VerifiedCustomer verified) {
+        long customerId = verified.customerId();
+        ProfileRow row = customers.findProfile(customerId)
+                .orElseThrow(() -> new IllegalStateException("No profile for verified customer " + customerId));
+        CustomerAccount account = accounts.accountFor(customerId)
+                .orElseThrow(() -> new IllegalStateException("Verified customer " + customerId + " has no account"));
+        Suspension suspension = account.status() == AccountStatus.SUSPENDED && account.suspensionReason() != null
+                ? new Suspension(account.suspensionReason(), account.suspendedAt()) : null;
+        return new AgentCustomerProfile(customerId, row.customerRef(), row.accountRef(), row.fullName(),
+                row.aliasName(), account.customerActive() ? CustomerStatus.ACTIVE : CustomerStatus.INACTIVE,
+                account.status(), suspension, row.primaryMsisdn(), row.email(), row.emailVerified(),
+                row.secondaryMsisdn(), row.secondaryMsisdnVerified());
+    }
+
+    /** 03 §6.1: the verified customer's primary MSISDN and verified email (R12 case contact). */
+    @Transactional(readOnly = true)
+    public Contacts contactsOf(VerifiedCustomer verified) {
+        return customers.findContactsByAccount(verified.accountId())
+                .map(row -> new Contacts(row.primaryMsisdn(), row.verifiedEmail()))
+                .orElseThrow(() -> new IllegalStateException("No account " + verified.accountId()));
     }
 
     private ProfileRow load(long customerId) {
