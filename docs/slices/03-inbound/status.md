@@ -4,7 +4,7 @@
 |---|---|---|
 | Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☑ `docs/design/03-inbound/frontend.md` — **Approved** rev 2 (review F1–F10 addressed; branch `design/03-inbound-fe`) |
 | Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☑ 2026-11-27 (OQ defaults kept) |
-| Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☐ draft F1–F14 below (confirmed after approval) |
+| Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☑ F1–F14 confirmed 2026-11-27 (tests deferred) |
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☐ branch `slice/03-inbound-fe` |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
@@ -40,7 +40,7 @@ and unverified (403 `verification-required`) cases in its IT. Refactors keep the
 | B19 | Authz matrix + IDOR | `InboundAuthzIT`, `InboundIdorIT` | §4, §9 | BR-10, XC-02, NFR-INTEG | both pass | ☑ |
 | B20 | Traceability + pattern skill | `docs/requirements/traceability.md`, `.claude/skills/…` (rule 7) | §9 | all | slice 03 rows `Built`; `bash scripts/check-backend.sh` green | ☑ |
 
-## Tasks — frontend (**draft**; refs are `frontend.md` sections)
+## Tasks — frontend (refs are `frontend.md` sections)
 
 Paths under `frontend/src/`. Tests are **deferred** by the user (`frontend.md` §7), so every task is done when `check-frontend.sh`
 typecheck + lint + build pass in the Linux container, plus the named manual check against the dev JAR (IN002 = inbound + approver).
