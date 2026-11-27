@@ -69,3 +69,41 @@ then become `Designed`. Backend Code/Tests filled on `slice/02-customer-be` (B1�
 | NFR-A11Y | Accessible controls and validation | FE: frontend.md §3 (dialogs, disclosures, live regions), §6 | FE: `features/customer/**` (labelled dialogs, disclosures, live regions) | FE: vitest-axe in every page test (e2e deferred) | FE Built |
 | NFR-RESP | Responsive customer experience | FE: frontend.md §3 Dashboard grid, §4 `DataTable` cards < md | FE: `features/customer/dashboard/DashboardPage.tsx` grid, `components/data/DataTable.tsx` | FE: DataTable.test (e2e deferred) | FE Built |
 | NFR-PERF | Lazy-load modules, server paging | FE: frontend.md §2 (`route.lazy`), §3 independent dashboard cards | FE: `app/pageRegistry.ts` (`route.lazy`), independent dashboard queries | FE: dashboard.test | FE Built |
+
+## Slice 03 — Inbound assistant workspace
+
+Design: `03-inbound/backend.md` rev 2 (+ `openapi.yaml`), status **Approved** (2026-11-26, review D1–D22 addressed, branch `design/03-inbound`). Rows stay `Proposed`
+until the user approves, then become `Designed`. Section refs are to `03-inbound/backend.md`; endpoints I1–I15.
+
+| BRD ID | Requirement (short) | Design | Code | Tests | Status |
+|---|---|---|---|---|---|
+| INB-01.1 | Search by mobile, scoped to authorized records | R1, R2 (lookup token), R5, I1, §4 | | | Designed |
+| INB-01.2 | Verification before protected actions | R3–R5 (race-safe limits, central interceptor), I2–I4 | | | Designed |
+| INB-01.3 | Identity, account status, plan, contacts, case/payment context | R7, I5–I9, I15 | | | Designed |
+| INB-01.4 | Log customer-record access | R1, R6, §7 `CUSTOMER_LOOKUP`, `CUSTOMER_RECORD_ACCESSED` | | | Designed |
+| INB-02.1 | Case list: ref, category, severity, status, owner, dates | R8, I9 | | | Designed |
+| INB-02.2 | Description + activity timeline | R9, I10 | | | Designed |
+| INB-02.3 | Related/duplicate cases | R10, I10 (OQ 11) | | | Designed |
+| INB-02.4 | Internal notes never shown to customers | R9, BR-04 | | | Designed |
+| INB-03.1 | Mobile/account populated from the selected customer | R12 | | | Designed |
+| INB-03.2 | Internal categories permission-controlled | R11, R12, I11, V8 categories | | | Designed |
+| INB-03.3 | Summary, statement, agent notes, severity, attachments | R12 (attachments deferred, OQ 5) | | | Designed (partial) |
+| INB-03.4 | Created-by agent and channel inbound | R12, §7 `CASE_CREATED` | | | Designed |
+| INB-03.5 | Reference number returned | R12, I12 | | | Designed |
+| INB-04.1 | Check suspension reason and eligibility first | R13, I13, R14 | | | Designed |
+| INB-04.2 | Prohibited reasons never overridable | R13, §3.1 early end, §2 CHECK on `reactivation_policies` | | | Designed |
+| INB-04.3 | Reason, agent, time, approval evidence | R14, §2 `reactivation_requests`, §7 (OQ 7) | | | Designed |
+| INB-04.4 | Provisioning via backend integration | R15, §3.1, §8 `ProvisioningClient` | | | Designed |
+| INB-04.5 | Backend-enforced expiry ≤ 24 h | §3.1 (unlimited suspend retries with backoff, late restore → EXPIRING, overdue alert), §2 24 h CHECK | | | Designed |
+| INB-04.6 | Prevent repeated extensions / abuse | R13, R14 (agent lock, OQ 13) | | | Designed |
+| INB-04.7 | Notify customer + immutable audit | R16 (claimed outbox), §7, §8 `NotificationSender` | | | Designed |
+| BR-01/02/04/07 | Reference, channel, separate notes, SLA by category | R12, V8 SLA rows | | | Designed |
+| BR-03 | Reactivation transitions record actor, time, old/new | §3.1, §7 (from/to, source) |  |  | Designed |
+| §14 #12 | In-app + email notifications | R16, §8 — mock SMS/EMAIL only (OQ 9) | | | Designed (deviation) |
+| BR-08 | Provisioning confirmed by provider | §3.1 | | | Designed |
+| BR-10 / XC-02 | Server-side authorization | §4, §9 `InboundAuthzIT` | | | Designed |
+| XC-06 / XC-07 | Privileged actions audited; success only when confirmed | §3.1, §7 | | | Designed |
+| NFR-AVAIL | Degrade when provisioning/notification is down | §3.1, §8 | | | Designed |
+| NFR-PRIV | Masked search (POST body), minimised view, masked outbox | R1, R7, R16, §7 | | | Designed |
+| NFR-REL | Idempotent case create and reactivation (replay re-checks verification) | §5 I12, I14, R5 | | | Designed |
+| NFR-SEC | Race-safe OTP/KBA limits, prod guards for mocks | R3, R4, §6 | | | Designed |

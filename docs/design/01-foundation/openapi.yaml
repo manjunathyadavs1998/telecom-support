@@ -3,7 +3,7 @@ info:
   title: Telecom Customer Support API — 01 Foundation
   version: 0.2.0
   description: |
-    Status: **Approved** (revision 2).
+    Status: **Approved** (revision 2). Permission enum + `case.severity.override` **proposed with the 03 design** (01 backend.md §13 E3).
     Contract-first spec for slice 01 (see backend.md). Later slices add their own files;
     the backend's generated /v3/api-docs must stay compatible with these contracts.
   license:
@@ -217,6 +217,7 @@ components:
         - case.create
         - case.create.onbehalf
         - case.category.internal
+        - case.severity.override
         - case.read
         - case.read.queue
         - case.assign
