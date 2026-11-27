@@ -1,6 +1,7 @@
 package com.telecom.support.reactivation;
 
 import com.telecom.support.reactivation.ProvisioningClient.ProviderStatus;
+import com.telecom.support.reactivation.ProvisioningClient.State;
 import com.telecom.support.reactivation.ReactivationRepository.RequestRow;
 import java.time.Clock;
 import java.time.Duration;
@@ -11,6 +12,7 @@ import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +32,9 @@ import org.springframework.stereotype.Component;
  *   <li>unreachable / no answer → PENDING stays, {@code attempts + 1}, backoff 2, 5, 15 min, then hourly, without
  *       limit (the first 1 min wait is set at creation).</li>
  * </ul>
+ * Then (E2) every FAILED request that failed within the last 24 h and whose re-check is due is asked about again:
+ * RESTORED -> FAILED -> EXPIRING ({@code REACTIVATION_LATE_RESTORE}; the expiry job suspends it next); otherwise the
+ * next re-check follows the same backoff, and none is scheduled past 24 h after the failure.
  * Provider calls run outside any transaction. A run pages ({@link #PAGE_SIZE}, keyset by id) and stops starting calls
  * after {@link #RUN_BUDGET}; the rest is handled next run. Schedule {@code app.reactivation.reconcile-cron} ({@code -}
  * only in tests; refused under {@code prod}).
@@ -38,6 +43,8 @@ import org.springframework.stereotype.Component;
 public class ReactivationReconcileJob {
 
     static final Duration NOT_FOUND_AGE = Duration.ofMinutes(2);
+    /** E2: how long after failing a request is still re-checked for a late provider restore. */
+    static final Duration FAILED_RECHECK_FOR = Duration.ofHours(24);
     static final int PAGE_SIZE = 100;
     static final Duration RUN_BUDGET = Duration.ofSeconds(50);
     static final String UNRESOLVED_RESTORE = "unresolved_restore";
@@ -76,15 +83,62 @@ public class ReactivationReconcileJob {
             }
         });
         long deadline = System.nanoTime() + runBudget.toNanos();
-        JobPages.each(after -> requests.findDuePending(now, after, pageSize), pageSize, deadline, row -> {
-            try {
-                counts[reconcile(row, now) ? 0 : 1]++;
-            } catch (RuntimeException e) {
-                log.error("Reactivation reconcile of {} failed", row.reference(), e);
-                counts[1]++;
-            }
-        });
+        boolean inBudget = JobPages.each(after -> requests.findDuePending(now, after, pageSize), pageSize, deadline,
+                row -> {
+                    try {
+                        counts[reconcile(row, now) ? 0 : 1]++;
+                    } catch (RuntimeException e) {
+                        log.error("Reactivation reconcile of {} failed", row.reference(), e);
+                        counts[1]++;
+                    }
+                });
+        if (inBudget) {
+            // E2: FAILED requests are re-checked for a late provider restore for 24 h after they failed
+            JobPages.each(after -> requests.findDueFailed(now, now.minus(FAILED_RECHECK_FOR), after, pageSize),
+                    pageSize, deadline, row -> {
+                        try {
+                            if (recheckFailed(row, now)) {
+                                counts[0]++;
+                            }
+                        } catch (RuntimeException e) {
+                            log.error("Reactivation late-restore re-check of {} failed", row.reference(), e);
+                        }
+                    });
+        }
         return new RunResult(counts[0], counts[1], counts[2]);
+    }
+
+    /**
+     * E2: a FAILED request whose line the provider reports RESTORED moves to EXPIRING (suspended by the expiry job);
+     * otherwise the next re-check is scheduled with the section 3.1 backoff, none after 24 h.
+     *
+     * @return true when the late restore was handled by this call
+     */
+    private boolean recheckFailed(RequestRow row, Instant now) {
+        ProviderStatus status;
+        try {
+            status = provisioning.getStatus(row.reference());
+        } catch (RuntimeException unreachable) {
+            log.warn("Reactivation {}: provider status unavailable for the late-restore re-check ({})",
+                    row.reference(), unreachable.getClass().getSimpleName());
+            status = null;
+        }
+        if (status != null && status.state() == State.RESTORED) {
+            Instant restoredAt = (status.restoredAt() == null ? now : status.restoredAt())
+                    .truncatedTo(ChronoUnit.MICROS);
+            try {
+                if (transitions.lateRestore(row, status.providerRef(), restoredAt,
+                        restoredAt.plus(Duration.ofHours(row.requestedHours())),
+                        ReactivationTransitionService.SOURCE_RECONCILE, null)) {
+                    return true;
+                }
+            } catch (DuplicateKeyException openRequest) {
+                log.error("Reactivation {}: provider restored the line after FAILED, but the account has another open"
+                        + " request; re-checked later", row.reference());
+            }
+        }
+        transitions.recheckFailedLater(row, now.plus(ReactivationTransitionService.backoff(row.attempts() + 1)));
+        return false;
     }
 
     /** @return true when a transition was made, false when the request is retried later (or another run won) */

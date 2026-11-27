@@ -101,12 +101,34 @@ class ReactivationRepository {
             WHERE id = :id AND status IN (:from)
             """;
 
-    /** §3.1 PENDING → FAILED. */
+    /**
+     * §3.1 PENDING → FAILED. E2: {@code next_attempt_at} schedules the late-restore re-check; {@code updated_at} is the
+     * time it failed (the re-check bookkeeping never touches it), which bounds the re-checks to 24 h.
+     */
     private static final String FAIL = """
             UPDATE reactivation_requests
-            SET status = 'FAILED', failure_reason = :failureReason, next_attempt_at = NULL, needs_attention = FALSE,
-                attention_reason = NULL, version = version + 1, updated_at = :now
+            SET status = 'FAILED', failure_reason = :failureReason, attempts = 0, next_attempt_at = :recheckAt,
+                needs_attention = FALSE, attention_reason = NULL, version = version + 1, updated_at = :now
             WHERE id = :id AND status IN (:from)
+            """;
+
+    /** E2 reconcile: FAILED requests due for a late-restore re-check, failed at or after {@code :since}, keyset by id. */
+    private static final String FIND_DUE_FAILED = "SELECT " + COLUMNS + """
+            FROM reactivation_requests
+            WHERE status = 'FAILED' AND next_attempt_at <= :now AND updated_at >= :since AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /**
+     * E2: the next re-check of a FAILED request, or none ({@code NULL}) once it would fall after 24 h from the failure.
+     * Guarded by the version, so parallel runs count it once; {@code updated_at} (the failure time) is kept.
+     */
+    private static final String RECHECK_FAILED_LATER = """
+            UPDATE reactivation_requests
+            SET attempts = attempts + 1, version = version + 1,
+                next_attempt_at = IF(:nextAttemptAt <= updated_at + INTERVAL 24 HOUR, :nextAttemptAt, NULL)
+            WHERE id = :id AND status = 'FAILED' AND version = :version
             """;
 
     /** §3.1 restore timeout / 5xx: PENDING stays, the outcome is reconciled from {@code next_attempt_at}. */
@@ -295,12 +317,27 @@ class ReactivationRepository {
     }
 
     /** Guarded {@code from → FAILED}; true when exactly this row changed. */
-    boolean fail(long id, List<String> from, String failureReason, Instant now) {
+    boolean fail(long id, List<String> from, String failureReason, Instant recheckAt, Instant now) {
         return jdbc.update(FAIL, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("from", from)
                 .addValue("failureReason", failureReason)
+                .addValue("recheckAt", utc(recheckAt))
                 .addValue("now", utc(now))) == 1;
+    }
+
+    List<RequestRow> findDueFailed(Instant now, Instant since, long after, int limit) {
+        return page(FIND_DUE_FAILED, new MapSqlParameterSource()
+                .addValue("now", utc(now))
+                .addValue("since", utc(since)), after, limit);
+    }
+
+    /** E2: schedules the next late-restore re-check (none after 24 h); true when this call counted it. */
+    boolean recheckFailedLater(long id, int version, Instant nextAttemptAt) {
+        return jdbc.update(RECHECK_FAILED_LATER, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("version", version)
+                .addValue("nextAttemptAt", utc(nextAttemptAt))) == 1;
     }
 
     /** Guarded: the status stays, the outcome is reconciled at {@code nextAttemptAt}; true when this row changed. */

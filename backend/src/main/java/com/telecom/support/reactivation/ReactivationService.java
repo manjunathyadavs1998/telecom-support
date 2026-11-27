@@ -194,8 +194,20 @@ public class ReactivationService {
                             + " quote the reference.");
         }
         Instant activatedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
-        transitions.activate(row, restored.providerRef(), activatedAt,
-                activatedAt.plus(Duration.ofHours(row.requestedHours())), SOURCE_REQUEST, actor);
+        Instant expiresAt = activatedAt.plus(Duration.ofHours(row.requestedHours()));
+        if (!transitions.activate(row, restored.providerRef(), activatedAt, expiresAt, SOURCE_REQUEST, actor)) {
+            // E2: the restore is confirmed but the row was already FAILED meanwhile: suspend it again via EXPIRING
+            RequestRow failed = requests.findById(row.id()).orElseThrow();
+            if (ReactivationTransitionService.FAILED.equals(failed.status())) {
+                try {
+                    transitions.lateRestore(failed, restored.providerRef(), activatedAt, expiresAt, SOURCE_REQUEST,
+                            actor);
+                } catch (DuplicateKeyException openRequest) {
+                    log.error("Reactivation {}: restore confirmed after FAILED, but the account has another open"
+                            + " request; the reconcile job re-checks it", row.reference());
+                }
+            }
+        }
         RequestRow current = requests.findById(row.id()).orElseThrow();
         ReactivationStatus status = ReactivationStatus.valueOf(current.status());
         if (status != ReactivationStatus.ACTIVE && status != ReactivationStatus.EXPIRING) {

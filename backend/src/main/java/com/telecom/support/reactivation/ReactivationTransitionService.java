@@ -99,7 +99,9 @@ public class ReactivationTransitionService {
      */
     @Transactional
     public boolean fail(RequestRow row, String failureReason, String source, Actor actor) {
-        if (!requests.fail(row.id(), List.of(PENDING), failureReason, clock.instant())) {
+        Instant now = clock.instant();
+        // E2: re-checked for a late provider restore for 24 h, first after the first backoff step
+        if (!requests.fail(row.id(), List.of(PENDING), failureReason, now.plus(backoff(0)), now)) {
             return false;
         }
         Map<String, Object> details = transition(PENDING, FAILED, source);
@@ -144,6 +146,45 @@ public class ReactivationTransitionService {
         audit.record("REACTIVATION_ACTIVATED", Outcome.SUCCESS, null, null, ENTITY, row.reference(), details);
         log.warn("Reactivation {}: restore confirmed after its window; suspending", row.reference());
         return true;
+    }
+
+    /**
+     * E2: the provider reports a FAILED request's line RESTORED (reconcile re-check within 24 h of the failure, or a
+     * restore confirmed in I14 after the row was already FAILED): FAILED -> EXPIRING with the restore times and
+     * {@code next_attempt_at = now}, so the expiry job suspends it next with the normal never-give-up retries (also
+     * when the window has already passed). Writes {@code REACTIVATION_LATE_RESTORE} (FAILURE) and a WARN log; no
+     * {@code REACTIVATION_STARTED} notification. A newer open request of the account makes the update fail on the
+     * open-request UK ({@code DuplicateKeyException}); the caller keeps the row FAILED and re-checks it later.
+     *
+     * @return true when this call made the transition
+     */
+    @Transactional
+    public boolean lateRestore(RequestRow row, String providerRef, Instant activatedAt, Instant expiresAt,
+                               String source, Actor actor) {
+        if (!requests.restoredLate(row.id(), List.of(FAILED), providerRef, activatedAt, expiresAt, clock.instant())) {
+            return false;
+        }
+        Map<String, Object> details = transition(FAILED, EXPIRING, source);
+        details.put("failureReason", row.failureReason());
+        details.put("activatedAt", activatedAt.toString());
+        details.put("expiresAt", expiresAt.toString());
+        details.put("requestedHours", row.requestedHours());
+        audit.record("REACTIVATION_LATE_RESTORE", Outcome.FAILURE, actorId(actor), actorName(actor), ENTITY,
+                row.reference(), details);
+        log.warn("Reactivation {}: provider restored the line after the request FAILED; suspending",
+                row.reference());
+        return true;
+    }
+
+    /**
+     * E2: one late-restore re-check of a FAILED request found no restore; the next is at {@code nextAttemptAt}, or
+     * none once that is more than 24 h after the failure. Guarded by the row's version.
+     *
+     * @return true when this call counted it
+     */
+    @Transactional
+    public boolean recheckFailedLater(RequestRow row, Instant nextAttemptAt) {
+        return requests.recheckFailedLater(row.id(), row.version(), nextAttemptAt);
     }
 
     /**
