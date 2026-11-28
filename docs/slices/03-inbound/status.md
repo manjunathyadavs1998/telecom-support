@@ -6,7 +6,7 @@
 | Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☑ 2026-11-27 (OQ defaults kept) |
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☑ F1–F14 confirmed 2026-11-27 (tests deferred) |
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☑ branch `slice/03-inbound-fe` (F1–F14 + erratum FE1) |
-| Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
+| Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☑ ci/typecheck/lint/build/gen:api:check at 6565178; unit tests 565/568 (3 stale `navConfig.test.ts`, deferred) |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☑ `review-frontend.md`: H1, H2, M3, M4 + L7/8/9/11 fixed; L5/6/10 open follow-ups |
 | PR | ☑ #13 | ☑ #18 |
 | Merged (by user) | ☑ #13 (+ fix #17, 2026-11-28) | ☑ #18 (2026-11-28) |
