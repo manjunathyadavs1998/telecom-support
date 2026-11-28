@@ -1,6 +1,6 @@
 # 04 Outbound assistant workspace — backend design
 
-- Status: **Draft** — **Proposed** (awaiting approval) · Date: 2026-11-28
+- Status: **Approved** (revision 1) · Date: 2026-11-28 · approved by user 2026-11-28 with all open-question defaults (design review skipped at the user's choice)
 - BRD: OUT-01..OUT-06, BR-03..BR-07, BR-10, XC-02..XC-07, NFR-INTEG, NFR-OBS, NFR-PERF, NFR-PRIV, NFR-REL, NFR-SEC, §7.1, §8, §14 #3, #6, #7, #8, #12, §15 phase 4
 - Conventions: [`../00-overview.md`](../00-overview.md) rev 4 (no change needed) · Contract: [`openapi.yaml`](openapi.yaml) (shared components copied verbatim from 01/03, as 02/03 did) · Precedents: [`../02-customer/backend.md`](../02-customer/backend.md) (R9, R10, public status, E1–E7), [`../03-inbound/backend.md`](../03-inbound/backend.md) (R8, R9, §6.1, E1–E2), `guarded-transition` skill
 

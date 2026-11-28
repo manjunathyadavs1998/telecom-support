@@ -111,23 +111,23 @@ rows become `Built` on merge. Section refs are to `03-inbound/backend.md`; endpo
 
 ## Slice 04 — Outbound assistant workspace
 
-Design: `04-outbound/backend.md` (+ `openapi.yaml`), status **Draft / Proposed** (2026-11-28, branch `design/04-outbound`). Rows are `Proposed` until the user approves the design; they then become `Designed`.
+Design: `04-outbound/backend.md` (+ `openapi.yaml`), status **Approved** (2026-11-28, OQ defaults, branch `design/04-outbound`). Backend to be built on `slice/04-outbound-be` (B1–B13).
 
 | BRD ID | Requirement (short) | Design | Code | Tests | Status |
 |---|---|---|---|---|---|
-| OUT-01 | Queue with counts (new, open, in progress, pending, resolved, closed, critical, overdue); scoped visibility | R1, R2, R3, §3 scope S, O1, O2 (OQ 1, 6) | | | Proposed |
-| OUT-02 | Advanced filters, custom ranges, totals, server-side, bounded | R2, R13, O2–O4 | | | Proposed |
-| OUT-03 | Atomic claim; reassignment with old/new owner, actor, time, reason; only with permission; in history | R5, R6, §3.2, §7, O6, O7 | | | Proposed |
-| OUT-04 | Detail with customer context, originator + channel, timeline; notes vs comments; masking | R4, R10, O5, O9 (OQ 9, 10, 11) | | | Proposed |
-| OUT-05 | Backend-validated transitions, resolution remarks, Resolved vs Closed, closure conditions, full change record | R7–R9, §3.1, §3.2 (auto-close job), O8 (OQ 3, 4, 5) | | | Proposed |
-| OUT-06 | Per-agent bookmarks, bookmarked view, status + updated time, change notification | R11, R12, O10–O13 (OQ 8, 15) | | | Proposed |
-| BR-03 | Status/assignment changes record actor, time, old/new, reason | R5–R8, §7 `CASE_ASSIGNED`, `CASE_STATUS_CHANGED` | | | Proposed |
-| BR-04 | Customer and internal notes separate | R4, R7, R10 (PUBLIC vs INTERNAL activity) | | | Proposed |
-| BR-05/06 | 3-month default view, bounded older history, server paging | R1, R2 (default created window, ≤ 366 days) (OQ 7) | | | Proposed |
-| BR-10 / XC-02 | Server-side authorization | §4, every O1–O13 `@PreAuthorize` + scope S | | | Proposed |
-| XC-04/05 | Paged lists keep filters; validated dates, documented zone | R2 (echoed filters, Asia/Kolkata dates) | | | Proposed |
-| XC-06 / XC-07 | Privileged actions audited; success only when the backend confirms | §3.2, §5 (writes return committed state), §7 | | | Proposed |
-| NFR-INTEG | Transitions and ownership validated server-side | §3.1, §3.2 (row lock + version guard), R6, R7 | | | Proposed |
-| NFR-PRIV | Mask PII where not needed | R2 (POST search), R3, R4 (MSISDN last 4; full only for assignee) | | | Proposed |
-| NFR-REL | Idempotent create (note) and retry-safe writes | R10 `CASE_NOTE_ADD`, §5 (O6 no-op, O7/O8 version) | | | Proposed |
-| §14 #3 / #7 / #12 | Outbound visibility; reopen window; notification channels | §3 scope S, R9, R12 (in-app indicator; email deferred) | | | Proposed |
+| OUT-01 | Queue with counts (new, open, in progress, pending, resolved, closed, critical, overdue); scoped visibility | R1, R2, R3, §3 scope S, O1, O2 (OQ 1, 6) | | | Designed |
+| OUT-02 | Advanced filters, custom ranges, totals, server-side, bounded | R2, R13, O2–O4 | | | Designed |
+| OUT-03 | Atomic claim; reassignment with old/new owner, actor, time, reason; only with permission; in history | R5, R6, §3.2, §7, O6, O7 | | | Designed |
+| OUT-04 | Detail with customer context, originator + channel, timeline; notes vs comments; masking | R4, R10, O5, O9 (OQ 9, 10, 11) | | | Designed |
+| OUT-05 | Backend-validated transitions, resolution remarks, Resolved vs Closed, closure conditions, full change record | R7–R9, §3.1, §3.2 (auto-close job), O8 (OQ 3, 4, 5) | | | Designed |
+| OUT-06 | Per-agent bookmarks, bookmarked view, status + updated time, change notification | R11, R12, O10–O13 (OQ 8, 15) | | | Designed |
+| BR-03 | Status/assignment changes record actor, time, old/new, reason | R5–R8, §7 `CASE_ASSIGNED`, `CASE_STATUS_CHANGED` | | | Designed |
+| BR-04 | Customer and internal notes separate | R4, R7, R10 (PUBLIC vs INTERNAL activity) | | | Designed |
+| BR-05/06 | 3-month default view, bounded older history, server paging | R1, R2 (default created window, ≤ 366 days) (OQ 7) | | | Designed |
+| BR-10 / XC-02 | Server-side authorization | §4, every O1–O13 `@PreAuthorize` + scope S | | | Designed |
+| XC-04/05 | Paged lists keep filters; validated dates, documented zone | R2 (echoed filters, Asia/Kolkata dates) | | | Designed |
+| XC-06 / XC-07 | Privileged actions audited; success only when the backend confirms | §3.2, §5 (writes return committed state), §7 | | | Designed |
+| NFR-INTEG | Transitions and ownership validated server-side | §3.1, §3.2 (row lock + version guard), R6, R7 | | | Designed |
+| NFR-PRIV | Mask PII where not needed | R2 (POST search), R3, R4 (MSISDN last 4; full only for assignee) | | | Designed |
+| NFR-REL | Idempotent create (note) and retry-safe writes | R10 `CASE_NOTE_ADD`, §5 (O6 no-op, O7/O8 version) | | | Designed |
+| §14 #3 / #7 / #12 | Outbound visibility; reopen window; notification channels | §3 scope S, R9, R12 (in-app indicator; email deferred) | | | Designed |

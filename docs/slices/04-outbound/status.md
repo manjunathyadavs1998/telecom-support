@@ -2,9 +2,9 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☐ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Draft / Proposed** (branch `design/04-outbound`) | ☐ `docs/design/04-outbound/frontend.md` — to design (may run in parallel with the BE build, own worktree) |
-| Approved by user | ☐ (decide OQ 1, 3, 4, 8 at approval) | ☐ |
-| Tasks planned | ☐ B1–B13 proposed 2026-11-28 (confirm with the design) | ☐ |
+| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☐ `docs/design/04-outbound/frontend.md` — to design (may run in parallel with the BE build, own worktree) |
+| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☐ |
+| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☐ |
 | Built | ☐ branch `slice/04-outbound-be` | ☐ branch `slice/04-outbound-fe` |
 | Checks green | ☐ | ☐ |
 | Review clean (no open High) | ☐ `review.md` | ☐ `review-frontend.md` |
@@ -44,6 +44,6 @@ To design (`ba-planner` frontend mode) after the backend design is approved; may
 | F1 | — | | | | | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
-- Done: backend design + openapi (Draft/Proposed), B1–B13 planned, traceability rows `Designed` (2026-11-28, branch `design/04-outbound`, uncommitted).
-- Next: user reviews/approves `backend.md` (decide OQ 1 queue scope, OQ 3 transitions, OQ 4 closure, OQ 8 notifications); then cut `slice/04-outbound-be` from fresh `main` and start B1.
+- Done: backend design + openapi **Approved** 2026-11-28 with all OQ defaults, B1–B13 confirmed, traceability rows `Designed`.
+- Next: merge the design PR (user), then cut `slice/04-outbound-be` from fresh `main` and start B1.
 - Blockers / open questions: none blocking; 18 OQs carry defaults (backend.md §10). Tests deferred (user, 2026-11-27).
