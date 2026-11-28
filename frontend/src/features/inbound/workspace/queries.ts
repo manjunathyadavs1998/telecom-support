@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { api, apiClient } from '@/services/api/client'
 import { ApiError } from '@/services/api/errors'
@@ -131,6 +131,7 @@ export function useAgentCasesQuery(customerId: number, query: AgentCasesQuery, e
       ),
     enabled,
     staleTime: INBOUND_STALE_TIME_MS,
+    placeholderData: keepPreviousData,
   })
 }
 
