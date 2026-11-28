@@ -1,6 +1,6 @@
 import { Inbox, RefreshCw } from 'lucide-react'
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import type { DateRangeFilterHandle } from '@/components/data/DateRangeFilter'
 import { Pagination } from '@/components/data/Pagination'
 import { INVALID_LINK_NOTICE, LIST_PAGE_SIZE } from '@/components/data/useListParams'
@@ -13,10 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { usePermissions } from '@/permissions/usePermissions'
 import { QUEUE_SORTS } from '@/lib/outboundText'
 import { ApiError } from '@/services/api/errors'
 import { useOutboundQueueStore } from '@/stores/outboundQueueStore'
 import type { OutboundCasePage, OutboundCaseSummary, QueueSort } from '@/types/api'
+import { ClaimButton, type ActionNotice } from '../case/ClaimButton'
 import { QueueFilters } from './QueueFilters'
 import { QueueTable } from './QueueTable'
 import { useQueueAgents, useQueueCategories, useQueueSearch, useQueueSummary } from './queries'
@@ -180,9 +183,52 @@ export function QueuePageView({ rowActions, notices }: QueuePageProps) {
   )
 }
 
-/** The route's page (F7/F12 pass claim and the bookmark notice in). */
+const NOTICE_TONE: Record<ActionNotice['tone'], string> = {
+  success: 'border-success/30 bg-success/10',
+  warning: 'border-warning/30 bg-warning/10',
+  error: 'border-destructive/40 bg-destructive/5 text-destructive',
+}
+
+/** §3.3: a row is claimable when unassigned, not resolved/closed, and the actor holds `case.assign` (server re-checks). */
+function claimable(row: OutboundCaseSummary): boolean {
+  return row.assignedUserId == null && row.status !== 'RESOLVED' && row.status !== 'CLOSED'
+}
+
+/** The route's page: row claim (F7) with its notice above the refetched table (L3). */
 export function QueuePage() {
-  return <QueuePageView />
+  const location = useLocation()
+  const { can } = usePermissions()
+  const rowActions = can(['case.assign'])
+    ? (row: OutboundCaseSummary, report: (notice: ReactNode) => void) =>
+        claimable(row) ? (
+          <ClaimButton
+            reference={row.reference}
+            size="sm"
+            onNotice={(n) =>
+              report(
+                <Alert className={cn('block', NOTICE_TONE[n.tone])}>
+                  <p>
+                    {n.text}
+                    {n.reference ? (
+                      <>
+                        {' '}
+                        <Link
+                          to={`/outbound/cases/${n.reference}`}
+                          state={{ from: location.pathname + location.search }}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Open
+                        </Link>
+                      </>
+                    ) : null}
+                  </p>
+                </Alert>,
+              )
+            }
+          />
+        ) : null
+    : undefined
+  return <QueuePageView rowActions={rowActions} />
 }
 
 export { QueuePage as Component }

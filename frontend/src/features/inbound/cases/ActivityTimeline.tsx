@@ -15,9 +15,11 @@ function describe(entry: CaseActivity): string {
     case 'STATUS_CHANGED':
       return `Status changed: ${internalLabel(entry.oldValue)} → ${internalLabel(entry.newValue)}`
     case 'ASSIGNED':
+      // 04-outbound/frontend.md §3.2: reassignments name both owners; the reason is the entry's note.
+      if (entry.oldValue && entry.newValue) return `Reassigned from ${entry.oldValue} to ${entry.newValue}`
       return entry.newValue ? `Assigned to ${entry.newValue}` : 'Assignment changed'
     case 'NOTE':
-      return 'Note'
+      return entry.visibility === 'INTERNAL' ? 'Internal note' : 'Comment to the customer'
     default:
       return entry.type
   }

@@ -27,6 +27,7 @@ export const PAGE_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
   'inbound-case-new': () => import('@/features/inbound/cases/RaiseRequestPage'),
   'inbound-reactivation': () => import('@/features/inbound/reactivation/ReactivationPage'),
   'outbound-queue': () => import('@/features/outbound/queue/QueuePage'),
+  'outbound-case': () => import('@/features/outbound/case/CaseDetailPage'),
 }
 
 /**
