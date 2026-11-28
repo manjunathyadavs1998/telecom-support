@@ -22,6 +22,8 @@ type DateRangeFilterProps = {
   /** Back to the default window. */
   onReset: () => void
   maxDays?: number
+  /** The label of the no-dates option (04-outbound §4: "Any time" for the queue's updated range); default "Last 3 months". */
+  defaultLabel?: string
   ref?: Ref<DateRangeFilterHandle>
 }
 
@@ -31,7 +33,14 @@ type Mode = 'default' | 'custom'
  * List date filter (frontend.md §3 Service requests, §4; CUS-05.1/05.3, BR-06, XC-05): **Last 3 months** (default) or **Custom range**
  * (native date inputs + Apply). Tabs use manual activation (F17): arrow keys only move focus; `Enter`/`Space`/click selects.
  */
-export function DateRangeFilter({ value, onApply, onReset, maxDays = MAX_RANGE_DAYS, ref }: DateRangeFilterProps) {
+export function DateRangeFilter({
+  value,
+  onApply,
+  onReset,
+  maxDays = MAX_RANGE_DAYS,
+  defaultLabel = 'Last 3 months',
+  ref,
+}: DateRangeFilterProps) {
   const appliedFrom = value.from && value.to ? value.from : undefined
   const appliedTo = appliedFrom ? value.to : undefined
   const [mode, setMode] = useState<Mode>(appliedFrom ? 'custom' : 'default')
@@ -74,7 +83,7 @@ export function DateRangeFilter({ value, onApply, onReset, maxDays = MAX_RANGE_D
   return (
     <Tabs value={mode} onValueChange={changeMode} activationMode="manual" className="flex flex-col">
       <TabsList aria-label="Date range" className="self-start">
-        <TabsTrigger value="default">Last 3 months</TabsTrigger>
+        <TabsTrigger value="default">{defaultLabel}</TabsTrigger>
         <TabsTrigger value="custom">Custom range</TabsTrigger>
       </TabsList>
       <TabsContent value="default">
