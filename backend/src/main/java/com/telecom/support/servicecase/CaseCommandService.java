@@ -55,16 +55,19 @@ public class CaseCommandService {
     private final CaseLifecycle lifecycle;
     private final OutboundCaseQueryService queries;
     private final UserDirectory users;
+    private final BookmarkRepository bookmarks;
     private final AuditService audit;
     private final Clock clock;
 
     CaseCommandService(CaseRepository cases, CaseActivityRepository activity, CaseLifecycle lifecycle,
-                       OutboundCaseQueryService queries, UserDirectory users, AuditService audit, Clock clock) {
+                       OutboundCaseQueryService queries, UserDirectory users, BookmarkRepository bookmarks,
+                       AuditService audit, Clock clock) {
         this.cases = cases;
         this.activity = activity;
         this.lifecycle = lifecycle;
         this.queries = queries;
         this.users = users;
+        this.bookmarks = bookmarks;
         this.audit = audit;
         this.clock = clock;
     }
@@ -88,6 +91,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.assign(row.id(), row.version(), actor.id(), actor.teamId(), to.name(), now), reference);
         activity.insertAssigned(row.id(), actor.id(), null, actor.id(), null, now);
+        bookmarks.markSeen(actor.id(), row.id(), now);
         if (to != status) {
             activity.insertStatusChanged(row.id(), actor.id(), status.name(), to.name(), now);
         }
@@ -118,6 +122,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.assign(row.id(), row.version(), assigneeUserId, target.teamId(), to.name(), now), reference);
         activity.insertAssigned(row.id(), actor.id(), row.assignedUserId(), assigneeUserId, reason, now);
+        bookmarks.markSeen(actor.id(), row.id(), now);
         if (to != status) {
             activity.insertStatusChanged(row.id(), actor.id(), status.name(), to.name(), now);
         }
@@ -166,6 +171,7 @@ public class CaseCommandService {
         };
         guarded(cases.transition(row.id(), row.version(), values, now), reference);
         activity.insertStatusChanged(row.id(), actor.id(), from.name(), to.name(), now);
+        bookmarks.markSeen(actor.id(), row.id(), now);
         if (text != null && !text.isEmpty()) {
             activity.insertNote(row.id(), actor.id(), "INTERNAL", text, now);
         }
@@ -213,6 +219,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.touch(row.id(), row.version(), now), reference);
         activity.insertNote(row.id(), actor.id(), visibility, body, now);
+        bookmarks.markSeen(actor.id(), row.id(), now);
         return new CaseActivity("NOTE", visibility, actor.displayName(), null, null, body, now);
     }
 

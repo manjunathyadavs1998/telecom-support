@@ -49,6 +49,7 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
     static final String NOTIFICATION_DISPATCH_CRON = "app.notification.dispatch-cron";
     static final String REACTIVATION_RECONCILE_CRON = "app.reactivation.reconcile-cron";
     static final String REACTIVATION_EXPIRY_CRON = "app.reactivation.expiry-cron";
+    static final String OUTBOUND_AUTO_CLOSE_CRON = "app.outbound.auto-close-cron";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -106,6 +107,11 @@ public class ProfileGuard implements EnvironmentPostProcessor, Ordered {
                 throw new IllegalStateException("Property '" + cron + "' must not be '-' (disabled) with the 'prod' "
                         + "profile: notifications and temporary restorations must be processed (03 backend R16, §3.1)");
             }
+        }
+        if ("-".equals(environment.getProperty(OUTBOUND_AUTO_CLOSE_CRON, "").trim())) {
+            throw new IllegalStateException("Property '" + OUTBOUND_AUTO_CLOSE_CRON + "' must not be '-' (disabled) "
+                    + "with the 'prod' profile: resolved cases must close when the verification window ends "
+                    + "(04 backend R8)");
         }
     }
 

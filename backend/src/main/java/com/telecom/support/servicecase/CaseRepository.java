@@ -371,4 +371,32 @@ class CaseRepository {
         return jdbc.update(TOUCH, new MapSqlParameterSource()
                 .addValue("id", id).addValue("version", version).addValue("now", utc(now))) == 1;
     }
+    /** R8 job: a RESOLVED case whose verification window has elapsed. */
+    record DueResolvedRow(long id, String reference) {}
+
+    private static final String FIND_DUE_RESOLVED = """
+            SELECT id, reference
+            FROM cases
+            WHERE status = 'RESOLVED' AND resolved_at <= :cutoff AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** §3.2: guarded on status and resolved_at, so a reopen or an agent's close meanwhile wins and nothing is written. */
+    private static final String AUTO_CLOSE = """
+            UPDATE cases
+            SET status = 'CLOSED', closed_at = :now, closure_type = 'WINDOW_ELAPSED', updated_at = :now,
+                version = version + 1
+            WHERE id = :id AND status = 'RESOLVED' AND resolved_at <= :cutoff
+            """;
+
+    List<DueResolvedRow> findDueResolved(Instant cutoff, long afterId, int limit) {
+        return jdbc.query(FIND_DUE_RESOLVED, Map.of("cutoff", utc(cutoff), "after", afterId, "limit", limit),
+                (rs, i) -> new DueResolvedRow(rs.getLong("id"), rs.getString("reference")));
+    }
+
+    /** True when this call closed the case. */
+    boolean autoClose(long id, Instant cutoff, Instant now) {
+        return jdbc.update(AUTO_CLOSE, Map.of("id", id, "cutoff", utc(cutoff), "now", utc(now))) == 1;
+    }
 }
