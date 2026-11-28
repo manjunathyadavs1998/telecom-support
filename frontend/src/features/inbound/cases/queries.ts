@@ -1,8 +1,34 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ListParamsSchema } from '@/components/data/useListParams'
 import { requestReferenceSchema } from '@/features/customer/requests/queries'
-import type { CaseStatus } from '@/types/api'
+import { api, apiClient } from '@/services/api/client'
+import type { ApiError } from '@/services/api/errors'
+import type { AgentCaseDetail, CaseStatus } from '@/types/api'
+import { inboundKeys } from '../verificationState'
+import { INBOUND_STALE_TIME_MS, withVerification } from '../workspace/queries'
 
 export { useAgentCasesQuery } from '../workspace/queries'
+
+/**
+ * I10 case detail (03-inbound/frontend.md §3.7; INB-02.2–02.4): activity oldest first and INTERNAL entries only when the server
+ * returns them (BR-04 is server-side). A 404 (other customer or unknown) is not retried.
+ */
+export function useAgentCaseQuery(customerId: number, reference: string, enabled: boolean) {
+  const queryClient = useQueryClient()
+  return useQuery<AgentCaseDetail, ApiError>({
+    queryKey: inboundKeys.case(customerId, reference),
+    queryFn: () =>
+      withVerification(queryClient, customerId, () =>
+        api.call(
+          apiClient.GET('/api/v1/agent/customers/{customerId}/cases/{reference}', {
+            params: { path: { customerId, reference } },
+          }),
+        ),
+      ),
+    enabled,
+    staleTime: INBOUND_STALE_TIME_MS,
+  })
+}
 
 /** The 8 internal statuses in lifecycle order (03-inbound/frontend.md §3.6, `CaseStatus`). */
 export const CASE_STATUSES: readonly CaseStatus[] = [
