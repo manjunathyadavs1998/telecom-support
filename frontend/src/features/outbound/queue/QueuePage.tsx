@@ -19,6 +19,7 @@ import { QUEUE_SORTS } from '@/lib/outboundText'
 import { ApiError } from '@/services/api/errors'
 import { useOutboundQueueStore } from '@/stores/outboundQueueStore'
 import type { OutboundCasePage, OutboundCaseSummary, QueueSort } from '@/types/api'
+import { useChangedBookmarks } from '../bookmarks/queries'
 import { ClaimButton, type ActionNotice } from '../case/ClaimButton'
 import { QueueFilters } from './QueueFilters'
 import { QueueTable } from './QueueTable'
@@ -228,7 +229,25 @@ export function QueuePage() {
           />
         ) : null
     : undefined
-  return <QueuePageView rowActions={rowActions} />
+  return <QueuePageView rowActions={rowActions} notices={<BookmarkNotice />} />
+}
+
+/** §3.4 / OQ 5: "{n} bookmarked case(s) updated" above the queue, from O12 `changedCount`; no nav badge. */
+function BookmarkNotice() {
+  const { can } = usePermissions()
+  const changed = useChangedBookmarks(can(['case.bookmark']))
+  const n = changed.data?.changedCount ?? 0
+  if (n === 0) return null
+  return (
+    <Alert asChild className="block">
+      <output>
+        {n} bookmarked {n === 1 ? 'case' : 'cases'} updated since you last looked.{' '}
+        <Link to="/outbound/bookmarks" className="font-medium text-primary hover:underline">
+          View bookmarks
+        </Link>
+      </output>
+    </Alert>
+  )
 }
 
 export { QueuePage as Component }
