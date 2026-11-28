@@ -7,7 +7,7 @@ export type { StatusBadgeProps } from './statusLabel'
 
 // Success/warning text uses the *-foreground tokens (darker than the tint): small badge text needs 4.5:1 (NFR-A11Y, FC11).
 const TONES: Record<Tone, string> = {
-  neutral: 'border-slate-300 bg-slate-100 text-foreground',
+  neutral: 'border-line-strong bg-surface-2 text-text-2',
   info: 'border-primary/30 bg-primary/10 text-primary',
   success: 'border-success/30 bg-success/10 text-success-foreground',
   warning: 'border-warning/30 bg-warning/10 text-warning-foreground',
