@@ -2,7 +2,6 @@ package com.telecom.support.customer;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -319,8 +318,9 @@ class IdentityCheckRepository {
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {
-        Timestamp t = rs.getObject(column, Timestamp.class);
-        return t == null ? null : t.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        // The column is a UTC DATETIME(6): read it as-is; a Timestamp would shift it by the JVM zone.
+        LocalDateTime t = rs.getObject(column, LocalDateTime.class);
+        return t == null ? null : t.toInstant(ZoneOffset.UTC);
     }
 
     private static LocalDateTime utc(Instant instant) {

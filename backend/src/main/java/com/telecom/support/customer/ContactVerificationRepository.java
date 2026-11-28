@@ -1,7 +1,6 @@
 package com.telecom.support.customer;
 
 import com.telecom.support.customer.VerificationCodeSender.Channel;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -109,8 +108,7 @@ class ContactVerificationRepository {
         return jdbc.query(FIND, Map.of("id", id), (rs, i) -> new VerificationRow(
                         rs.getLong("id"), rs.getLong("customer_id"), Channel.valueOf(rs.getString("channel")),
                         rs.getString("new_value"), rs.getString("code_hmac"), rs.getInt("attempts"),
-                        rs.getString("status"), rs.getObject("expires_at", Timestamp.class).toLocalDateTime()
-                                .toInstant(ZoneOffset.UTC)))
+                        rs.getString("status"), rs.getObject("expires_at", LocalDateTime.class).toInstant(ZoneOffset.UTC)))
                 .stream()
                 .findFirst();
     }
