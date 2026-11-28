@@ -20,6 +20,7 @@ export const PAGE_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
   'customer-payment-status': () => import('@/features/customer/payments/PaymentStatusPage'),
   'customer-payment-receipt': () => import('@/features/customer/payments/ReceiptPage'),
   'inbound-search': () => import('@/features/inbound/search/CustomerSearchPage'),
+  'inbound-customer': () => import('@/features/inbound/workspace/OverviewPage'),
 }
 
 /**

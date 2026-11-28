@@ -2,7 +2,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { createContext, useContext } from 'react'
 import { api, apiClient } from '@/services/api/client'
 import { ApiError } from '@/services/api/errors'
-import type { AgentCustomerProfile } from '@/types/api'
+import type { AgentCasePage, AgentCustomerProfile, Invoice, paths, Subscription } from '@/types/api'
 import { inboundKeys, isVerificationRequired, markVerificationLost, serverOffsetOf, type CachedCheck } from '../verificationState'
 
 /** Warning tone, one polite announcement and "Verify again" from here (§3.3). */
@@ -61,6 +61,73 @@ export function useAgentProfileQuery(customerId: number, enabled: boolean) {
     queryFn: () =>
       withVerification(queryClient, customerId, () =>
         api.call(apiClient.GET('/api/v1/agent/customers/{customerId}/profile', { params: { path: { customerId } } })),
+      ),
+    enabled,
+    staleTime: INBOUND_STALE_TIME_MS,
+  })
+}
+
+/** I6 subscriptions (INB-01.3): every line with plan and pending change, read-only. */
+export function useAgentSubscriptionsQuery(customerId: number, enabled: boolean) {
+  const queryClient = useQueryClient()
+  return useQuery<Subscription[], ApiError>({
+    queryKey: inboundKeys.subscriptions(customerId),
+    queryFn: () =>
+      withVerification(queryClient, customerId, () =>
+        api.call(apiClient.GET('/api/v1/agent/customers/{customerId}/subscriptions', { params: { path: { customerId } } })),
+      ),
+    enabled,
+    staleTime: INBOUND_STALE_TIME_MS,
+  })
+}
+
+/** I7 invoices (backend R7): Overview asks `status=OPEN` (§3.4), Billing the latest 12 unfiltered (§3.5). */
+export function useAgentInvoicesQuery(customerId: number, status: 'OPEN' | undefined, enabled: boolean) {
+  const queryClient = useQueryClient()
+  return useQuery<Invoice[], ApiError>({
+    queryKey: [...inboundKeys.invoices(customerId), status ?? 'ALL'],
+    queryFn: () =>
+      withVerification(queryClient, customerId, () =>
+        api.call(
+          apiClient.GET('/api/v1/agent/customers/{customerId}/invoices', {
+            params: { path: { customerId }, query: status ? { status } : {} },
+          }),
+        ),
+      ),
+    enabled,
+    staleTime: INBOUND_STALE_TIME_MS,
+  })
+}
+
+type I9Query = NonNullable<paths['/api/v1/agent/customers/{customerId}/cases']['get']['parameters']['query']>
+
+/** I9 query (0-based page); no `from`/`to` = the server's 3-month window (BR-05/06). */
+export type AgentCasesQuery = {
+  from?: string
+  to?: string
+  reference?: string
+  status?: readonly string[]
+  sort?: string
+  page: number
+  size: number
+}
+
+/** I9 case list (INB-02.1); the Overview asks for page 0 of 5. */
+export function useAgentCasesQuery(customerId: number, query: AgentCasesQuery, enabled: boolean) {
+  const queryClient = useQueryClient()
+  return useQuery<AgentCasePage, ApiError>({
+    queryKey: inboundKeys.cases(customerId, query),
+    queryFn: () =>
+      withVerification(queryClient, customerId, () =>
+        api.call(
+          apiClient.GET('/api/v1/agent/customers/{customerId}/cases', {
+            params: {
+              path: { customerId },
+              // `status`/`sort` were whitelisted against the contract enums by `useListParams` (F3).
+              query: query as I9Query,
+            },
+          }),
+        ),
       ),
     enabled,
     staleTime: INBOUND_STALE_TIME_MS,
