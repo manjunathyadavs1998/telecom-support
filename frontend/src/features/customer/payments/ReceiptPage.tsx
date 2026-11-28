@@ -29,7 +29,7 @@ function ReceiptDocument({ receipt }: { receipt: Receipt }) {
   return (
     <section
       aria-label={`Receipt for ${receipt.paymentReference}`}
-      className="flex max-w-xl flex-col gap-4 rounded-lg border bg-white p-6 print:max-w-none print:border-0 print:p-0"
+      className="flex max-w-xl flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-6 print:max-w-none print:border-0 print:p-0"
     >
       <h2 className="text-lg font-semibold">Payment receipt</h2>
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">

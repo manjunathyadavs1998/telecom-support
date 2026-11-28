@@ -124,7 +124,7 @@ function Frame({ customerId }: { customerId: number }) {
             </Button>
           }
         >
-          <section aria-label="Customer" className="flex flex-col gap-3 rounded-lg border bg-white p-4 md:p-6">
+          <section aria-label="Customer" className="flex flex-col gap-3 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <p className="text-lg font-semibold text-foreground">{p?.fullName ?? match?.maskedName ?? 'Customer'}</p>

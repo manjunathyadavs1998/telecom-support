@@ -133,11 +133,11 @@ export function CaseDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <section aria-label="Description" className="flex flex-col gap-2 rounded-lg border bg-white p-4">
+          <section aria-label="Description" className="flex flex-col gap-2 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
             <h2 className="text-base font-semibold">Description</h2>
             <p className="whitespace-pre-wrap break-words">{detail.description}</p>
           </section>
-          <section aria-label="Activity" className="flex flex-col gap-3 rounded-lg border bg-white p-4">
+          <section aria-label="Activity" className="flex flex-col gap-3 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
             <h2 className="text-base font-semibold">Activity</h2>
             <ActivityTimeline activity={detail.activity} />
           </section>

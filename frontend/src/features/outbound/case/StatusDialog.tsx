@@ -216,7 +216,7 @@ export function StatusDialog({ detail, allowed: actionAllowed }: { detail: Outbo
                   From {label(detail.status)} to <strong>{label(toStatus)}</strong>
                   {toStatus === 'CLOSED' && closureType ? ` · ${closureTypeText(closureType)}` : ''}
                 </p>
-                {remarks.trim() ? <p className="whitespace-pre-wrap break-words rounded border bg-slate-50 p-2">{remarks.trim()}</p> : null}
+                {remarks.trim() ? <p className="whitespace-pre-wrap break-words rounded-lg border border-line bg-surface-2 p-2">{remarks.trim()}</p> : null}
                 <p className="text-muted-foreground">{CONSEQUENCE[toStatus as CaseStatus]}</p>
               </div>
             )}

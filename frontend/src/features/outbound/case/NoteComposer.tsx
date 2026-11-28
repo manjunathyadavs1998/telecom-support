@@ -94,7 +94,7 @@ export function NoteComposer({ detail }: { detail: OutboundCaseDetail }) {
         noValidate
         onSubmit={submit}
         aria-label="Add a note"
-        className={cn('flex flex-col gap-3 rounded-lg border p-4', internal ? 'border-amber-300 bg-amber-50' : 'bg-white')}
+        className={cn('flex flex-col gap-3 rounded-lg border p-4', internal ? 'border-internal-line bg-internal' : 'bg-surface')}
       >
         <FormRootError message={root?.message} error={root?.error ?? null} />
         {allowed.length > 1 ? (

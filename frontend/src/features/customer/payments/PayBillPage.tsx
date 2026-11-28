@@ -322,7 +322,7 @@ function PayForm({ invoices, onRefetchInvoices }: { invoices: Invoice[]; onRefet
           />
         ) : null}
         {selected ? (
-          <section aria-label={`Bill ${selected.invoiceRef}`} className="flex flex-col gap-2 rounded-lg border bg-white p-4">
+          <section aria-label={`Bill ${selected.invoiceRef}`} className="flex flex-col gap-2 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
             <h2 className="font-semibold">
               Bill <span className="font-mono">{selected.invoiceRef}</span>
             </h2>

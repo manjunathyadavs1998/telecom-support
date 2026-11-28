@@ -76,7 +76,7 @@ export function SubscriptionCard({ subscription, children }: SubscriptionCardPro
   const pending = pendingChangeText(subscription)
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
           <h2 id={headingId} className="text-lg font-semibold text-foreground">

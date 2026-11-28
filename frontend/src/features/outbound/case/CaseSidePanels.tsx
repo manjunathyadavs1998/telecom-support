@@ -7,7 +7,7 @@ import type { AccountStatus, OutboundCaseDetail } from '@/types/api'
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   const id = useId()
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-lg border bg-white p-4">
+    <section aria-labelledby={id} className="flex flex-col gap-3 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
       <h2 id={id} className="text-base font-semibold">
         {title}
       </h2>

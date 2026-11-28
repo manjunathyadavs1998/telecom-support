@@ -91,7 +91,7 @@ export function PaymentHistoryPage() {
 
   return (
     <PageContainer title="Payment history" description="Your payments and their status." actions={<PayBillLink />}>
-      <div className="rounded-lg border bg-white p-4">
+      <div className="enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
         <DateRangeFilter ref={filterRef} value={params} onApply={(next) => setFilters(next)} onReset={() => setFilters({})} />
       </div>
       {invalidNotice ? (

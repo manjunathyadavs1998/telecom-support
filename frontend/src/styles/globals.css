@@ -1,37 +1,80 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
-/* Design tokens (frontend.md §8): shadcn naming, exposed to Tailwind v4 via @theme inline. Light theme only (dark is out of scope). */
+/*
+ * Design tokens (01-foundation/frontend.md §8, amended by ui-refresh.md U1). shadcn naming, exposed to Tailwind v4 via
+ * @theme inline. Light theme only (ui-refresh OQ 1). The neutral scale follows the DSA-Visualizer light palette (warm
+ * off-white surfaces, soft borders, warm near-black text); the blue brand is kept (OQ 2). Text tokens keep >= 4.5:1 on
+ * every surface (NFR-A11Y).
+ */
 :root {
-  --radius: 0.5rem;
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --muted-foreground: #475569;
+  --radius: 0.625rem;
+
+  /* surfaces: page < panel; hover lifts toward the page tone */
+  --background: #f8f6f2; /* page (ink) */
+  --surface: #fffefb; /* panels, cards, dialogs */
+  --surface-2: #f4f1ec; /* inset areas: filter bars, read-only blocks, table head */
+  --surface-hover: #efebe4; /* row / nav / tile hover */
+  --line: #e4e0d8; /* soft border */
+  --line-strong: #d2cdc2; /* inputs, emphasised borders */
+
+  /* text */
+  --foreground: #1c1812; /* text-1 */
+  --text-2: #403a30; /* secondary text */
+  --muted-foreground: #645e52; /* muted text (4.5:1 on surfaces) */
+  --text-4: #8c8678; /* placeholders, decorative only */
+
+  /* brand + status (blue kept) */
   --primary: #1d4ed8;
   --primary-foreground: #ffffff;
-  --sidebar: #0b2545;
-  --sidebar-foreground: #e2e8f0;
-  --sidebar-accent: #1d4ed8;
-  --sidebar-ring: #ffffff;
+  --primary-soft: #e8eefc; /* selected / pressed tint */
+  --ring: #2563eb;
   --success: #15803d;
   --warning: #b45309;
   /* Text on a 10 % success/warning tint (badges): one step darker, 4.5:1 for small text (NFR-A11Y, review FC11). */
   --success-foreground: #166534;
   --warning-foreground: #92400e;
   --destructive: #b91c1c;
-  --ring: #2563eb;
+  --internal: #fbf3e2; /* INTERNAL notes background (with a lock icon + text badge) */
+  --internal-line: #e7cf9c;
+
+  /* shell */
+  --sidebar: #14213d;
+  --sidebar-foreground: #e6e2da;
+  --sidebar-accent: #1d4ed8;
+  --sidebar-ring: #ffffff;
+
+  /* elevation: soft, warm */
+  --shadow-sm: 0 1px 2px rgb(28 24 18 / 0.05);
+  --shadow-md: 0 2px 8px -2px rgb(28 24 18 / 0.08), 0 1px 2px rgb(28 24 18 / 0.04);
+  --shadow-lg: 0 12px 32px -8px rgb(28 24 18 / 0.18), 0 2px 6px rgb(28 24 18 / 0.06);
+
+  /* motion (ui-refresh §2): short, eased, never blocking */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
 }
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-foreground: var(--foreground);
+  --color-text-2: var(--text-2);
   --color-muted-foreground: var(--muted-foreground);
+  --color-text-4: var(--text-4);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
@@ -41,18 +84,103 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning-foreground: var(--warning-foreground);
   --color-destructive: var(--destructive);
+  --color-internal: var(--internal);
+  --color-internal-line: var(--internal-line);
   --color-ring: var(--ring);
+  --shadow-soft-sm: var(--shadow-sm);
+  --shadow-soft-md: var(--shadow-md);
+  --shadow-soft-lg: var(--shadow-lg);
+  --ease-soft: var(--ease-out-soft);
 }
 
 @layer base {
   html {
     font-size: 16px;
   }
+  /* Borders default to the soft line (Tailwind v4 defaults to currentColor). */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--line);
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01'; /* Inter: open digits, single-storey a */
+    text-rendering: optimizeLegibility;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    @apply font-mono;
+  }
+  ::selection {
+    background: rgb(29 78 216 / 0.18);
   }
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2;
+    --tw-ring-offset-color: var(--background);
+  }
+}
+
+/* Thin themed scrollbars (reference look). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+@layer utilities {
+  /* Eased interactive transitions (buttons, rows, tiles, nav). */
+  .transition-soft {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: var(--duration-base);
+    transition-timing-function: var(--ease-out-soft);
+  }
+  /* Content entering after a load (pages, panels, notices). */
+  .enter-soft {
+    animation: enter-soft var(--duration-base) var(--ease-out-soft) both;
+  }
+  /* Skeleton shimmer (LoadingState). */
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-hover) 50%, var(--surface-2) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes enter-soft {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 

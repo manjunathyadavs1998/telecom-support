@@ -70,7 +70,7 @@ export function Pagination({ page, totalPages, totalItems, size, onPage }: Pagin
                     size="sm"
                     aria-current={slot === page ? 'page' : undefined}
                     aria-label={`Page ${slot}`}
-                    className={cn('min-w-8', slot === page && 'font-semibold')}
+                    className={cn('min-w-8', slot === page && 'border-primary/30 bg-primary-soft font-semibold text-primary')}
                     onClick={() => onPage(slot)}
                   >
                     {slot}

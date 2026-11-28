@@ -67,7 +67,7 @@ function Shell({ me }: { me: Me }) {
       <a
         href={`#${MAIN_ID}`}
         onClick={skipToMain}
-        className="sr-only rounded-md bg-white px-4 py-2 font-medium text-foreground shadow focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
+        className="sr-only rounded-md bg-surface px-4 py-2 font-medium text-foreground shadow-soft-md focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
       >
         Skip to main content
       </a>

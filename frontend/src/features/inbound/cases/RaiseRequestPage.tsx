@@ -178,7 +178,7 @@ function RaiseRequestForm({ customerId, profile, lines, categories, idempotency,
           <FormRootError ref={rootRef} message={root?.message} error={root?.error ?? null} />
         )}
         {verified ? (
-        <dl className="grid gap-3 rounded-lg border bg-slate-50 p-4 sm:grid-cols-3">
+        <dl className="grid gap-3 rounded-xl border border-line bg-surface-2 p-4 sm:grid-cols-3">
           <div className="flex flex-col gap-0.5">
             <dt className="text-sm text-muted-foreground">Customer</dt>
             <dd>{profile.fullName}</dd>
@@ -193,7 +193,7 @@ function RaiseRequestForm({ customerId, profile, lines, categories, idempotency,
           </div>
         </dl>
         ) : (
-          <p className="rounded-lg border bg-slate-50 p-4 text-muted-foreground">
+          <p className="rounded-xl border border-line bg-surface-2 p-4 text-muted-foreground">
             Customer details are hidden until the caller is verified again.
           </p>
         )}
@@ -408,7 +408,7 @@ function Confirmation({
   }
 
   return (
-    <section aria-labelledby={headingId} className="flex max-w-2xl flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex max-w-2xl flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       {/* §3.8: announced as a status message; the heading takes focus. */}
       <output className="sr-only">Request {created.reference} created.</output>
       <h2 id={headingId} ref={headingRef} tabIndex={-1} className="text-lg font-semibold focus-visible:outline-none">
