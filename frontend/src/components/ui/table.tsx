@@ -11,7 +11,7 @@ export function Table({ className, ...props }: ComponentProps<'table'>) {
 }
 
 export function TableHeader({ className, ...props }: ComponentProps<'thead'>) {
-  return <thead className={cn('border-b border-slate-200 bg-slate-50', className)} {...props} />
+  return <thead className={cn('border-b border-line bg-surface-2', className)} {...props} />
 }
 
 export function TableBody({ className, ...props }: ComponentProps<'tbody'>) {
@@ -19,7 +19,7 @@ export function TableBody({ className, ...props }: ComponentProps<'tbody'>) {
 }
 
 export function TableRow({ className, ...props }: ComponentProps<'tr'>) {
-  return <tr className={cn('border-b border-slate-200 hover:bg-slate-50', className)} {...props} />
+  return <tr className={cn('border-b border-line transition-soft hover:bg-surface-hover', className)} {...props} />
 }
 
 export function TableHead({ className, scope = 'col', ...props }: ComponentProps<'th'>) {
