@@ -2,6 +2,13 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
+| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☐ `docs/design/04-outbound/frontend.md` — to design (may run in parallel with the BE build, own worktree) |
+| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☐ |
+| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☐ |
+| Built | ☐ branch `slice/04-outbound-be` | ☐ branch `slice/04-outbound-fe` |
+| Checks green | ☑ `check-backend.sh` 611/611 (2026-11-28; ITs for 04 deferred) | ☐ |
+| Review clean (no open High) | ☑ `review.md`: 0 High; M1/M2 + L3/L4/L6/L7 fixed; L5/L8 open | ☐ `review-frontend.md` |
+| PR | ☑ #21 | ☐ #… |
 | Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☑ `docs/design/04-outbound/frontend.md` — **Approved** rev 1 2026-11-28 (branch `design/04-outbound-fe`) |
 | Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☑ 2026-11-28 (OQ 1, 5, 6 as recommended; other defaults) |
 | Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☑ F1–F12 confirmed 2026-11-28 |
@@ -57,6 +64,15 @@ users OUT001, OUT002, OUT003, SUP001, IN001). The §7 tests go to `docs/testing/
 | F12 | Queue bookmark notice, responsive/a11y pass, docs | `features/outbound/queue/QueuePage.tsx`, `docs/requirements/traceability.md`, `docs/testing/test-plan.md` (§7 rows) | §3.4 queue notice, §3 XC-08, §7 | OUT-06.4, XC-08 | checks green; keyboard-only walkthrough of claim → status → note; 375 px width shows cards and a usable filter panel; traceability OUT rows `FE Built` | ☑ (checks green; manual check by the user) |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
+- Done: backend design + openapi **Approved** 2026-11-28 with all OQ defaults, B1–B13 confirmed, traceability rows `Designed`.
+- B1 done 2026-11-28 on `slice/04-outbound-be`: V11 applied on the existing dev DB (11 RESOLVED/CLOSED rows backfilled) and on a fresh DB (16 migrations, seeds load); `check-backend.sh` 611/611 after fixing 3 schema-test expectations (`SchemaV3toV6IT` had been missing V10 since 03 E1).
+- B2 done 2026-11-28: dev seed 900401–900409 + OUT001 bookmarks verified on the dev DB; test data on CUST-T-0010 with T-OUT-2 (same team) and T-OUT-S (south); `check-backend.sh` 611/611.
+- B3/B4 done: cross-module APIs (queue agents, case contexts, accounts by live MSISDN); scope, lifecycle table, properties, `CaseRuleException`; compile + ArchitectureTest 8/8.
+- B5–B10 done 2026-11-28, manual API checks on the dev JAR all as listed (claim race 200/409 with one ASSIGNED row + one audit; reassign 403/422/200/409; status 403/400/200/422×3/200; notes 201, replay one row (same content, JSON key order differs as in 02/03), mismatch 422, non-owner PUBLIC 403, CLOSED 422). Deviation: service-level 403s record reason `permission` (the recorder has no `not_owner` reason).
+- B11–B13 done 2026-11-28: auto-close closed seeded 900407 at the 14:10 run (WINDOW_ELAPSED, 1 activity + 1 audit, actor null); prod refuses `auto-close-cron: -`; bookmarks PUT×2 → 1 row, changed/seen/own-write as R12, `changedCount` scoped to S; authz sweep O1–O13 × CUSTOMER/IN001/BUS001 = 403, anonymous 401, OUT001 O7 403. Traceability rows Built; deferred ITs listed in test-plan §3.4.
+- Review (`review.md`): 0 High, 2 Medium (bookmark lock order / cap race) fixed, Lows #3/#4/#6/#7 fixed, #5/#8 open. `check-backend.sh` 611/611 (after `ProdCookieIT` cron fix). PR #21.
+- Next: user merges #21; then slice 04 frontend design.
+- Blockers / open questions: none blocking; 18 OQs carry defaults (backend.md §10). Tests deferred (user, 2026-11-27).
 - BE: merged in PR #21; review fixes (M1/M2 + lows) in follow-up PR #22 (open at FE build time).
 - FE: F1–F12 built on `slice/04-outbound-fe` 2026-11-28; typecheck/lint/build/gen:api:check green; tests deferred (test-plan §3.4 FE row). Manual browser checks per task are for the user.
 - Next: user tests the outbound screens on the dev JAR; reviewer; FE PR.

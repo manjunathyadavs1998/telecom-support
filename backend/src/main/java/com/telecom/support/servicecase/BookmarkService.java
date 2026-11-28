@@ -58,7 +58,8 @@ public class BookmarkService {
     public void add(String reference) {
         CurrentUser actor = CurrentUser.require();
         OutboundScope scope = OutboundScope.of(actor);
-        CaseRef ref = bookmarks.findCase(reference)
+        // Lock order (review M1/M2): case row (shared) first, then the actor's users row, as the commands do.
+        CaseRef ref = bookmarks.shareCase(reference)
                 .filter(c -> scope.covers(c.assignedUserId(), c.assignedTeamId()))
                 .orElseThrow(() -> new NotFoundException("Outbound case " + reference + " not in scope"));
         users.lockForUpdate(actor.id());

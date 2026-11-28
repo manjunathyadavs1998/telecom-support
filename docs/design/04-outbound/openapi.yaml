@@ -3,7 +3,7 @@ info:
   title: Telecom Customer Support API — 04 Outbound assistant workspace
   version: 0.4.0
   description: |
-    Status: **Draft** — Proposed (awaiting approval). Contract-first spec for slice 04 (see backend.md).
+    Status: **Approved** (rev 1, 2026-11-28, with backend.md). Contract-first spec for slice 04 (see backend.md).
     Auth (session cookie, CSRF header) and the shared components (ProblemDetail, FieldViolation, CorrelationId,
     XsrfToken, IdempotencyKey, Problem, From, To, Page, Size) are **copied verbatim** from 01-foundation/03-inbound openapi.yaml;
     Msisdn, Severity, CaseStatus, PublicCaseStatus, CaseChannel and CaseActivity are copied from 03-inbound/openapi.yaml,
