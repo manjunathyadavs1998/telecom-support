@@ -23,7 +23,7 @@ function MatchCard({ customerId }: { customerId: number }) {
   if (!match) return null
   const left = minutesLeft(match.verifiedUntil)
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 id={headingId} className="text-lg font-semibold text-foreground">
@@ -73,7 +73,7 @@ export function CustomerSearchPage() {
   const [result, setResult] = useState<Result>({ kind: 'none' })
   return (
     <PageContainer title="Customer search" description="Find the caller by their mobile number, then verify their identity.">
-      <section aria-label="Search" className="rounded-lg border bg-white p-4 md:p-6">
+      <section aria-label="Search" className="enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
         <CustomerSearchForm
           onResult={(match) => setResult(match ? { kind: 'hit', customerId: match.customerId } : { kind: 'empty' })}
         />

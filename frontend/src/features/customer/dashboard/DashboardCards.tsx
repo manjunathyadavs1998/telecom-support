@@ -49,7 +49,7 @@ type CardProps = {
 function DashboardCard({ title, action, className, children }: CardProps) {
   const headingId = useId()
   return (
-    <section aria-labelledby={headingId} className={cn('flex flex-col gap-4 rounded-lg border bg-white p-4 md:p-6', className)}>
+    <section aria-labelledby={headingId} className={cn('flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6', className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id={headingId} className="text-lg font-semibold text-foreground">
           {title}

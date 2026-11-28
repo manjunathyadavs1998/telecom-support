@@ -43,3 +43,9 @@ an agent workspace.
 | 1 | Dark theme like the reference? | **Decided:** light only (U7 skipped); tokens ready for it later |
 | 2 | Keep the blue brand colour or move to the reference's teal accent? | **Decided:** keep blue; adopt the reference's neutral/surface treatment |
 | 3 | Fonts self-hosted? | Yes (`@fontsource`, no external CDN; works offline and in the JAR) |
+
+## 5. Progress
+- 2026-11-28: U1–U6 built on `ui/refresh` (stacked on `slice/04-outbound-fe`): tokens + Inter/JetBrains Mono + scrollbars + motion
+  utilities; animated dialogs/menus/selects/drawer; softer shell with eased nav and page entry; `Panel`, soft tables/cards, restyled
+  empty/error/skeleton states; every feature screen on tokens (only the navy sidebar keeps white overlays). U7 skipped (light only).
+  Checks: typecheck, lint, build green. `Panel` adoption in screen markup (replacing the restyled section boxes) is a follow-up.

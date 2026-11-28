@@ -101,7 +101,7 @@ export function QueueFilters({ params, setFilters, categories, agents, createdRe
   if (params.ufrom && params.uto) chips.push({ key: 'updated', label: `Updated ${params.ufrom} – ${params.uto}`, remove: () => setFilters({ ...base, ufrom: undefined, uto: undefined }) })
 
   return (
-    <section aria-label="Filters" className="flex flex-col gap-4 rounded-lg border bg-white p-4">
+    <section aria-label="Filters" className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:gap-8">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium">Created</span>

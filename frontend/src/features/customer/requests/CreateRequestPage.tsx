@@ -185,7 +185,7 @@ function CreateRequestForm({ profile, categories, numbers, idempotency, onCreate
     <Form {...form}>
       <form noValidate onSubmit={onSubmit} aria-label="New request" aria-busy={busy} className="flex max-w-2xl flex-col gap-5">
         <FormRootError ref={rootRef} message={root?.message} error={root?.error ?? null} />
-        <dl className="grid gap-3 rounded-lg border bg-slate-50 p-4 sm:grid-cols-2">
+        <dl className="grid gap-3 rounded-xl border border-line bg-surface-2 p-4 sm:grid-cols-2">
           <div className="flex flex-col gap-0.5">
             <dt className="text-sm text-muted-foreground">Contact number</dt>
             <dd className="text-foreground">{profile.primaryMsisdn}</dd>
@@ -376,7 +376,7 @@ function Confirmation({ created, onCreateAnother }: { created: CaseCreated; onCr
     headingRef.current?.focus()
   }, [])
   return (
-    <section aria-labelledby={headingId} className="flex max-w-2xl flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex max-w-2xl flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       <h2
         id={headingId}
         ref={headingRef}

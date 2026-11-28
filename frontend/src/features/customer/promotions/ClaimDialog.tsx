@@ -149,7 +149,7 @@ function ClaimForm({ promotion, subscriptions, idempotency, onDone }: ClaimFormP
         <h3 id={termsHeadingId} className="text-sm font-semibold">
           Terms and conditions
         </h3>
-        <p className="rounded-md border bg-slate-50 p-3 text-sm whitespace-pre-line">{promotion.terms}</p>
+        <p className="rounded-lg border border-line bg-surface-2 p-3 text-sm whitespace-pre-line">{promotion.terms}</p>
       </section>
       {subscriptions.isPending ? (
         <LoadingState label="Loading your numbers" />

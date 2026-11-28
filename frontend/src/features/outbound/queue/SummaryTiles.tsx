@@ -24,8 +24,8 @@ export function SummaryTiles({ summary, active, onShortcut }: SummaryTilesProps)
             aria-label={`${tile.label}: ${count} ${count === 1 ? 'case' : 'cases'}`}
             onClick={() => onShortcut(pressed ? { status: [], severity: [], overdue: false } : tile.shortcut)}
             className={cn(
-              'flex flex-col items-start rounded-lg border bg-white p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              pressed && 'border-primary ring-1 ring-primary',
+              'transition-soft flex flex-col items-start rounded-xl border border-line bg-surface p-3 text-left shadow-soft-sm hover:-translate-y-0.5 hover:bg-surface-hover hover:shadow-soft-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              pressed && 'border-primary bg-primary-soft ring-1 ring-primary',
               danger && 'border-destructive/40',
             )}
           >

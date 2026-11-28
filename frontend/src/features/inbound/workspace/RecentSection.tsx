@@ -16,7 +16,7 @@ const linkClass = 'font-medium text-primary underline-offset-4 hover:underline'
 function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   const headingId = useId()
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id={headingId} className="text-lg font-semibold text-foreground">
           {title}
