@@ -1,6 +1,6 @@
 # 03 Inbound assistant workspace — frontend design
 
-- Status: **Approved** (revision 2, review F1–F10 addressed) · Date: 2026-11-27 · approved by user 2026-11-27 with OQ defaults · §9 erratum FE1 **proposed** 2026-11-28
+- Status: **Approved** (revision 2, review F1–F10 addressed) · Date: 2026-11-27 · approved by user 2026-11-27 with OQ defaults · §9 erratum FE1 approved by user 2026-11-28
 - BRD: INB-01..INB-04, BR-04, BR-05/06, BR-10, XC-02..XC-05, XC-07, XC-08, NFR-PRIV, NFR-REL, NFR-SEC, §14 #4
 - Backend contract: [`openapi.yaml`](openapi.yaml) I1–I15, [`backend.md`](backend.md) (Approved rev 2; §11 errata E1/E2 add
   audit/limit behaviour only, no API change)
@@ -241,7 +241,7 @@ Errors link via `aria-describedby`/`aria-invalid`; focus goes to the first inval
 
 ## 9. Errata
 
-### FE1 — Route param patterns per route (found building F2) · Status: **Proposed** (2026-11-28)
+### FE1 — Route param patterns per route (found building F2) · Status: **Approved** (user, 2026-11-28)
 **Problem.** The router's `ParamGate` (02 §2) checks every child route param against the global `ROUTE_PARAM_PATTERNS` by name,
 and `reference` there is the payment pattern `^PAY-\d{8}-\d{6,}$`. So `/inbound/customers/:customerId/cases/:reference` (`SR-…`)
 would always render `NotFoundPage`, and `:customerId` would not be checked before the page mounts.
