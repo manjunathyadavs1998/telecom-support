@@ -5,7 +5,7 @@
 | Design | ☑ `docs/design/03-inbound/backend.md` + `openapi.yaml` — **Approved** rev 2 (review D1–D22 addressed; branch `design/03-inbound`) | ☑ `docs/design/03-inbound/frontend.md` — **Approved** rev 2 (review F1–F10 addressed; branch `design/03-inbound-fe`) |
 | Approved by user | ☑ 2026-11-26 (OQ defaults kept; also 00-overview rev 4, 01 E3, 02 E7) | ☑ 2026-11-27 (OQ defaults kept) |
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☑ F1–F14 confirmed 2026-11-27 (tests deferred) |
-| Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☐ branch `slice/03-inbound-fe` |
+| Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☑ branch `slice/03-inbound-fe` (F1–F14 + erratum FE1) |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
 | PR | ☑ #13 | ☐ #… |
@@ -61,7 +61,7 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 | F11 | Case detail | `features/inbound/cases/{CaseDetailPage.tsx,ActivityTimeline.tsx,RelatedCases.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.7 | INB-02.2–02.4, BR-04 | build; customer 1 INTERNAL note shows the "Internal" badge | ☑ |
 | F12 | Raise request on behalf | `features/inbound/cases/{RaiseRequestPage.tsx,raiseRequestSchema.ts,SeverityField.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.8, §6 | INB-03.1–03.5, §14 #4 | build; an INTERNAL-category request with override returns an `SR-…` shown with Copy | ☑ |
 | F13 | Reactivation eligibility + history | `features/inbound/reactivation/{ReactivationPage.tsx,EligibilityPanel.tsx,ReactivationHistory.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.9 | INB-04.1/04.2/04.5/04.6 | build; customer 7 shows "never be overridden"; IN001 sees History only | ☑ |
-| F14 | Reactivation request + outcomes | `features/inbound/reactivation/{ReactivationForm.tsx,reactivationSchema.ts,ConfirmReactivationDialog.tsx,queries.ts}`, `docs/requirements/traceability.md` | §3.9, §6 | INB-04.1–04.4/04.7, XC-07 | build; customer 6 (IN002) → "Service restored until … will be notified"; `check-frontend.sh` green; slice 03 FE rows `Built` | ☐ |
+| F14 | Reactivation request + outcomes | `features/inbound/reactivation/{ReactivationForm.tsx,reactivationSchema.ts,ConfirmReactivationDialog.tsx,queries.ts}`, `docs/requirements/traceability.md` | §3.9, §6 | INB-04.1–04.4/04.7, XC-07 | build; customer 6 (IN002) → "Service restored until … will be notified"; `check-frontend.sh` green; slice 03 FE rows `Built` | ☑ (ci/typecheck/lint/build/gen:api:check green; `test` 565/568 — 3 stale `navConfig.test.ts` expectations, see test plan) |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Backend: B1–B20 + review fixes C3–C12; errata E1 (a0ec005, V10 `agent_kba_windows`) and E2 (4cf756d, FAILED re-checked 24 h); E1/E2 tests deferred by the user; next for BE: E1/E2 tests, then `merge-steward` PR (#13).
@@ -79,4 +79,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 - F11: Case detail (summary, description, contact, SLA; activity timeline with Visible/Internal badges + lock icon; possible duplicates ≤ 5; 404 → "Request not found for this customer"; title "Request SR-…"). Browser check pending.
 - F12: Raise request on behalf (I11 grouped categories, subcategory, line select / read-only, statement, internal agent notes, preferred contact with unverified email disabled, derived priority + override with reason; idempotency key on the concrete path, kept on 403 verification-required; confirmation with Copy reference). Browser check pending.
 - F13: Reactivation page (eligibility facts + plain-word reasons, prohibited = danger alert, open request links to its history row; approver-only via `Can service.reactivate`; history with honest status copy, needs-attention badge, date filter/paging, 15 s poll while page 1 in flight). Browser check pending.
-- Next: F14 (reactivation request + outcomes, traceability).
+- F14: Reactivation form (hours/reason/approval ref, confirm dialog, I14 with idempotency key; every §3.9 outcome incl. 503 PENDING watch → eligibility re-renders), traceability slice 03 FE rows Built. `navConfig.test.ts` 3 failures = stale child-route expectations (02 only).
+- Next: user tests feature-wise on the dev JAR (SPA built in), then reviewer → PR.

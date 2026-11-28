@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react'
 import { Can } from '@/permissions/Can'
 import { useVerifiedCustomer } from '../workspace/queries'
 import { EligibilityPanel } from './EligibilityPanel'
+import { ReactivationForm } from './ReactivationForm'
 import { ReactivationHistory } from './ReactivationHistory'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -29,7 +30,11 @@ export function ReactivationPage() {
           allOf={['service.reactivate']}
           fallback={<p className="text-muted-foreground">Only reactivation approvers can restore service</p>}
         >
-          <EligibilityPanel customerId={customerId} enabled={verified} />
+          <EligibilityPanel
+            customerId={customerId}
+            enabled={verified}
+            renderForm={(eligibility) => <ReactivationForm customerId={customerId} eligibility={eligibility} />}
+          />
         </Can>
       </Section>
       <Section title="History">

@@ -1,8 +1,16 @@
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { OWN_FORBIDDEN_HANDLING } from '@/app/queryClient'
 import type { ListApiQuery } from '@/components/data/useListParams'
 import { api, apiClient } from '@/services/api/client'
-import type { ApiError } from '@/services/api/errors'
-import type { ReactivationEligibility, ReactivationPage, ReactivationStatus } from '@/types/api'
+import { ApiError } from '@/services/api/errors'
+import type {
+  Reactivation,
+  ReactivationEligibility,
+  ReactivationPage,
+  ReactivationProblem,
+  ReactivationRequest,
+  ReactivationStatus,
+} from '@/types/api'
 import { inboundKeys } from '../verificationState'
 import { INBOUND_STALE_TIME_MS, withVerification } from '../workspace/queries'
 
@@ -72,4 +80,38 @@ export function invalidateReactivation(queryClient: ReturnType<typeof useQueryCl
       return Array.isArray(part) && part[0] === 'reactivations'
     },
   })
+}
+
+/** The I14 path, also the idempotency key's scope: concrete, so a key never crosses customers (§3.9). */
+export const reactivationCreatePath = (customerId: number) => `/agent/customers/${customerId}/reactivations`
+
+export type CreateReactivationVariables = { idempotencyKey: string; body: ReactivationRequest }
+
+/** I14 request a temporary restoration (INB-04.1–04.4, NFR-REL): never optimistic (XC-07); the form shows its own 403. */
+export function useCreateReactivation(customerId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ idempotencyKey, body }: CreateReactivationVariables): Promise<Reactivation> =>
+      withVerification(queryClient, customerId, () =>
+        api.call(
+          apiClient.POST('/api/v1/agent/customers/{customerId}/reactivations', {
+            params: { path: { customerId }, header: { 'Idempotency-Key': idempotencyKey } },
+            body,
+          }),
+        ),
+      ),
+    meta: OWN_FORBIDDEN_HANDLING,
+    gcTime: 0,
+  })
+}
+
+/** The I14 problem fields (§3.9 table), checked at runtime. */
+export function reactivationProblem(error: unknown): Pick<ReactivationProblem, 'reasons' | 'reference' | 'reactivationStatus'> {
+  if (!(error instanceof ApiError) || error.problem === null) return {}
+  const problem = error.problem as ReactivationProblem
+  return {
+    reasons: Array.isArray(problem.reasons) ? problem.reasons : undefined,
+    reference: typeof problem.reference === 'string' ? problem.reference : null,
+    reactivationStatus: typeof problem.reactivationStatus === 'string' ? problem.reactivationStatus : null,
+  }
 }
