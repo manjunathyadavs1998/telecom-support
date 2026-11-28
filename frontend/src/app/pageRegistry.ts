@@ -19,4 +19,19 @@ export const PAGE_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
   'customer-payment-pay': () => import('@/features/customer/payments/PayBillPage'),
   'customer-payment-status': () => import('@/features/customer/payments/PaymentStatusPage'),
   'customer-payment-receipt': () => import('@/features/customer/payments/ReceiptPage'),
+  'inbound-search': () => import('@/features/inbound/search/CustomerSearchPage'),
+  'inbound-customer': () => import('@/features/inbound/workspace/OverviewPage'),
+  'inbound-billing': () => import('@/features/inbound/billing/BillingPage'),
+  'inbound-cases': () => import('@/features/inbound/cases/CaseListPage'),
+  'inbound-case': () => import('@/features/inbound/cases/CaseDetailPage'),
+  'inbound-case-new': () => import('@/features/inbound/cases/RaiseRequestPage'),
+  'inbound-reactivation': () => import('@/features/inbound/reactivation/ReactivationPage'),
+}
+
+/**
+ * `NavChild.layout` id → its layout component (03-inbound/frontend.md §2), which renders `<Outlet/>` for the child's page and
+ * every page nested under it. An id without an entry renders the pages bare.
+ */
+export const LAYOUT_REGISTRY: Readonly<Partial<Record<string, LazyPage>>> = {
+  'inbound-workspace': () => import('@/features/inbound/workspace/WorkspaceFrame'),
 }

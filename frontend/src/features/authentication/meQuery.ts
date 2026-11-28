@@ -5,6 +5,7 @@ import { api, apiClient } from '@/services/api/client'
 import { authChannel, type AuthEvent } from '@/services/api/authChannel'
 import { bootstrapCsrf } from '@/services/api/csrf'
 import { claimIdempotencyRecords, clearIdempotencyRecords } from '@/services/api/idempotency'
+import { useInboundSessionStore } from '@/stores/inboundSessionStore'
 import type { Me } from '@/types/api'
 
 let csrfBootstrap: Promise<void> | null = null
@@ -87,6 +88,8 @@ export function applySignedOut(client: QueryClient): void {
  */
 export function applySessionChangedElsewhere(client: QueryClient, event: AuthEvent): void {
   client.clear()
+  // 03-inbound/frontend.md §5: the memory-only lookup tokens go with the cache (user decision 2026-11-28).
+  useInboundSessionStore.getState().clear()
   if (event === 'logout') clearIdempotencyRecords()
   void client.prefetchQuery(meQuery)
 }

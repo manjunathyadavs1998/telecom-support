@@ -3,8 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { newCorrelationId as uuidV4 } from './client'
 import { ApiError } from './errors'
 
-/** The idempotent operations of slice 02 (backend.md E7, E9, E12, E15). */
-export type IdempotentOperation = 'PLAN_CHANGE' | 'PROMOTION_CLAIM' | 'CASE_CREATE' | 'PAYMENT_INITIATE'
+/**
+ * The idempotent operations of slice 02 (backend.md E7, E9, E12, E15) and slice 03 (03-inbound/frontend.md §4: I12, I14;
+ * in-memory only, never persisted).
+ */
+export type IdempotentOperation =
+  | 'PLAN_CHANGE'
+  | 'PROMOTION_CLAIM'
+  | 'CASE_CREATE'
+  | 'PAYMENT_INITIATE'
+  | 'CASE_CREATE_ONBEHALF'
+  | 'REACTIVATION_CREATE'
 
 /** What `persist` keeps in sessionStorage: no request body and no PII, only a hash of it (NFR-PRIV). */
 export type IdempotencyRecord = { key: string; bodyHash: string; reference?: string; savedAt: number }
