@@ -78,4 +78,33 @@ class CaseActivityRepository {
                         rs.getString("new_value"), rs.getString("note_text"),
                         rs.getObject("created_at", LocalDateTime.class).toInstant(ZoneOffset.UTC)));
     }
+    private static final String INSERT_ROW = """
+            INSERT INTO case_activity (case_id, activity_type, visibility, actor_user_id, old_value, new_value,
+                                       note_text, created_at)
+            VALUES (:caseId, :type, :visibility, :actorUserId, :oldValue, :newValue, :note, :now)
+            """;
+
+    /** R5/R6: ASSIGNED, INTERNAL, old/new user id ({@code note} = the reassign reason). */
+    void insertAssigned(long caseId, long actorUserId, Long fromUserId, long toUserId, String note, Instant now) {
+        insert(caseId, "ASSIGNED", "INTERNAL", actorUserId, fromUserId == null ? null : String.valueOf(fromUserId),
+                String.valueOf(toUserId), note, now);
+    }
+
+    /** R5–R9: STATUS_CHANGED, PUBLIC (customers see the public mapping); actor null for the auto-close job. */
+    void insertStatusChanged(long caseId, Long actorUserId, String from, String to, Instant now) {
+        insert(caseId, "STATUS_CHANGED", "PUBLIC", actorUserId, from, to, null, now);
+    }
+
+    /** R7 remarks and R10 notes: NOTE with the given visibility. */
+    void insertNote(long caseId, long actorUserId, String visibility, String text, Instant now) {
+        insert(caseId, "NOTE", visibility, actorUserId, null, null, text, now);
+    }
+
+    private void insert(long caseId, String type, String visibility, Long actorUserId, String oldValue,
+                        String newValue, String note, Instant now) {
+        jdbc.update(INSERT_ROW, new MapSqlParameterSource()
+                .addValue("caseId", caseId).addValue("type", type).addValue("visibility", visibility)
+                .addValue("actorUserId", actorUserId).addValue("oldValue", oldValue).addValue("newValue", newValue)
+                .addValue("note", note).addValue("now", LocalDateTime.ofInstant(now, ZoneOffset.UTC)));
+    }
 }

@@ -194,7 +194,7 @@ Checks that apply to **every** slice are listed once; slices refer to them as CM
 | BE time mapping (found in F7) | I1 `verifiedUntil`, I4 `validUntil`, contact verification `expiresAt` equal the stored UTC instant on a non-UTC JVM (`-Duser.timezone=Asia/Kolkata`) | untested; fixed in PR #17 (regression test deferred) | P0 |
 | FE (to design) | Masked search; OTP/KBA dialogs (remaining attempts, lockout); verified banner + timeout; case timeline with internal-note badge; create-on-behalf form; reactivation wizard (blocked reasons, confirm, countdown); denied view for non-approvers; 3 viewports, axe | after FE design | P0 |
 
-### 3.4 Slice 04 Outbound workspace (OUT-01..06; no design yet)
+### 3.4 Slice 04 Outbound workspace (BE built on `slice/04-outbound-be`, design `04-outbound/backend.md` §9; ITs deferred, manual API checks in `docs/slices/04-outbound/status.md`)
 
 | Area | Scenarios | Level | Pri |
 |---|---|---|---|
@@ -205,6 +205,7 @@ Checks that apply to **every** slice are listed once; slices refer to them as CM
 | Activity | Customer vs internal notes separate (BR-04); append-only; ordering | I | P0 |
 | Bookmarks | Per agent, idempotent add/remove, invisible to others; follow-up date validation | I, F | P2 |
 | Jobs | SLA breach / overdue at the boundary with mutable clock; escalation | I | P1 |
+| Deferred ITs (design §9) | `SchemaV11IT` (backfill, CHECKs, bookmarks PK); `OutboundQueueIT` (O1 counts = list totals, O2 filters/sort/window 400s, scope own/team/pool/all); `OutboundCaseDetailIT` (assignee-only MSISDN, INTERNAL gating, 404 out of scope); `CaseClaimIT` (20 parallel claims → 1×200 + 19×409, owner retry no-op); `CaseReassignIT` (403/422/409, audit old/new/reason); `CaseLifecycleTest` (every §3.1 pair) + `CaseStatusIT` (remarks 400, windows 422, stale 409); `CaseNoteIT` (idempotent replay/mismatch, PUBLIC rules); `CaseAutoCloseJobIT` (mutable clock, parallel runs, concurrent reopen); `BookmarkIT` (limit under parallel PUTs, changed/seen, own writes); `OutboundAuthzIT` (O1–O13 × CUSTOMER/INBOUND/BUSINESS 403, anonymous 401, OUT on O7 403); `ProfileGuardIT` (`auto-close-cron: -` refused in prod) | untested (manual checks only) | P0 |
 | FE / E2E | Queue at 3 viewports; filters in URL; claim-conflict toast; status dialog confirm (XC-06); keyboard-only triage | F, E, A | P1 |
 
 ### 3.5 Slice 05 Business operations (BUS-01..03; no design yet)

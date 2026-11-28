@@ -262,4 +262,141 @@ class CaseRepository {
                         "toExclusive", utc(toExclusive)))
                 .addValue("reference", reference);
     }
+    // ---------------------------------------------------------------- outbound (04-outbound backend R4, §3.2)
+
+    /** One case as the outbound detail and the command service see it (R4, §3.2); {@code bookmarked} for the actor. */
+    record OutboundCaseRow(long id, String reference, long accountId, String categoryName, String subcategoryName,
+                           String caseType, String channel, String subject, String description, String severity,
+                           String status, String preferredContact, String contactMsisdn, long createdByUserId,
+                           Long assignedTeamId, Long assignedUserId, Instant responseDueAt, Instant slaDueAt,
+                           Instant createdAt, Instant updatedAt, Instant resolvedAt, Long resolvedByUserId,
+                           String resolutionRemarks, Instant closedAt, String closureType, int reopenCount, int version,
+                           boolean bookmarked) {}
+
+    private static final String SELECT_OUTBOUND = """
+            SELECT c.id, c.reference, c.account_id, c.case_type, c.channel, c.subject, c.description, c.severity,
+                   c.status, c.preferred_contact, c.contact_msisdn, c.created_by_user_id, c.assigned_team_id,
+                   c.assigned_user_id, c.response_due_at, c.sla_due_at, c.created_at, c.updated_at, c.resolved_at,
+                   c.resolved_by_user_id, c.resolution_remarks, c.closed_at, c.closure_type, c.reopen_count, c.version,
+                   COALESCE(pc.name, cat.name) AS category_name,
+                   CASE WHEN pc.id IS NULL THEN NULL ELSE cat.name END AS subcategory_name,
+                   EXISTS (SELECT 1 FROM bookmarks b WHERE b.case_id = c.id AND b.user_id = :actorId) AS bookmarked
+            FROM cases c
+            JOIN categories cat ON cat.id = c.category_id
+            LEFT JOIN categories pc ON pc.id = cat.parent_id
+            WHERE c.reference = :reference
+            """;
+
+    /** §3.2 step 1: the case row locked until the end of the command's transaction (categories are not locked). */
+    private static final String LOCK_OUTBOUND = SELECT_OUTBOUND + """
+            FOR UPDATE OF c
+            """;
+
+    /** R4: the case by reference (scope is checked by the caller: out of scope is 404 there too). */
+    Optional<OutboundCaseRow> findOutbound(String reference, long actorId) {
+        return jdbc.query(SELECT_OUTBOUND, Map.of("reference", reference, "actorId", actorId), CaseRepository::mapOutbound)
+                .stream().findFirst();
+    }
+
+    /** §3.2 (1): locks and reads the case; empty when the reference is unknown. Must run inside a transaction. */
+    Optional<OutboundCaseRow> lockForCommand(String reference, long actorId) {
+        return jdbc.query(LOCK_OUTBOUND, Map.of("reference", reference, "actorId", actorId), CaseRepository::mapOutbound)
+                .stream().findFirst();
+    }
+
+    private static OutboundCaseRow mapOutbound(ResultSet rs, int rowNum) throws SQLException {
+        return new OutboundCaseRow(rs.getLong("id"), rs.getString("reference"), rs.getLong("account_id"),
+                rs.getString("category_name"), rs.getString("subcategory_name"), rs.getString("case_type"),
+                rs.getString("channel"), rs.getString("subject"), rs.getString("description"), rs.getString("severity"),
+                rs.getString("status"), rs.getString("preferred_contact"), rs.getString("contact_msisdn"),
+                rs.getLong("created_by_user_id"), rs.getObject("assigned_team_id", Long.class),
+                rs.getObject("assigned_user_id", Long.class), at(rs, "response_due_at"), at(rs, "sla_due_at"),
+                at(rs, "created_at"), at(rs, "updated_at"), at(rs, "resolved_at"),
+                rs.getObject("resolved_by_user_id", Long.class), rs.getString("resolution_remarks"),
+                at(rs, "closed_at"), rs.getString("closure_type"), rs.getInt("reopen_count"), rs.getInt("version"),
+                rs.getBoolean("bookmarked"));
+    }
+
+    /** UTC {@code DATETIME(6)} read as {@code LocalDateTime} (PR #17: never {@code Timestamp.toLocalDateTime()}). */
+    private static Instant at(ResultSet rs, String column) throws SQLException {
+        LocalDateTime value = rs.getObject(column, LocalDateTime.class);
+        return value == null ? null : value.toInstant(ZoneOffset.UTC);
+    }
+    /** R5/R6: owner, team and (CREATED → ASSIGNED) status in one guarded update. */
+    private static final String ASSIGN = """
+            UPDATE cases
+            SET assigned_user_id = :userId, assigned_team_id = :teamId, status = :status,
+                updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** R7–R9: the status and every resolution/closure column, in one guarded update. */
+    private static final String TRANSITION = """
+            UPDATE cases
+            SET status = :status, resolved_at = :resolvedAt, resolved_by_user_id = :resolvedBy,
+                resolution_remarks = :remarks, closed_at = :closedAt, closure_type = :closureType,
+                reopen_count = :reopenCount, updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** R10: a note is a material update (OUT-04.3). */
+    private static final String TOUCH = """
+            UPDATE cases
+            SET updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** The new column values of a status change (R7–R9). */
+    record TransitionValues(String status, Instant resolvedAt, Long resolvedBy, String remarks, Instant closedAt,
+                            String closureType, int reopenCount) {}
+
+    /** §3.2 (4): true when exactly one row changed (else the caller answers 409 {@code stale_version}). */
+    boolean assign(long id, int version, long userId, Long teamId, String status, Instant now) {
+        return jdbc.update(ASSIGN, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("userId", userId)
+                .addValue("teamId", teamId).addValue("status", status).addValue("now", utc(now))) == 1;
+    }
+
+    boolean transition(long id, int version, TransitionValues v, Instant now) {
+        return jdbc.update(TRANSITION, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("status", v.status())
+                .addValue("resolvedAt", v.resolvedAt() == null ? null : utc(v.resolvedAt()))
+                .addValue("resolvedBy", v.resolvedBy()).addValue("remarks", v.remarks())
+                .addValue("closedAt", v.closedAt() == null ? null : utc(v.closedAt()))
+                .addValue("closureType", v.closureType()).addValue("reopenCount", v.reopenCount())
+                .addValue("now", utc(now))) == 1;
+    }
+
+    boolean touch(long id, int version, Instant now) {
+        return jdbc.update(TOUCH, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("now", utc(now))) == 1;
+    }
+    /** R8 job: a RESOLVED case whose verification window has elapsed. */
+    record DueResolvedRow(long id, String reference) {}
+
+    private static final String FIND_DUE_RESOLVED = """
+            SELECT id, reference
+            FROM cases
+            WHERE status = 'RESOLVED' AND resolved_at <= :cutoff AND id > :after
+            ORDER BY id
+            LIMIT :limit
+            """;
+
+    /** §3.2: guarded on status and resolved_at, so a reopen or an agent's close meanwhile wins and nothing is written. */
+    private static final String AUTO_CLOSE = """
+            UPDATE cases
+            SET status = 'CLOSED', closed_at = :now, closure_type = 'WINDOW_ELAPSED', updated_at = :now,
+                version = version + 1
+            WHERE id = :id AND status = 'RESOLVED' AND resolved_at <= :cutoff
+            """;
+
+    List<DueResolvedRow> findDueResolved(Instant cutoff, long afterId, int limit) {
+        return jdbc.query(FIND_DUE_RESOLVED, Map.of("cutoff", utc(cutoff), "after", afterId, "limit", limit),
+                (rs, i) -> new DueResolvedRow(rs.getLong("id"), rs.getString("reference")));
+    }
+
+    /** True when this call closed the case. */
+    boolean autoClose(long id, Instant cutoff, Instant now) {
+        return jdbc.update(AUTO_CLOSE, Map.of("id", id, "cutoff", utc(cutoff), "now", utc(now))) == 1;
+    }
 }

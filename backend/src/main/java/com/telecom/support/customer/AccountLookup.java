@@ -4,7 +4,11 @@ import com.telecom.support.common.error.ApiExceptions.BusinessRuleException;
 import com.telecom.support.common.error.ApiExceptions.NotFoundException;
 import com.telecom.support.customer.AccountRepository.AccountRow;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -51,6 +55,9 @@ public class AccountLookup {
      */
     public record NotificationContacts(long customerId, String primaryMsisdn, String verifiedEmail) {}
 
+    /** 04 R3/R4: who a case belongs to, for queue rows and the case detail (never email or address). */
+    public record CaseCustomer(String customerRef, String customerName, String accountRef, AccountStatus accountStatus) {}
+
     private final AccountRepository accounts;
     private final CustomerRepository customers;
 
@@ -84,6 +91,26 @@ public class AccountLookup {
         return customers.findContactsByAccount(accountId)
                 .map(row -> new NotificationContacts(row.customerId(), row.primaryMsisdn(), row.verifiedEmail()))
                 .orElseThrow(() -> new NotFoundException("Account " + accountId + " not found"));
+    }
+
+    /** 04 R3/R4: account id → {@link CaseCustomer}; null and unknown ids are absent. One query, none for no ids. */
+    public Map<Long, CaseCustomer> caseContexts(Collection<Long> accountIds) {
+        List<Long> ids = accountIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, CaseCustomer> result = new HashMap<>();
+        accounts.findCaseContexts(ids).forEach((id, row) -> result.put(id, new CaseCustomer(row.customerRef(),
+                row.customerName(), row.accountRef(), AccountStatus.valueOf(row.accountStatus()))));
+        return Map.copyOf(result);
+    }
+
+    /**
+     * 04 R2 mobile filter: the accounts with a live (ACTIVE or SUSPENDED) line on this exact E.164 number. The number is
+     * never logged.
+     */
+    public List<Long> accountIdsByLiveMsisdn(String e164) {
+        return accounts.findAccountIdsByLiveMsisdn(e164);
     }
 
     private static CustomerAccount toAccount(AccountRow row) {

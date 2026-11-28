@@ -35,8 +35,9 @@ class SchemaV3toV6IT extends AbstractMySqlIT {
         assertThat(applied).containsExactly(
                 "V1__baseline.sql", "V2__identity_rbac_audit.sql", "V3__catalog.sql", "V4__customer.sql",
                 "V5__servicecase.sql", "V6__payment.sql", "V7__account_suspension.sql", "V8__inbound.sql",
-                "V9__reactivation_notification.sql",
-                "R__test_users.sql", "R__test_users_02_customer.sql", "R__test_users_03_inbound.sql");
+                "V9__reactivation_notification.sql", "V10__agent_kba_windows.sql", "V11__outbound.sql",
+                "R__test_users.sql", "R__test_users_02_customer.sql", "R__test_users_03_inbound.sql",
+                "R__test_users_04_outbound.sql");
         assertThat(count("SELECT COUNT(*) FROM customers WHERE customer_ref LIKE 'CUST-D-%'")).isZero();
     }
 
@@ -232,10 +233,10 @@ class SchemaV3toV6IT extends AbstractMySqlIT {
         assertThatThrownBy(() -> jdbc.update("""
                 INSERT INTO cases (reference, account_id, category_id, case_type, channel, subject, description, severity,
                                    status, preferred_contact, contact_msisdn, created_by_user_id, response_due_at,
-                                   sla_due_at, created_at, updated_at)
+                                   sla_due_at, created_at, updated_at, resolved_at, closed_at, closure_type)
                 SELECT :ref, account_id, category_id, case_type, channel, subject, description, severity, status,
                        preferred_contact, contact_msisdn, created_by_user_id, response_due_at, sla_due_at,
-                       created_at, updated_at
+                       created_at, updated_at, resolved_at, closed_at, closure_type
                 FROM cases WHERE reference = :ref
                 """, Map.of("ref", existing)))
                 .isInstanceOf(DataAccessException.class)

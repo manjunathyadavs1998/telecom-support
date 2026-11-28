@@ -2,8 +2,10 @@ package com.telecom.support.identity;
 
 import com.telecom.support.common.error.ApiExceptions.NotFoundException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class UserDirectory {
+
+    /** 04 R6/R13: an ACTIVE STAFF user holding {@code case.read.queue}, with the team a claim or reassign moves to. */
+    public record QueueAgent(long userId, String displayName, Long teamId, String teamName) {}
 
     private final UserRepository users;
 
@@ -45,6 +50,20 @@ public class UserDirectory {
         if (!users.lockForUpdate(userId)) {
             throw new NotFoundException("User " + userId + " not found");
         }
+    }
+
+    /** 04 R13: queue agents of {@code teamId}, or of all teams when it is null (supervisors); by display name. */
+    public List<QueueAgent> queueAgents(Long teamId) {
+        return users.findQueueAgents(teamId).stream().map(UserDirectory::toAgent).toList();
+    }
+
+    /** 04 R6: the reassign target, or empty when the user is not an ACTIVE STAFF queue agent. */
+    public Optional<QueueAgent> queueAgent(long userId) {
+        return users.findQueueAgent(userId).map(UserDirectory::toAgent);
+    }
+
+    private static QueueAgent toAgent(UserRepository.QueueAgentRow row) {
+        return new QueueAgent(row.id(), row.displayName(), row.teamId(), row.teamName());
     }
 
     private static Set<Long> distinct(Collection<Long> ids) {

@@ -96,6 +96,16 @@ app:
       mock:
         enabled: false            # in-memory provisioning (dev/test only; refused with prod by ProfileGuard)
         mode: NORMAL              # NORMAL | REJECT | UNAVAILABLE | TIMEOUT | SUSPEND_FAIL
+  outbound:                       # outbound workspace (04 backend §6 config, R8, R9, R11, R12, §3.2)
+    verification-window: 3d       # RESOLVED -> CLOSED WINDOW_ELAPSED only after this (OQ 4)
+    reopen-window: 7d             # CLOSED -> REOPENED only within this (OQ 5)
+    bookmark-limit: 200           # bookmarks per agent -> 422 bookmark_limit (R11)
+    bookmark-notifications:
+      enabled: true               # in-app "changed since seen" (OQ 8, no email)
+    auto-close-cron: "0 */5 * * * *"  # CaseAutoCloseJob; "-" disables it (tests only; refused in prod)
+    auto-close:
+      page-size: 100
+      run-budget: 50s
   notification:                   # customer notification outbox (03 backend R16, §6, §8)
     dispatch-cron: "*/30 * * * * *"   # NotificationDispatchJob; "-" disables it (tests only; refused in prod)
     max-attempts: 3               # the 3rd failed send makes a row FAILED (backoff 1 / 5 / 15 min)

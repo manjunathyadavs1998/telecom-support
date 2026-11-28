@@ -26,7 +26,9 @@ import org.testcontainers.containers.MySQLContainer;
                 "app.reactivation.provisioning.mock.enabled=true", "app.reactivation.reconcile-cron=-",
                 "app.reactivation.expiry-cron=-",
                 // IdentityCheckCleanupJob runs only when a test calls run() (review C5: no wall-clock purges mid-test)
-                "app.inbound.identity-check.cleanup-cron=-"})
+                "app.inbound.identity-check.cleanup-cron=-",
+                // CaseAutoCloseJob runs only when a test calls run() (04 backend §3.2)
+                "app.outbound.auto-close-cron=-"})
 public abstract class AbstractMySqlIT {
 
     /** Password of every user in {@code db/test-data/R__test_users.sql}. */

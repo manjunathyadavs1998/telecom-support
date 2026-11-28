@@ -160,12 +160,16 @@ UPDATE users SET customer_id = NULL WHERE username = '+919900000004';
 -- customer, plus one older than 3 months). References use the seq range 900001+ so they never meet generated ones.
 INSERT INTO cases (reference, account_id, subscription_id, category_id, case_type, channel, subject, description,
                    severity, status, preferred_contact, contact_msisdn, created_by_user_id, response_due_at, sla_due_at,
-                   created_at, updated_at)
+                   created_at, updated_at, resolved_at, closed_at, closure_type)
 SELECT CONCAT('SR-', DATE_FORMAT(CONVERT_TZ(k.created_at, '+00:00', @ist), '%Y%m%d'), '-', k.seq),
        a.id, NULL, cat.id, k.case_type, 'CUSTOMER_PORTAL', k.subject, k.description,
        k.severity, k.status, 'SMS', k.msisdn, u.id,
        k.created_at + INTERVAL k.response_minutes MINUTE, k.created_at + INTERVAL k.resolution_minutes MINUTE,
-       k.created_at, k.created_at
+       k.created_at, k.created_at,
+       -- V11 (04-outbound §2): RESOLVED/CLOSED rows carry resolved_at; CLOSED rows closed_at + closure_type (as the backfill).
+       CASE WHEN k.status IN ('RESOLVED', 'CLOSED') THEN k.created_at END,
+       CASE WHEN k.status = 'CLOSED' THEN k.created_at END,
+       CASE WHEN k.status = 'CLOSED' THEN 'WINDOW_ELAPSED' END
 FROM (
     SELECT 'ACC-T-0001' AS account_ref, '+919900000001' AS username, '+919900000001' AS msisdn, '900001' AS seq,
            'SLOW_DATA' AS category_code, 'COMPLAINT' AS case_type, 'HIGH' AS severity, 'IN_PROGRESS' AS status,

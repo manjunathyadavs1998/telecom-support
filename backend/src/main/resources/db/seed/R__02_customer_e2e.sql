@@ -14,13 +14,17 @@ SET @dev_pwd = '$2a$10$4//ohw58A7FSan6vQCJgruA9p7VtzKKbsKTPmW/kofHPcGRn.dmg2';  
 -- ---------------------------------------------------------------- customer 1: 20 cases, 1..80 days old
 INSERT INTO cases (reference, account_id, subscription_id, category_id, case_type, channel, subject, description,
                    severity, status, preferred_contact, contact_msisdn, created_by_user_id, response_due_at, sla_due_at,
-                   created_at, updated_at)
+                   created_at, updated_at, resolved_at, closed_at, closure_type)
 WITH RECURSIVE n (i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 20)
 SELECT CONCAT('SR-', DATE_FORMAT(CONVERT_TZ(k.created_at, '+00:00', @ist), '%Y%m%d'), '-', k.seq),
        a.id, NULL, cat.id, k.case_type, 'CUSTOMER_PORTAL', k.subject, k.description,
        k.severity, k.status, 'SMS', '+919800000001', u.id,
        k.created_at + INTERVAL k.response_minutes MINUTE, k.created_at + INTERVAL k.resolution_minutes MINUTE,
-       k.created_at, k.created_at
+       k.created_at, k.created_at,
+       -- V11 (04-outbound §2): RESOLVED/CLOSED rows carry resolved_at; CLOSED rows closed_at + closure_type (as the backfill).
+       CASE WHEN k.status IN ('RESOLVED', 'CLOSED') THEN k.created_at END,
+       CASE WHEN k.status = 'CLOSED' THEN k.created_at END,
+       CASE WHEN k.status = 'CLOSED' THEN 'WINDOW_ELAPSED' END
 FROM (
     SELECT CAST(900100 + n.i AS CHAR) AS seq,
            c.category_code, c.case_type, c.severity, c.response_minutes, c.resolution_minutes,
