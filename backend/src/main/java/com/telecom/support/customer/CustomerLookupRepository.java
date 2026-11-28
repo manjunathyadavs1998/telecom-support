@@ -1,6 +1,5 @@
 package com.telecom.support.customer;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -85,9 +84,10 @@ class CustomerLookupRepository {
     }
 
     Optional<Instant> verifiedUntil(long agentUserId, long customerId, Instant now) {
-        Timestamp until = jdbc.queryForObject(VERIFIED_UNTIL, Map.of("agentUserId", agentUserId,
-                "customerId", customerId, "now", utc(now)), Timestamp.class);
-        return Optional.ofNullable(until).map(t -> t.toLocalDateTime().toInstant(ZoneOffset.UTC));
+        // Read the UTC DATETIME as-is (00-overview: UTC DATETIME(6)); a Timestamp would shift it by the JVM zone.
+        LocalDateTime until = jdbc.queryForObject(VERIFIED_UNTIL, Map.of("agentUserId", agentUserId,
+                "customerId", customerId, "now", utc(now)), LocalDateTime.class);
+        return Optional.ofNullable(until).map(t -> t.toInstant(ZoneOffset.UTC));
     }
 
     /** Deletes lookups created before {@code cutoff}; returns the number removed. */
