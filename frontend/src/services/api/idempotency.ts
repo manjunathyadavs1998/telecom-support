@@ -4,8 +4,8 @@ import { newCorrelationId as uuidV4 } from './client'
 import { ApiError } from './errors'
 
 /**
- * The idempotent operations of slice 02 (backend.md E7, E9, E12, E15) and slice 03 (03-inbound/frontend.md §4: I12, I14;
- * in-memory only, never persisted).
+ * The idempotent operations of slice 02 (backend.md E7, E9, E12, E15), slice 03 (03-inbound/frontend.md §4: I12, I14) and
+ * slice 04 (04-outbound/frontend.md §4: O9); 03/04 ones are in-memory only, never persisted.
  */
 export type IdempotentOperation =
   | 'PLAN_CHANGE'
@@ -14,6 +14,7 @@ export type IdempotentOperation =
   | 'PAYMENT_INITIATE'
   | 'CASE_CREATE_ONBEHALF'
   | 'REACTIVATION_CREATE'
+  | 'CASE_NOTE_ADD'
 
 /** What `persist` keeps in sessionStorage: no request body and no PII, only a hash of it (NFR-PRIV). */
 export type IdempotencyRecord = { key: string; bodyHash: string; reference?: string; savedAt: number }
