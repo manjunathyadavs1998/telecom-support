@@ -36,7 +36,8 @@ class SchemaV3toV6IT extends AbstractMySqlIT {
                 "V1__baseline.sql", "V2__identity_rbac_audit.sql", "V3__catalog.sql", "V4__customer.sql",
                 "V5__servicecase.sql", "V6__payment.sql", "V7__account_suspension.sql", "V8__inbound.sql",
                 "V9__reactivation_notification.sql", "V10__agent_kba_windows.sql", "V11__outbound.sql",
-                "R__test_users.sql", "R__test_users_02_customer.sql", "R__test_users_03_inbound.sql");
+                "R__test_users.sql", "R__test_users_02_customer.sql", "R__test_users_03_inbound.sql",
+                "R__test_users_04_outbound.sql");
         assertThat(count("SELECT COUNT(*) FROM customers WHERE customer_ref LIKE 'CUST-D-%'")).isZero();
     }
 
