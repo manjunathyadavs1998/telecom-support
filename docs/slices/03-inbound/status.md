@@ -59,7 +59,7 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 | F9 | Billing page | `features/inbound/billing/{BillingPage.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.5 | INB-01.3, BR-05/06 | build; payments page 2 keeps the date filter | ☑ |
 | F10 | Case list | `features/inbound/cases/{CaseListPage.tsx,CaseFilters.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.6 | INB-02.1, XC-04/05 | build; status + sort survive paging and reload | ☑ |
 | F11 | Case detail | `features/inbound/cases/{CaseDetailPage.tsx,ActivityTimeline.tsx,RelatedCases.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.7 | INB-02.2–02.4, BR-04 | build; customer 1 INTERNAL note shows the "Internal" badge | ☑ |
-| F12 | Raise request on behalf | `features/inbound/cases/{RaiseRequestPage.tsx,raiseRequestSchema.ts,SeverityField.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.8, §6 | INB-03.1–03.5, §14 #4 | build; an INTERNAL-category request with override returns an `SR-…` shown with Copy | ☐ |
+| F12 | Raise request on behalf | `features/inbound/cases/{RaiseRequestPage.tsx,raiseRequestSchema.ts,SeverityField.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.8, §6 | INB-03.1–03.5, §14 #4 | build; an INTERNAL-category request with override returns an `SR-…` shown with Copy | ☑ |
 | F13 | Reactivation eligibility + history | `features/inbound/reactivation/{ReactivationPage.tsx,EligibilityPanel.tsx,ReactivationHistory.tsx,queries.ts}`, `app/pageRegistry.ts` | §3.9 | INB-04.1/04.2/04.5/04.6 | build; customer 7 shows "never be overridden"; IN001 sees History only | ☐ |
 | F14 | Reactivation request + outcomes | `features/inbound/reactivation/{ReactivationForm.tsx,reactivationSchema.ts,ConfirmReactivationDialog.tsx,queries.ts}`, `docs/requirements/traceability.md` | §3.9, §6 | INB-04.1–04.4/04.7, XC-07 | build; customer 6 (IN002) → "Service restored until … will be notified"; `check-frontend.sh` green; slice 03 FE rows `Built` | ☐ |
 
@@ -77,4 +77,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 - F9: Billing (I7 all invoices, I8 payments with 02 history rules via `useListParams`, no actions). Browser check pending (user tests feature-wise after F14).
 - F10: Cases list (date range, reference, status checkbox group, sort; URL state via `useListParams` `apiFilters`; internal + "Customer sees" status; owner/channel). Browser check pending.
 - F11: Case detail (summary, description, contact, SLA; activity timeline with Visible/Internal badges + lock icon; possible duplicates ≤ 5; 404 → "Request not found for this customer"; title "Request SR-…"). Browser check pending.
-- Next: F12 (raise request on behalf).
+- F12: Raise request on behalf (I11 grouped categories, subcategory, line select / read-only, statement, internal agent notes, preferred contact with unverified email disabled, derived priority + override with reason; idempotency key on the concrete path, kept on 403 verification-required; confirmation with Copy reference). Browser check pending.
+- Next: F13 (reactivation eligibility + history).

@@ -1,9 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { OWN_FORBIDDEN_HANDLING } from '@/app/queryClient'
 import type { ListParamsSchema } from '@/components/data/useListParams'
 import { requestReferenceSchema } from '@/features/customer/requests/queries'
 import { api, apiClient } from '@/services/api/client'
 import type { ApiError } from '@/services/api/errors'
-import type { AgentCaseDetail, CaseStatus } from '@/types/api'
+import type { AgentCaseCreated, AgentCaseCreateRequest, AgentCaseDetail, AgentCategory, CaseStatus } from '@/types/api'
 import { inboundKeys } from '../verificationState'
 import { INBOUND_STALE_TIME_MS, withVerification } from '../workspace/queries'
 
@@ -55,4 +56,48 @@ export const CASE_LIST_PARAMS: ListParamsSchema = {
   reference: requestReferenceSchema,
   status: CASE_STATUSES,
   sort: CASE_SORTS.map((sort) => sort.value),
+}
+
+/** I11 categories for an agent (INB-03.2): internal ones only when the server returns them (`case.category.internal`). */
+export function useAgentCategoriesQuery(enabled: boolean) {
+  return useQuery<AgentCategory[], ApiError>({
+    queryKey: inboundKeys.categories(),
+    queryFn: () => api.call(apiClient.GET('/api/v1/agent/case-categories')),
+    enabled,
+    staleTime: INBOUND_STALE_TIME_MS,
+  })
+}
+
+/** The I12 path, also the idempotency key's scope: concrete, so a key never crosses customers (§3.8). */
+export const caseCreatePath = (customerId: number) => `/agent/customers/${customerId}/cases`
+
+export type CreateCaseOnBehalfVariables = { idempotencyKey: string; body: AgentCaseCreateRequest }
+
+/**
+ * I12 create on behalf (INB-03, NFR-REL): never optimistic (XC-07). Own 403 handling (§6: the form shows it). A 201 invalidates
+ * every case list page of this customer.
+ */
+export function useCreateCaseOnBehalf(customerId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ idempotencyKey, body }: CreateCaseOnBehalfVariables): Promise<AgentCaseCreated> =>
+      withVerification(queryClient, customerId, () =>
+        api.call(
+          apiClient.POST('/api/v1/agent/customers/{customerId}/cases', {
+            params: { path: { customerId }, header: { 'Idempotency-Key': idempotencyKey } },
+            body,
+          }),
+        ),
+      ),
+    meta: OWN_FORBIDDEN_HANDLING,
+    gcTime: 0,
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: inboundKeys.customer(customerId),
+        predicate: (query) => {
+          const part = query.queryKey[3]
+          return Array.isArray(part) && part[0] === 'cases'
+        },
+      }),
+  })
 }
