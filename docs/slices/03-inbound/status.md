@@ -48,7 +48,7 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| F1 | Generated 03 types + idempotency ops | `scripts/gen-api.mjs`, `types/api/03-inbound.ts` (generated), `types/api/index.ts`, `services/api/idempotency.ts` | §4, §6 | NFR-REL | typecheck passes; `AgentCaseDetail`, `Reactivation`, `ReactivationProblem` importable from `@/types/api` | ☐ |
+| F1 | Generated 03 types + idempotency ops | `scripts/gen-api.mjs`, `types/api/03-inbound.ts` (generated), `types/api/index.ts`, `services/api/idempotency.ts` | §4, §6 | NFR-REL | typecheck passes; `AgentCaseDetail`, `Reactivation`, `ReactivationProblem` importable from `@/types/api` | ☑ |
 | F2 | Routes, nav children, layout route, param guard | `permissions/navConfig.ts` (`NavChild.layout`), `app/pageRegistry.ts` (`LAYOUT_REGISTRY`), `app/routes.tsx`, `features/inbound/useInboundParams.ts` | §2 | BR-10, XC-02 | build passes; IN001 on `/inbound/customers/1/cases` → ComingSoon, CUS001 → ForbiddenPage, `/inbound/customers/x` → NotFound | ☐ |
 | F3 | Labels, text, list params | `components/data/statusLabel.ts`, `lib/inboundText.ts`, `components/data/useListParams.ts` | §4 | INB-02.1, INB-04.1, XC-04 | typecheck + lint pass; 02 pages unchanged (build) | ☐ |
 | F4 | Token store + match cache + verification helpers + keys | `stores/inboundSessionStore.ts` (`{lookupToken, storedAt}` only), `features/inbound/verificationState.ts` (`isVerificationRequired`, `markVerificationLost`, `inboundKeys`, `rememberMatch`, `useCustomerMatch`, `serverNow`), `features/authentication/useLogout.ts` | §3.3, §4, §5 | INB-01.2, NFR-PRIV | typecheck passes; logout clears the store and the cache | ☐ |
@@ -65,5 +65,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Backend: B1–B20 + review fixes C3–C12; errata E1 (a0ec005, V10 `agent_kba_windows`) and E2 (4cf756d, FAILED re-checked 24 h); E1/E2 tests deferred by the user; next for BE: E1/E2 tests, then `merge-steward` PR (#13).
-- Frontend: `frontend.md` **Approved** rev 2 (2026-11-27, review F1–F10 addressed, branch `design/03-inbound-fe`, tests deferred by user).
-- Next: user reviews/approves the FE design (OQ defaults) → confirm F1–F14 → cut `slice/03-inbound-fe`.
+- Frontend: building on `slice/03-inbound-fe` (tests deferred by user). F1 done: 03 types generated, `index.ts` exports 03 names (identical 02 schemas reuse 02 names; 03 `VerificationProblem` → `InboundVerificationProblem`), idempotency ops added; ci/typecheck/lint/gen:api:check green.
+- Next: F2 (routes, nav children, layout route, param guard).

@@ -1,9 +1,10 @@
 // Public names for the generated contract types (frontend.md §7 Types). The generated files are never edited by hand.
 import type { components, paths as paths01 } from './01-foundation'
 import type { components as components02, paths as paths02 } from './02-customer'
+import type { components as components03, paths as paths03 } from './03-inbound'
 
-// 02-customer/frontend.md §7: one client over both slices' paths.
-export type paths = paths01 & paths02
+// 02-customer/frontend.md §7: one client over every slice's paths (03-inbound/frontend.md §4 adds the agent paths).
+export type paths = paths01 & paths02 & paths03
 export type Me = components['schemas']['Me']
 export type Permission = components['schemas']['Permission']
 export type ProblemDetail = components['schemas']['ProblemDetail']
@@ -43,3 +44,38 @@ export type PaymentPage = S02['PaymentPage']
 export type PaymentInitiateRequest = S02['PaymentInitiateRequest']
 export type PaymentInitiated = S02['PaymentInitiated']
 export type Receipt = S02['Receipt']
+
+// Slice 03 (03-inbound/openapi.yaml). Schemas identical to slice 02 (Money, Msisdn, Benefit, PlanSummary, PlanChange,
+// Subscription, Invoice, Payment, PaymentPage, PaymentStatus, Severity, PublicCaseStatus) reuse the names above.
+type S03 = components03['schemas']
+export type CustomerStatus = S03['CustomerStatus']
+export type AccountStatus = S03['AccountStatus']
+export type SuspensionReason = S03['SuspensionReason']
+export type CustomerSearch = S03['CustomerSearch']
+export type LookupToken = S03['LookupToken']
+export type CustomerMatch = S03['CustomerMatch']
+export type IdentityCheckMethod = S03['IdentityCheckMethod']
+export type IdentityCheckStart = S03['IdentityCheckStart']
+export type IdentityCheckConfirm = S03['IdentityCheckConfirm']
+export type IdentityCheck = S03['IdentityCheck']
+export type AgentCustomerProfile = S03['AgentCustomerProfile']
+export type CaseStatus = S03['CaseStatus']
+export type CaseChannel = S03['CaseChannel']
+export type AgentCaseSummary = S03['AgentCaseSummary']
+export type AgentCasePage = S03['AgentCasePage']
+export type CaseActivity = S03['CaseActivity']
+export type RelatedCase = S03['RelatedCase']
+export type AgentCaseDetail = S03['AgentCaseDetail']
+export type AgentCategory = S03['AgentCategory']
+export type AgentCaseCreateRequest = S03['AgentCaseCreateRequest']
+export type AgentCaseCreated = S03['AgentCaseCreated']
+export type EligibilityReason = S03['EligibilityReason']
+export type ReactivationEligibility = S03['ReactivationEligibility']
+export type ReactivationRequest = S03['ReactivationRequest']
+export type ReactivationStatus = S03['ReactivationStatus']
+export type Reactivation = S03['Reactivation']
+export type ReactivationPage = S03['ReactivationPage']
+export type FieldViolation = S03['FieldViolation']
+/** The identity-check problem (reasons differ from slice 02's contact `VerificationProblem`). */
+export type InboundVerificationProblem = S03['VerificationProblem']
+export type ReactivationProblem = S03['ReactivationProblem']
