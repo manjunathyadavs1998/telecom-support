@@ -105,17 +105,20 @@ public class AgentCaseQueryService {
     private final CaseRepository cases;
     private final CaseActivityRepository activity;
     private final UserDirectory users;
+    private final CaseTimelineAssembler timelines;
     private final Duration relatedWindow;
     private final Clock clock;
     private final ZoneId zone;
 
     AgentCaseQueryService(CaseRepository cases, CaseActivityRepository activity, UserDirectory users,
+                          CaseTimelineAssembler timelines,
                           // §6.1 lists no customer config API: read the key itself (validated by customer's binding)
                           @Value("${app.inbound.related-window:30d}") Duration relatedWindow, Clock clock,
                           @Value("${app.display-time-zone:Asia/Kolkata}") ZoneId zone) {
         this.cases = cases;
         this.activity = activity;
         this.users = users;
+        this.timelines = timelines;
         this.relatedWindow = relatedWindow;
         this.clock = clock;
         this.zone = zone;
@@ -166,10 +169,7 @@ public class AgentCaseQueryService {
                 .stream()
                 .map(r -> new RelatedCase(r.reference(), r.subject(), CaseStatus.valueOf(r.status()), r.createdAt()))
                 .toList();
-        List<CaseActivity> entries = timeline.stream()
-                .map(a -> new CaseActivity(a.activityType(), a.visibility(), owners.userName(a.actorUserId()),
-                        a.oldValue(), a.newValue(), a.noteText(), a.createdAt()))
-                .toList();
+        List<CaseActivity> entries = timelines.assemble(timeline);
 
         AgentCaseSummary s = summary(head, owners.of(head));
         return new AgentCaseDetail(s.reference(), s.categoryName(), s.subcategoryName(), s.subject(), s.caseType(),
