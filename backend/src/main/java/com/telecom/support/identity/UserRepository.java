@@ -81,6 +81,34 @@ public class UserRepository {
             SELECT id FROM users WHERE id = :id FOR UPDATE
             """;
 
+    /** 04 R6/R13: ACTIVE STAFF users holding {@code case.read.queue} through a role, with their team. */
+    record QueueAgentRow(long id, String displayName, Long teamId, String teamName) {}
+
+    private static final String SELECT_QUEUE_AGENTS = """
+            SELECT u.id, u.display_name, u.team_id, t.name AS team_name
+            FROM users u
+            LEFT JOIN teams t ON t.id = u.team_id
+            WHERE u.status = 'ACTIVE' AND u.user_type = 'STAFF'
+              AND EXISTS (SELECT 1
+                          FROM user_roles ur
+                          JOIN role_permissions rp ON rp.role_id = ur.role_id
+                          JOIN permissions p ON p.id = rp.permission_id
+                          WHERE ur.user_id = u.id AND p.code = 'case.read.queue')
+            """;
+
+    private static final String FIND_QUEUE_AGENTS = SELECT_QUEUE_AGENTS + """
+            ORDER BY u.display_name, u.id
+            """;
+
+    private static final String FIND_QUEUE_AGENTS_OF_TEAM = SELECT_QUEUE_AGENTS + """
+              AND u.team_id = :teamId
+            ORDER BY u.display_name, u.id
+            """;
+
+    private static final String FIND_QUEUE_AGENT = SELECT_QUEUE_AGENTS + """
+              AND u.id = :id
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public UserRepository(NamedParameterJdbcTemplate jdbc) {
@@ -132,6 +160,22 @@ public class UserRepository {
     /** Locks the user row until the end of the current transaction; false when it does not exist. */
     boolean lockForUpdate(long id) {
         return !jdbc.queryForList(LOCK_USER, Map.of("id", id), Long.class).isEmpty();
+    }
+
+    /** Queue agents of one team, or of every team when {@code teamId} is null. */
+    List<QueueAgentRow> findQueueAgents(Long teamId) {
+        return teamId == null
+                ? jdbc.query(FIND_QUEUE_AGENTS, Map.of(), UserRepository::mapQueueAgent)
+                : jdbc.query(FIND_QUEUE_AGENTS_OF_TEAM, Map.of("teamId", teamId), UserRepository::mapQueueAgent);
+    }
+
+    Optional<QueueAgentRow> findQueueAgent(long id) {
+        return jdbc.query(FIND_QUEUE_AGENT, Map.of("id", id), UserRepository::mapQueueAgent).stream().findFirst();
+    }
+
+    private static QueueAgentRow mapQueueAgent(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new QueueAgentRow(rs.getLong("id"), rs.getString("display_name"), rs.getObject("team_id", Long.class),
+                rs.getString("team_name"));
     }
 
     private Map<Long, String> idToName(String sql, Collection<Long> ids, String nameColumn) {
