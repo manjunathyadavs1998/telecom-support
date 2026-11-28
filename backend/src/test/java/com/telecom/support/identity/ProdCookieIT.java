@@ -28,7 +28,9 @@ import org.springframework.test.web.servlet.MvcResult;
         // 03 backend §6, §8: prod refuses the in-memory mocks and disabled 03 jobs, and needs non-mock adapters
         "app.notification.mock.enabled=false", "app.reactivation.provisioning.mock.enabled=false",
         "app.notification.dispatch-cron=0 0 0 1 1 *", "app.reactivation.reconcile-cron=0 0 0 1 1 *",
-        "app.reactivation.expiry-cron=0 0 0 1 1 *", "test.stub-adapters=all"})
+        "app.reactivation.expiry-cron=0 0 0 1 1 *",
+        // 04 backend R8: prod refuses a disabled auto-close job
+        "app.outbound.auto-close-cron=0 0 0 1 1 *", "test.stub-adapters=all"})
 @Import(StubProdAdapters.class)
 class ProdCookieIT extends AbstractMySqlIT {
 

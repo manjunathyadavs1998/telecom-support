@@ -25,6 +25,13 @@ class BookmarkRepository {
             SELECT id, assigned_user_id, assigned_team_id FROM cases WHERE reference = :reference
             """;
 
+    /**
+     * Review M1/M2: O10 takes the case row in shared mode first (the same row the bookmark FK check needs), then the
+     * actor's {@code users} row; commands lock the case row first too, so the two never wait in opposite order. A locking
+     * read also does not start the REPEATABLE READ snapshot, so the limit count after the user lock sees committed rows.
+     */
+    private static final String SHARE_CASE = FIND_CASE.strip() + " FOR SHARE";
+
     private static final String COUNT = """
             SELECT COUNT(*) FROM bookmarks WHERE user_id = :userId
             """;
@@ -78,6 +85,13 @@ class BookmarkRepository {
 
     Optional<CaseRef> findCase(String reference) {
         return jdbc.query(FIND_CASE, Map.of("reference", reference), (rs, i) -> new CaseRef(rs.getLong("id"),
+                rs.getObject("assigned_user_id", Long.class), rs.getObject("assigned_team_id", Long.class)))
+                .stream().findFirst();
+    }
+
+    /** The case locked in shared mode until the end of the transaction (O10). */
+    Optional<CaseRef> shareCase(String reference) {
+        return jdbc.query(SHARE_CASE, Map.of("reference", reference), (rs, i) -> new CaseRef(rs.getLong("id"),
                 rs.getObject("assigned_user_id", Long.class), rs.getObject("assigned_team_id", Long.class)))
                 .stream().findFirst();
     }

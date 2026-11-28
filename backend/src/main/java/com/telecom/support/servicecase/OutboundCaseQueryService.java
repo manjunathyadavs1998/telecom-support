@@ -263,7 +263,7 @@ public class OutboundCaseQueryService {
                 any && !terminal,
                 mayChange ? lifecycle.availableTargets(status, row.closedAt()) : List.of(),
                 actor.has(Permissions.CASE_NOTE_INTERNAL),
-                mayChange && status != CaseStatus.CLOSED);
+                actor.has(Permissions.CASE_STATUS_UPDATE) && (owner || any) && status != CaseStatus.CLOSED);
     }
 
     /** R3 rows: owner names and customer context in one batch call each. */

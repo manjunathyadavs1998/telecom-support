@@ -91,7 +91,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.assign(row.id(), row.version(), actor.id(), actor.teamId(), to.name(), now), reference);
         activity.insertAssigned(row.id(), actor.id(), null, actor.id(), null, now);
-        bookmarks.markSeen(actor.id(), row.id(), now);
+        markSeen(actor.id(), row.id(), now);
         if (to != status) {
             activity.insertStatusChanged(row.id(), actor.id(), status.name(), to.name(), now);
         }
@@ -104,6 +104,9 @@ public class CaseCommandService {
     /** O7 (R6, {@code case.assign.any}): assign to an ACTIVE queue agent; version-checked; team follows the agent. */
     @Transactional
     public OutboundCaseDetail reassign(String reference, long assigneeUserId, String reason, int version) {
+        if (reason == null || reason.strip().length() < 5 || reason.strip().length() > 500) {
+            throw new CaseFieldException("reason", "Enter a reason of 5 to 500 characters.");
+        }
         CurrentUser actor = CurrentUser.require();
         OutboundCaseRow row = lock(reference, actor);
         CaseStatus status = CaseStatus.valueOf(row.status());
@@ -122,7 +125,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.assign(row.id(), row.version(), assigneeUserId, target.teamId(), to.name(), now), reference);
         activity.insertAssigned(row.id(), actor.id(), row.assignedUserId(), assigneeUserId, reason, now);
-        bookmarks.markSeen(actor.id(), row.id(), now);
+        markSeen(actor.id(), row.id(), now);
         if (to != status) {
             activity.insertStatusChanged(row.id(), actor.id(), status.name(), to.name(), now);
         }
@@ -138,10 +141,10 @@ public class CaseCommandService {
                                            int version) {
         CurrentUser actor = CurrentUser.require();
         OutboundCaseRow row = lock(reference, actor);
-        requireOwnerOrAny(row, actor, "status change");
         if (row.assignedUserId() == null) {
             throw new CaseRuleException(Reason.UNASSIGNED, "Status change of " + reference);
         }
+        requireOwnerOrAny(row, actor, "status change");
         if (row.version() != version) {
             throw new CaseRuleException(Reason.STALE_VERSION, "Status change of " + reference + " at " + version);
         }
@@ -171,7 +174,7 @@ public class CaseCommandService {
         };
         guarded(cases.transition(row.id(), row.version(), values, now), reference);
         activity.insertStatusChanged(row.id(), actor.id(), from.name(), to.name(), now);
-        bookmarks.markSeen(actor.id(), row.id(), now);
+        markSeen(actor.id(), row.id(), now);
         if (text != null && !text.isEmpty()) {
             activity.insertNote(row.id(), actor.id(), "INTERNAL", text, now);
         }
@@ -219,7 +222,7 @@ public class CaseCommandService {
         Instant now = clock.instant();
         guarded(cases.touch(row.id(), row.version(), now), reference);
         activity.insertNote(row.id(), actor.id(), visibility, body, now);
-        bookmarks.markSeen(actor.id(), row.id(), now);
+        markSeen(actor.id(), row.id(), now);
         return new CaseActivity("NOTE", visibility, actor.displayName(), null, null, body, now);
     }
 
@@ -229,6 +232,13 @@ public class CaseCommandService {
         return cases.lockForCommand(reference, actor.id())
                 .filter(r -> scope.covers(r.assignedUserId(), r.assignedTeamId()))
                 .orElseThrow(() -> new NotFoundException("Outbound case " + reference + " not in scope"));
+    }
+
+    /** R12: own writes never flag; only an existing bookmark is touched (review M1: no gap lock otherwise). */
+    private void markSeen(long userId, long caseId, Instant now) {
+        if (bookmarks.exists(userId, caseId)) {
+            bookmarks.markSeen(userId, caseId, now);
+        }
     }
 
     private static void requireOwnerOrAny(OutboundCaseRow row, CurrentUser actor, String what) {

@@ -6,9 +6,9 @@
 | Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☐ |
 | Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☐ |
 | Built | ☐ branch `slice/04-outbound-be` | ☐ branch `slice/04-outbound-fe` |
-| Checks green | ☐ | ☐ |
-| Review clean (no open High) | ☐ `review.md` | ☐ `review-frontend.md` |
-| PR | ☐ #… | ☐ #… |
+| Checks green | ☑ `check-backend.sh` 611/611 (2026-11-28; ITs for 04 deferred) | ☐ |
+| Review clean (no open High) | ☑ `review.md`: 0 High; M1/M2 + L3/L4/L6/L7 fixed; L5/L8 open | ☐ `review-frontend.md` |
+| PR | ☑ #21 | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
@@ -50,5 +50,6 @@ To design (`ba-planner` frontend mode) after the backend design is approved; may
 - B3/B4 done: cross-module APIs (queue agents, case contexts, accounts by live MSISDN); scope, lifecycle table, properties, `CaseRuleException`; compile + ArchitectureTest 8/8.
 - B5–B10 done 2026-11-28, manual API checks on the dev JAR all as listed (claim race 200/409 with one ASSIGNED row + one audit; reassign 403/422/200/409; status 403/400/200/422×3/200; notes 201, replay one row (same content, JSON key order differs as in 02/03), mismatch 422, non-owner PUBLIC 403, CLOSED 422). Deviation: service-level 403s record reason `permission` (the recorder has no `not_owner` reason).
 - B11–B13 done 2026-11-28: auto-close closed seeded 900407 at the 14:10 run (WINDOW_ELAPSED, 1 activity + 1 audit, actor null); prod refuses `auto-close-cron: -`; bookmarks PUT×2 → 1 row, changed/seen/own-write as R12, `changedCount` scoped to S; authz sweep O1–O13 × CUSTOMER/IN001/BUS001 = 403, anonymous 401, OUT001 O7 403. Traceability rows Built; deferred ITs listed in test-plan §3.4.
-- Next: full `check-backend.sh`, reviewer, PR.
+- Review (`review.md`): 0 High, 2 Medium (bookmark lock order / cap race) fixed, Lows #3/#4/#6/#7 fixed, #5/#8 open. `check-backend.sh` 611/611 (after `ProdCookieIT` cron fix). PR #21.
+- Next: user merges #21; then slice 04 frontend design.
 - Blockers / open questions: none blocking; 18 OQs carry defaults (backend.md §10). Tests deferred (user, 2026-11-27).
