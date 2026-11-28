@@ -322,4 +322,53 @@ class CaseRepository {
         LocalDateTime value = rs.getObject(column, LocalDateTime.class);
         return value == null ? null : value.toInstant(ZoneOffset.UTC);
     }
+    /** R5/R6: owner, team and (CREATED → ASSIGNED) status in one guarded update. */
+    private static final String ASSIGN = """
+            UPDATE cases
+            SET assigned_user_id = :userId, assigned_team_id = :teamId, status = :status,
+                updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** R7–R9: the status and every resolution/closure column, in one guarded update. */
+    private static final String TRANSITION = """
+            UPDATE cases
+            SET status = :status, resolved_at = :resolvedAt, resolved_by_user_id = :resolvedBy,
+                resolution_remarks = :remarks, closed_at = :closedAt, closure_type = :closureType,
+                reopen_count = :reopenCount, updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** R10: a note is a material update (OUT-04.3). */
+    private static final String TOUCH = """
+            UPDATE cases
+            SET updated_at = :now, version = version + 1
+            WHERE id = :id AND version = :version
+            """;
+
+    /** The new column values of a status change (R7–R9). */
+    record TransitionValues(String status, Instant resolvedAt, Long resolvedBy, String remarks, Instant closedAt,
+                            String closureType, int reopenCount) {}
+
+    /** §3.2 (4): true when exactly one row changed (else the caller answers 409 {@code stale_version}). */
+    boolean assign(long id, int version, long userId, Long teamId, String status, Instant now) {
+        return jdbc.update(ASSIGN, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("userId", userId)
+                .addValue("teamId", teamId).addValue("status", status).addValue("now", utc(now))) == 1;
+    }
+
+    boolean transition(long id, int version, TransitionValues v, Instant now) {
+        return jdbc.update(TRANSITION, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("status", v.status())
+                .addValue("resolvedAt", v.resolvedAt() == null ? null : utc(v.resolvedAt()))
+                .addValue("resolvedBy", v.resolvedBy()).addValue("remarks", v.remarks())
+                .addValue("closedAt", v.closedAt() == null ? null : utc(v.closedAt()))
+                .addValue("closureType", v.closureType()).addValue("reopenCount", v.reopenCount())
+                .addValue("now", utc(now))) == 1;
+    }
+
+    boolean touch(long id, int version, Instant now) {
+        return jdbc.update(TOUCH, new MapSqlParameterSource()
+                .addValue("id", id).addValue("version", version).addValue("now", utc(now))) == 1;
+    }
 }
