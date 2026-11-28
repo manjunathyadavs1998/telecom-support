@@ -1,6 +1,6 @@
 # 04 Outbound assistant workspace — frontend design
 
-- Status: **Draft — Proposed** (awaiting approval) · Date: 2026-11-28
+- Status: **Approved** (revision 1) · Date: 2026-11-28 · approved by user 2026-11-28: OQ 1 memory-only mobile filter, OQ 5 page count + queue notice, OQ 6 confirm step for Resolve/Close/Reopen; other OQ defaults kept
 - BRD: OUT-01..OUT-06, BR-03, BR-04, BR-05/06, BR-10, XC-02..XC-08, NFR-PRIV, NFR-REL, NFR-SEC, §14 #3, #7, #12
 - Backend contract: [`openapi.yaml`](openapi.yaml) O1–O13, [`backend.md`](backend.md) (Approved rev 1). Review dispositions:
   `docs/slices/04-outbound/review.md` (**note:** that file and its fix commit `3c33320` are on `slice/04-outbound-be` only and are **not

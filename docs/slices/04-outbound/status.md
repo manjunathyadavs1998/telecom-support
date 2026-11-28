@@ -2,9 +2,9 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☐ `docs/design/04-outbound/frontend.md` — **Draft / Proposed** 2026-11-28 (branch `design/04-outbound-fe`), awaiting approval; 9 OQs with defaults |
-| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☐ |
-| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☐ F1–F12 proposed (confirm with the design approval) |
+| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☑ `docs/design/04-outbound/frontend.md` — **Approved** rev 1 2026-11-28 (branch `design/04-outbound-fe`) |
+| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☑ 2026-11-28 (OQ 1, 5, 6 as recommended; other defaults) |
+| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☑ F1–F12 confirmed 2026-11-28 |
 | Built | ☐ branch `slice/04-outbound-be` | ☐ branch `slice/04-outbound-fe` |
 | Checks green | ☐ | ☐ |
 | Review clean (no open High) | ☐ `review.md` | ☐ `review-frontend.md` |
