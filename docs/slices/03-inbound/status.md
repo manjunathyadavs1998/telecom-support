@@ -8,8 +8,8 @@
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☑ branch `slice/03-inbound-fe` (F1–F14 + erratum FE1) |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
 | Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☑ `review-frontend.md`: H1, H2, M3, M4 + L7/8/9/11 fixed; L5/6/10 open follow-ups |
-| PR | ☑ #13 | ☐ #… |
-| Merged (by user) | ☐ | ☐ |
+| PR | ☑ #13 | ☑ #18 |
+| Merged (by user) | ☑ #13 (+ fix #17, 2026-11-28) | ☑ #18 (2026-11-28) |
 
 ## Tasks — backend (refs are `backend.md` sections / rules / endpoints)
 
@@ -81,4 +81,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 - F13: Reactivation page (eligibility facts + plain-word reasons, prohibited = danger alert, open request links to its history row; approver-only via `Can service.reactivate`; history with honest status copy, needs-attention badge, date filter/paging, 15 s poll while page 1 in flight). Browser check pending.
 - F14: Reactivation form (hours/reason/approval ref, confirm dialog, I14 with idempotency key; every §3.9 outcome incl. 503 PENDING watch → eligibility re-renders), traceability slice 03 FE rows Built. `navConfig.test.ts` 3 failures = stale child-route expectations (02 only).
 - Review (2026-11-28): 2 High, 2 Medium, 7 Low; all High/Medium fixed (forms survive verification loss, no placeholder PII, reactivation notice above eligibility, frame survives a failed I4 refetch).
-- Next: user tests feature-wise on a rebuilt dev JAR, then `merge-steward` PR.
+- Slice 03 closed 2026-11-28: BE #13 + #17, FE design #15 + FE1 #16, FE #18 merged. Follow-ups: `navConfig.test.ts` expectations, review-frontend Lows #5/#6/#10, deferred tests (`docs/testing/test-plan.md` §3.3).
+- Next: slice 04 (outbound) backend design.
