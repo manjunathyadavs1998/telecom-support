@@ -2,9 +2,9 @@
 
 | Gate | Backend | Frontend |
 |---|---|---|
-| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☐ `docs/design/04-outbound/frontend.md` — to design (may run in parallel with the BE build, own worktree) |
-| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☐ |
-| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☐ |
+| Design | ☑ `docs/design/04-outbound/backend.md` + `openapi.yaml` — **Approved** rev 1 (branch `design/04-outbound`; design review skipped by the user) | ☑ `docs/design/04-outbound/frontend.md` — **Approved** rev 1 2026-11-28 (branch `design/04-outbound-fe`) |
+| Approved by user | ☑ 2026-11-28 (all OQ defaults) | ☑ 2026-11-28 (OQ 1, 5, 6 as recommended; other defaults) |
+| Tasks planned | ☑ B1–B13 confirmed 2026-11-28 | ☑ F1–F12 confirmed 2026-11-28 |
 | Built | ☐ branch `slice/04-outbound-be` | ☐ branch `slice/04-outbound-fe` |
 | Checks green | ☐ | ☐ |
 | Review clean (no open High) | ☐ `review.md` | ☐ `review-frontend.md` |
@@ -37,11 +37,24 @@ session, or SQL on the dev DB). The §9 tests (incl. the forbidden-role case of 
 
 ## Tasks — frontend (refs are `frontend.md` sections)
 
-To design (`ba-planner` frontend mode) after the backend design is approved; may run in parallel with the BE build.
+Paths under `frontend/src/` unless noted. **Tests are deferred** (user decision 2026-11-27): each task is done when `bash scripts/check-frontend.sh`
+(typecheck + lint + build, in the Linux container) is green **and** its named manual check passes against the dev JAR (dev seed 900401–900409;
+users OUT001, OUT002, OUT003, SUP001, IN001). The §7 tests go to `docs/testing/test-plan.md` in F12. Build only after the design is Approved.
 
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| F1 | — | | | | | ☐ |
+| F1 | Generated 04 types + `CASE_NOTE_ADD` | `scripts/gen-api.mjs`, `types/api/04-outbound.ts` (generated), `types/api/index.ts`, `services/api/idempotency.ts` | §4 Types, §4 idempotency | NFR-REL | checks green; `npm run gen:api -- --check` no drift; `OutboundCaseDetail`, `QueueSearch`, `BookmarkPage`, `CaseProblem` importable from `@/types/api` | ☐ |
+| F2 | Routes, nav gates, text helpers | `permissions/navConfig.ts` (`outbound-case` child + `params`, bookmarks `requires`), `lib/outboundText.ts` | §2, §4 `outboundText` | XC-02, BR-10, OUT-06 | checks green; IN001 on `/outbound` and `/outbound/bookmarks` → Forbidden with no `/api/v1/outbound` call (Network tab); `/outbound/cases/PAY-20261128-000001` → NotFound | ☐ |
+| F3 | Queue data layer: params, store, queries | `features/outbound/queue/{useQueueParams.ts,queries.ts}`, `stores/outboundQueueStore.ts`, `features/authentication/useLogout.ts` (clear store) | §3.1 filters, §4, §5 | OUT-02, XC-04/05, NFR-PRIV | checks green (no screen yet); its behaviour is checked in F4: `/outbound?status=BAD&from=2026-13-01` drops both params and shows the invalid-link notice | ☐ |
+| F4 | Queue page: summary tiles + table + paging | `features/outbound/queue/{QueuePage.tsx,SummaryTiles.tsx,QueueTable.tsx}`, `app/pageRegistry.ts` | §3.1 | OUT-01, OUT-02.2, XC-03 | as OUT001: tile counts equal O1; "Overdue" tile lists 900402 and is `aria-pressed`; page 2 + reload keep filters; OUT003 does not see 900403; SUP001 sees all seeded cases | ☐ |
+| F5 | Queue filters (incl. mobile, updated range, Clear all) | `features/outbound/queue/{QueueFilters.tsx,queueFilterSchema.ts}`, `components/data/DateRangeFilter.tsx` (`defaultLabel`), `features/outbound/queue/QueuePage.tsx` | §3.1 filters, §6 | OUT-02.1–02.4, NFR-PRIV | mobile `9800000001` finds the seeded cases and appears in neither the URL nor any query key (Query devtools); chip shows `••••0001`; updated range > 366 days → field error, no request; Clear all resets URL + store | ☐ |
+| F6 | Case detail (read) + timeline copy | `features/outbound/case/{CaseDetailPage.tsx,CaseSidePanels.tsx,queries.ts}`, `features/inbound/cases/ActivityTimeline.tsx`, `app/pageRegistry.ts` | §3.2 | OUT-04.1–04.4, BR-04 | OUT001 on 900403 sees the full number; OUT002 sees `******` + last 4; INTERNAL entries carry the Internal badge; OUT003 on 900403 → "isn't in your queue" | ☐ |
+| F7 | Claim (row + detail) with notice region | `features/outbound/case/{ClaimButton.tsx,queries.ts}`, `features/outbound/queue/{QueueTable.tsx,QueuePage.tsx}` | §3.3 claim | OUT-03.1, OUT-03.4, XC-07 | OUT001 and OUT002 in two browsers claim 900401 → one "now assigned to you", the other "Someone else claimed … first" with the new owner shown after refresh; the notice stays through the refetch | ☐ |
+| F8 | Status dialog with confirm step | `features/outbound/case/{StatusDialog.tsx,statusSchema.ts,queries.ts}`, `features/outbound/case/CaseDetailPage.tsx` | §3.3 status, §6 | OUT-05.1–05.5, XC-06, XC-07 | OUT001 on 900403: Resolved without remarks blocked client-side; with remarks → review step → Resolved, timeline shows it; Closed with window elapsed → hidden; two tabs → second submit shows the stale message with input kept; 900408 → Reopened works, 900409 offers no Reopened | ☐ |
+| F9 | Reassign dialog | `features/outbound/case/{ReassignDialog.tsx,reassignSchema.ts,queries.ts}`, `features/outbound/case/CaseDetailPage.tsx` | §3.3 reassign | OUT-03.2, OUT-03.3 | SUP001 reassigns 900404 to OUT003 with a reason → timeline "Reassigned from … to …"; OUT001 sees no Reassign button; reason of 4 chars → field error | ☐ |
+| F10 | Note composer (internal / customer comment) | `features/outbound/case/{NoteComposer.tsx,noteSchema.ts,queries.ts}`, `features/outbound/case/CaseDetailPage.tsx` | §3.3 notes | OUT-04.1, OUT-04.3, BR-04, NFR-REL | double-click "Add internal note" → one POST, one entry; OUT002 on 900403 sees no customer-comment option; typed text survives a window-focus refetch | ☐ |
+| F11 | Bookmarks: toggle, page, mark seen | `features/outbound/bookmarks/{BookmarksPage.tsx,queries.ts}`, `features/outbound/case/{BookmarkToggle.tsx,CaseDetailPage.tsx}`, `app/pageRegistry.ts` | §3.2 mark seen, §3.3 toggle, §3.4 | OUT-06.1–06.4 | OUT001: 900402 shows "Updated" and count 1; opening it and returning shows count 0; toggle on 900401 adds it; Remove works; OUT002 never sees OUT001's bookmarks | ☐ |
+| F12 | Queue bookmark notice, responsive/a11y pass, docs | `features/outbound/queue/QueuePage.tsx`, `docs/requirements/traceability.md`, `docs/testing/test-plan.md` (§7 rows) | §3.4 queue notice, §3 XC-08, §7 | OUT-06.4, XC-08 | checks green; keyboard-only walkthrough of claim → status → note; 375 px width shows cards and a usable filter panel; traceability OUT rows `FE Built` | ☐ |
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Done: backend design + openapi **Approved** 2026-11-28 with all OQ defaults, B1–B13 confirmed, traceability rows `Designed`.
@@ -50,5 +63,6 @@ To design (`ba-planner` frontend mode) after the backend design is approved; may
 - B3/B4 done: cross-module APIs (queue agents, case contexts, accounts by live MSISDN); scope, lifecycle table, properties, `CaseRuleException`; compile + ArchitectureTest 8/8.
 - B5–B10 done 2026-11-28, manual API checks on the dev JAR all as listed (claim race 200/409 with one ASSIGNED row + one audit; reassign 403/422/200/409; status 403/400/200/422×3/200; notes 201, replay one row (same content, JSON key order differs as in 02/03), mismatch 422, non-owner PUBLIC 403, CLOSED 422). Deviation: service-level 403s record reason `permission` (the recorder has no `not_owner` reason).
 - B11–B13 done 2026-11-28: auto-close closed seeded 900407 at the 14:10 run (WINDOW_ELAPSED, 1 activity + 1 audit, actor null); prod refuses `auto-close-cron: -`; bookmarks PUT×2 → 1 row, changed/seen/own-write as R12, `changedCount` scoped to S; authz sweep O1–O13 × CUSTOMER/IN001/BUS001 = 403, anonymous 401, OUT001 O7 403. Traceability rows Built; deferred ITs listed in test-plan §3.4.
-- Next: full `check-backend.sh`, reviewer, PR.
+- Next (BE): merged in PR #21 (`bb2bcc5`). **Note:** the review-fix commit `3c33320` (review M1/M2, L3, L4, L6, L7 and `review.md`) is on `slice/04-outbound-be` only, not in `main`; follow-up PR #22.
+- FE: `frontend.md` Draft/Proposed 2026-11-28 on `design/04-outbound-fe`; F1–F12 proposed; awaiting approval.
 - Blockers / open questions: none blocking; 18 OQs carry defaults (backend.md §10). Tests deferred (user, 2026-11-27).
