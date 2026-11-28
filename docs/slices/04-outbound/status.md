@@ -21,7 +21,7 @@ session, or SQL on the dev DB). The §9 tests (incl. the forbidden-role case of 
 
 | # | Task | Files (≤ ~5) | Design ref | BRD IDs | Done when | ☐/☑ |
 |---|---|---|---|---|---|---|
-| B1 | V11 schema + seed fixes | `db/migration/V11__outbound.sql`, `db/seed/R__02_customer.sql`, `db/seed/R__02_customer_e2e.sql`, test-data `R__test_users_02_customer.sql` (RESOLVED/CLOSED rows set `resolved_at`, `closed_at`, `closure_type`) | §2 | OUT-05.3, OUT-06.1, NFR-INTEG | dev JAR starts on a **fresh** dev DB and on the existing one (Flyway V11 applied, seeds load, CHECKs hold); `check-backend.sh` green | ☐ |
+| B1 | V11 schema + seed fixes | `db/migration/V11__outbound.sql`, `db/seed/R__02_customer.sql`, `db/seed/R__02_customer_e2e.sql`, test-data `R__test_users_02_customer.sql` (RESOLVED/CLOSED rows set `resolved_at`, `closed_at`, `closure_type`) | §2 | OUT-05.3, OUT-06.1, NFR-INTEG | dev JAR starts on a **fresh** dev DB and on the existing one (Flyway V11 applied, seeds load, CHECKs hold); `check-backend.sh` green | ☑ (+ `SchemaIT`, `SchemaV3toV6IT` expectations: V10/V11 in the migration list, V11 columns in the reference-unique copy) |
 | B2 | Dev + test seed for the outbound queue | `db/seed/R__04_outbound.sql`, test-data `R__test_users_04_outbound.sql` | §2 | OUT-01..06 | dev DB has the §2 rows: pool cases, OUTBOUND_N/S owned cases, one overdue CRITICAL, RESOLVED 4 days ago, CLOSED 3 and 10 days ago, OUT001 bookmarks (one changed) | ☐ |
 | B3 | Cross-module APIs | `identity/UserDirectory.java` (`queueAgents`, `queueAgent`), `identity/UserRepository.java`, `customer/AccountLookup.java` (`caseContexts`, `accountIdsByLiveMsisdn`), `customer/AccountRepository.java` | §6.1 | OUT-01.1, OUT-02, OUT-03.2, NFR-MAINT | compile + `ArchitectureTest` green (edges unchanged, repositories module-private) | ☐ |
 | B4 | Servicecase skeleton: scope, lifecycle, properties, problem reason | `servicecase/{OutboundScope,OutboundProperties,CaseLifecycle,CaseRuleException}.java`, `application.yml` (`app.outbound.*`) | §3 scope, §3.1, R8, R9, §6 | OUT-01.4, OUT-05.1, §14 #3/#7 | compile; `CaseLifecycle` encodes exactly the §3.1 table (reviewed against it); `CaseRuleException` renders `CaseProblem.reason` | ☐ |
@@ -45,5 +45,6 @@ To design (`ba-planner` frontend mode) after the backend design is approved; may
 
 ## Handoff (rewrite after every task, ≤ 5 lines)
 - Done: backend design + openapi **Approved** 2026-11-28 with all OQ defaults, B1–B13 confirmed, traceability rows `Designed`.
-- Next: merge the design PR (user), then cut `slice/04-outbound-be` from fresh `main` and start B1.
+- B1 done 2026-11-28 on `slice/04-outbound-be`: V11 applied on the existing dev DB (11 RESOLVED/CLOSED rows backfilled) and on a fresh DB (16 migrations, seeds load); `check-backend.sh` 611/611 after fixing 3 schema-test expectations (`SchemaV3toV6IT` had been missing V10 since 03 E1).
+- Next: B2 (outbound dev + test seed).
 - Blockers / open questions: none blocking; 18 OQs carry defaults (backend.md §10). Tests deferred (user, 2026-11-27).
