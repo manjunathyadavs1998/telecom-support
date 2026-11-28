@@ -66,7 +66,7 @@ function PromotionCard({ promotion, subscriptions }: PromotionCardProps) {
     <section
       id={promotion.code}
       aria-labelledby={headingId}
-      className="flex scroll-mt-4 flex-col gap-4 rounded-lg border bg-white p-4 md:p-6"
+      className="flex scroll-mt-4 flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6"
     >
       <div className="flex flex-col gap-1">
         <h2
@@ -148,7 +148,7 @@ export function PromotionsPage() {
         <div className="flex flex-col gap-6">
           {subscriptions.isError ? (
             // Without E5 the "Claimed for number ending …" lines can't be shown; say so instead of hiding them (FC8).
-            <section aria-label="Your numbers" className="rounded-lg border bg-white">
+            <section aria-label="Your numbers" className="enter-soft rounded-xl border border-line bg-surface shadow-soft-sm">
               <SectionErrorState
                 title={NUMBERS_ERROR_TITLE}
                 error={subscriptions.error}

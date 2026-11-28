@@ -2,9 +2,10 @@
 import type { components, paths as paths01 } from './01-foundation'
 import type { components as components02, paths as paths02 } from './02-customer'
 import type { components as components03, paths as paths03 } from './03-inbound'
+import type { components as components04, paths as paths04 } from './04-outbound'
 
 // 02-customer/frontend.md §7: one client over every slice's paths (03-inbound/frontend.md §4 adds the agent paths).
-export type paths = paths01 & paths02 & paths03
+export type paths = paths01 & paths02 & paths03 & paths04
 export type Me = components['schemas']['Me']
 export type Permission = components['schemas']['Permission']
 export type ProblemDetail = components['schemas']['ProblemDetail']
@@ -79,3 +80,27 @@ export type FieldViolation = S03['FieldViolation']
 /** The identity-check problem (reasons differ from slice 02's contact `VerificationProblem`). */
 export type InboundVerificationProblem = S03['VerificationProblem']
 export type ReactivationProblem = S03['ReactivationProblem']
+
+// Slice 04 (04-outbound/openapi.yaml). CaseStatus, CaseActivity, Severity and the other shared schemas keep their 02/03 names.
+type S04 = components04['schemas']
+export type QueueSummary = S04['QueueSummary']
+export type QueueSearch = S04['QueueSearch']
+export type QueueSort = S04['QueueSort']
+export type AssigneeFilter = S04['AssigneeFilter']
+export type AppliedFilters = S04['AppliedFilters']
+export type DateWindow = S04['DateWindow']
+export type CaseCustomer = S04['CaseCustomer']
+export type OutboundCaseSummary = S04['OutboundCaseSummary']
+export type OutboundCasePage = S04['OutboundCasePage']
+export type QueueCategory = S04['QueueCategory']
+export type QueueAgent = S04['QueueAgent']
+export type OutboundCaseDetail = S04['OutboundCaseDetail']
+export type AllowedActions = S04['AllowedActions']
+export type ClosureType = S04['ClosureType']
+export type ReassignRequest = S04['ReassignRequest']
+export type StatusChangeRequest = S04['StatusChangeRequest']
+export type NoteRequest = S04['NoteRequest']
+export type Bookmark = S04['Bookmark']
+export type BookmarkPage = S04['BookmarkPage']
+/** 409 / 422 problem with a machine-readable {@code reason} (04 backend §5). */
+export type CaseProblem = S04['CaseProblem']

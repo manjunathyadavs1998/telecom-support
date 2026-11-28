@@ -11,8 +11,8 @@ type EmptyStateProps = {
 /** Empty state (frontend.md §4, XC-03): nothing to show yet, with an optional next step. */
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-      <span aria-hidden="true" className="text-muted-foreground">
+    <div className="enter-soft flex flex-col items-center gap-3 px-4 py-12 text-center">
+      <span aria-hidden="true" className="rounded-full bg-surface-2 p-3 text-muted-foreground">
         {icon}
       </span>
       <h2 className="text-lg font-semibold text-foreground">{title}</h2>

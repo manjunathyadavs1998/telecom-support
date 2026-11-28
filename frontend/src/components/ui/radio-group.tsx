@@ -11,7 +11,7 @@ export function RadioGroupItem({ className, ...props }: ComponentProps<typeof Ra
   return (
     <RadioGroupPrimitive.Item
       className={cn(
-        'aspect-square size-4 shrink-0 rounded-full border border-slate-400 bg-white text-primary data-[state=checked]:border-primary',
+        'aspect-square size-4 shrink-0 rounded-full border border-line-strong bg-surface text-primary transition-soft hover:border-primary/60 data-[state=checked]:border-primary',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-destructive',
         className,
       )}

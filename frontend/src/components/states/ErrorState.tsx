@@ -28,7 +28,7 @@ export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
   }
 
   return (
-    <div role="alert" className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+    <div role="alert" className="enter-soft flex flex-col items-center gap-3 px-4 py-12 text-center">
       <h2 className="text-lg font-semibold text-destructive">{title}</h2>
       <p className="max-w-prose text-foreground">{detail}</p>
       {correlationId ? (
