@@ -30,8 +30,8 @@ type DataTableProps<T> = {
 export function DataTable<T>({ columns, rows, caption, busy = false, rowKey, className }: DataTableProps<T>) {
   const keyOf = (row: T, index: number) => (rowKey ? rowKey(row, index) : String(index))
   return (
-    <div aria-busy={busy} className={cn(busy && 'opacity-70 transition-opacity', className)}>
-      <div className="hidden md:block" data-testid="data-table-wide">
+    <div aria-busy={busy} className={cn('transition-opacity duration-200', busy && 'opacity-60', className)}>
+      <div className="hidden overflow-hidden rounded-xl border border-line bg-surface shadow-soft-sm md:block" data-testid="data-table-wide">
         <Table>
           <TableCaption className="sr-only">{caption}</TableCaption>
           <TableHeader>
@@ -54,7 +54,7 @@ export function DataTable<T>({ columns, rows, caption, busy = false, rowKey, cla
       </div>
       <ul aria-label={caption} className="flex flex-col gap-3 md:hidden" data-testid="data-table-cards">
         {rows.map((row, index) => (
-          <li key={keyOf(row, index)} className="rounded-lg border border-slate-200 bg-white p-4">
+          <li key={keyOf(row, index)} className="enter-soft rounded-xl border border-line bg-surface p-4 shadow-soft-sm">
             <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-2 text-sm">
               {columns.map((column) => (
                 <div key={column.id} className="contents">

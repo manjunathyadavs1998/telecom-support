@@ -3,12 +3,12 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
 const base =
-  'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60'
 
 const variants = {
-  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-  outline: 'border border-muted-foreground/40 bg-white text-foreground hover:bg-slate-100',
-  ghost: 'text-foreground hover:bg-slate-100',
+  default: 'bg-primary text-primary-foreground shadow-soft-sm hover:bg-primary/90 hover:shadow-soft-md',
+  outline: 'border border-line-strong bg-surface text-foreground shadow-soft-sm hover:bg-surface-hover hover:border-muted-foreground/50',
+  ghost: 'text-foreground hover:bg-surface-hover',
 } as const
 
 const sizes = {

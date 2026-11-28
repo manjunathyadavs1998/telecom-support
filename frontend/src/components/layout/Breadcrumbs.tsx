@@ -34,7 +34,7 @@ export function Breadcrumbs() {
                   {crumb.label}
                 </span>
               ) : (
-                <Link to={crumb.path} className="truncate rounded-sm hover:text-foreground hover:underline">
+                <Link to={crumb.path} className="transition-soft truncate rounded-sm hover:text-foreground hover:underline">
                   {crumb.label}
                 </Link>
               )}

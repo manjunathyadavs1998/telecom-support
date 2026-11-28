@@ -166,7 +166,7 @@ function PaymentResult({ payment, windowOpen, refetchFailed, onCheckAgain }: Res
   }
 
   return (
-    <section aria-label={`Payment ${payment.reference}`} className="flex flex-col gap-4 rounded-lg border bg-white p-4">
+    <section aria-label={`Payment ${payment.reference}`} className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4">
       {/* <output>: a polite live region (implicit `status` role); phrasing content only. */}
       <output aria-live="polite" className="flex flex-col gap-2">
         {pending ? (

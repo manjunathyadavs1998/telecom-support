@@ -15,16 +15,16 @@ type SheetContentProps = ComponentProps<typeof SheetPrimitive.Content> & {
 export function SheetContent({ title, closeLabel = 'Close', className, children, ...props }: SheetContentProps) {
   return (
     <SheetPrimitive.Portal>
-      <SheetPrimitive.Overlay className="fixed inset-0 z-40 bg-black/50" />
+      <SheetPrimitive.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200" />
       <SheetPrimitive.Content
         aria-describedby={undefined}
-        className={cn('fixed inset-y-0 left-0 z-50 flex h-full shadow-lg focus:outline-none', className)}
+        className={cn('fixed inset-y-0 left-0 z-50 flex h-full shadow-soft-lg focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left duration-250 ease-soft', className)}
         {...props}
       >
         <SheetPrimitive.Title className="sr-only">{title}</SheetPrimitive.Title>
         {children}
         <SheetPrimitive.Close
-          className="absolute top-4 right-3 rounded-md p-1 text-sidebar-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          className="absolute top-4 right-3 rounded-md p-1 text-sidebar-foreground hover:bg-surface/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           aria-label={closeLabel}
         >
           <X aria-hidden="true" className="size-5" />

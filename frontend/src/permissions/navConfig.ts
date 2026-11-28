@@ -138,8 +138,22 @@ export const NAV_ITEMS: readonly NavItem[] = [
       { id: 'inbound-reactivation', path: '/inbound/customers/:customerId/reactivation', label: 'Reactivation', requires: ['customer.profile.read'] },
     ],
   },
-  { id: 'outbound-queue', label: 'Case queue', icon: ListTodo, path: '/outbound', section: 'outbound', requires: ['case.read.queue'], brd: 'OUT-01..05', slice: '04' },
-  { id: 'outbound-bookmarks', label: 'Bookmarks', icon: Bookmark, path: '/outbound/bookmarks', section: 'outbound', requires: ['case.bookmark'], brd: 'OUT-06', slice: '04' },
+  {
+    id: 'outbound-queue',
+    label: 'Case queue',
+    icon: ListTodo,
+    path: '/outbound',
+    section: 'outbound',
+    requires: ['case.read.queue'],
+    brd: 'OUT-01..05',
+    slice: '04',
+    // 04-outbound/frontend.md §2: case detail; the reference pattern is the inbound one (SR-…).
+    children: [
+      { id: 'outbound-case', path: '/outbound/cases/:reference', label: (params) => params.reference ?? '', params: { reference: INBOUND_PARAM_PATTERNS.reference } },
+    ],
+  },
+  // 04 §2: the server needs case.read.queue + case.bookmark for O10–O13.
+  { id: 'outbound-bookmarks', label: 'Bookmarks', icon: Bookmark, path: '/outbound/bookmarks', section: 'outbound', requires: ['case.read.queue', 'case.bookmark'], brd: 'OUT-06', slice: '04' },
   {
     id: 'analytics',
     label: 'Analytics',

@@ -20,13 +20,19 @@ type SidebarProps = {
 /** The navy sidebar of the mock (frontend.md §3 Application shell): brand, main navigation, Logout at the bottom. */
 export function Sidebar({ groups, collapsed, onNavigate, onLogout, className }: SidebarProps) {
   return (
-    <div className={cn('flex h-full flex-col bg-sidebar text-sidebar-foreground print:hidden', collapsed ? 'w-16' : 'w-64', className)}>
+    <div
+      className={cn(
+        'flex h-full flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-soft print:hidden',
+        collapsed ? 'w-16' : 'w-64',
+        className,
+      )}
+    >
       <div className={cn('flex h-16 shrink-0 items-center gap-2 px-4', collapsed && 'justify-center px-0')}>
         <RadioTower aria-hidden="true" className="size-6 shrink-0" />
-        <span className={collapsed ? 'sr-only' : 'text-lg font-semibold text-white'}>Telecom</span>
+        <span className={collapsed ? 'sr-only' : 'text-lg font-semibold tracking-tight text-white'}>Telecom</span>
       </div>
       <NavList groups={groups} collapsed={collapsed} onNavigate={onNavigate} />
-      <Separator className="bg-white/10" />
+      <Separator className="bg-white/[0.08]" />
       <div className="p-2">
         <RailTooltip label="Logout" collapsed={collapsed}>
           <button type="button" onClick={onLogout} className={sidebarItemClass(false, collapsed)}>

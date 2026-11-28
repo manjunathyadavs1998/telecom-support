@@ -133,7 +133,7 @@ export function RequestListPage() {
 
   return (
     <PageContainer title="Service requests" description="Your requests and their status." actions={<NewRequestLink />}>
-      <div className="flex flex-col gap-4 rounded-lg border bg-white p-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 lg:flex-row lg:items-start lg:justify-between">
         <DateRangeFilter
           ref={filterRef}
           value={params}

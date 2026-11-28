@@ -7,6 +7,7 @@ import { api, apiClient } from '@/services/api/client'
 import { bootstrapCsrf } from '@/services/api/csrf'
 import { ApiError } from '@/services/api/errors'
 import { useInboundSessionStore } from '@/stores/inboundSessionStore'
+import { useOutboundQueueStore } from '@/stores/outboundQueueStore'
 import { useUiStore } from '@/stores/uiStore'
 import { applySignedOut } from './meQuery'
 
@@ -48,6 +49,7 @@ export function useLogout() {
           applySignedOut(queryClient)
           // 03-inbound/frontend.md §5: the memory-only lookup tokens go with the cache.
           useInboundSessionStore.getState().clear()
+          useOutboundQueueStore.getState().clear()
           useUiStore.getState().setMobileNavOpen(false)
           // Cleared first, so the login page never sees the old user. The router is on /login before the shell re-renders
           // on the empty cache, so the shell adds no "/login?returnTo=" redirect of its own: exactly one redirect.

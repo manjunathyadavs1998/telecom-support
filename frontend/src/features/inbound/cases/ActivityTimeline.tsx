@@ -15,9 +15,11 @@ function describe(entry: CaseActivity): string {
     case 'STATUS_CHANGED':
       return `Status changed: ${internalLabel(entry.oldValue)} → ${internalLabel(entry.newValue)}`
     case 'ASSIGNED':
+      // 04-outbound/frontend.md §3.2: reassignments name both owners; the reason is the entry's note.
+      if (entry.oldValue && entry.newValue) return `Reassigned from ${entry.oldValue} to ${entry.newValue}`
       return entry.newValue ? `Assigned to ${entry.newValue}` : 'Assignment changed'
     case 'NOTE':
-      return 'Note'
+      return entry.visibility === 'INTERNAL' ? 'Internal note' : 'Comment to the customer'
     default:
       return entry.type
   }
@@ -37,7 +39,7 @@ export function ActivityTimeline({ activity }: { activity: readonly CaseActivity
           <li
             // Activity has no id; the server order is stable.
             key={`${entry.at}-${index}`}
-            className={cn('flex flex-col gap-1 rounded-md border p-3', internal ? 'border-amber-300 bg-amber-50' : 'bg-white')}
+            className={cn('flex flex-col gap-1 rounded-md border p-3', internal ? 'border-internal-line bg-internal' : 'bg-surface')}
           >
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <time dateTime={entry.at} className="text-muted-foreground">
@@ -45,12 +47,12 @@ export function ActivityTimeline({ activity }: { activity: readonly CaseActivity
               </time>
               <span className="font-medium">{entry.actorName ?? 'System'}</span>
               {internal ? (
-                <Badge className="gap-1 border-amber-400 bg-amber-100 text-amber-900">
+                <Badge className="gap-1 border-internal-line bg-internal text-warning-foreground">
                   <Lock aria-hidden="true" className="size-3.5" />
                   Internal — never shown to the customer
                 </Badge>
               ) : (
-                <Badge className="gap-1 border-slate-300 bg-slate-100 text-slate-700">
+                <Badge className="gap-1 border-line-strong bg-surface-2 text-text-2">
                   <Eye aria-hidden="true" className="size-3.5" />
                   Visible to customer
                 </Badge>

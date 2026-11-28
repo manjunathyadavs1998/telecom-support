@@ -6,6 +6,7 @@ import { authChannel, type AuthEvent } from '@/services/api/authChannel'
 import { bootstrapCsrf } from '@/services/api/csrf'
 import { claimIdempotencyRecords, clearIdempotencyRecords } from '@/services/api/idempotency'
 import { useInboundSessionStore } from '@/stores/inboundSessionStore'
+import { useOutboundQueueStore } from '@/stores/outboundQueueStore'
 import type { Me } from '@/types/api'
 
 let csrfBootstrap: Promise<void> | null = null
@@ -90,6 +91,7 @@ export function applySessionChangedElsewhere(client: QueryClient, event: AuthEve
   client.clear()
   // 03-inbound/frontend.md §5: the memory-only lookup tokens go with the cache (user decision 2026-11-28).
   useInboundSessionStore.getState().clear()
+  useOutboundQueueStore.getState().clear()
   if (event === 'logout') clearIdempotencyRecords()
   void client.prefetchQuery(meQuery)
 }

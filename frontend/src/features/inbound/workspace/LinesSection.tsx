@@ -16,7 +16,7 @@ export function LinesSection() {
   const query = useAgentSubscriptionsQuery(customerId, verified)
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4 rounded-lg border bg-white p-4 md:p-6">
+    <section aria-labelledby={headingId} className="flex flex-col gap-4 enter-soft rounded-xl border border-line bg-surface shadow-soft-sm p-4 md:p-6">
       <h2 id={headingId} className="text-lg font-semibold text-foreground">
         Lines and plans
       </h2>
@@ -34,7 +34,7 @@ export function LinesSection() {
               <li key={line.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{line.msisdn}</span>
-                  {line.primary ? <Badge className="border-slate-300 bg-slate-100 text-slate-700">Primary</Badge> : null}
+                  {line.primary ? <Badge className="border-line-strong bg-surface-2 text-text-2">Primary</Badge> : null}
                   <StatusBadge kind="subscription" value={line.status} />
                 </div>
                 <p>
