@@ -1,6 +1,6 @@
 # 03 Inbound assistant workspace — frontend design
 
-- Status: **Approved** (revision 2, review F1–F10 addressed) · Date: 2026-11-27 · approved by user 2026-11-27 with OQ defaults
+- Status: **Approved** (revision 2, review F1–F10 addressed) · Date: 2026-11-27 · approved by user 2026-11-27 with OQ defaults · §9 erratum FE1 **proposed** 2026-11-28
 - BRD: INB-01..INB-04, BR-04, BR-05/06, BR-10, XC-02..XC-05, XC-07, XC-08, NFR-PRIV, NFR-REL, NFR-SEC, §14 #4
 - Backend contract: [`openapi.yaml`](openapi.yaml) I1–I15, [`backend.md`](backend.md) (Approved rev 2; §11 errata E1/E2 add
   audit/limit behaviour only, no API change)
@@ -238,3 +238,16 @@ Errors link via `aria-describedby`/`aria-invalid`; focus goes to the first inval
 | 6 | Accept 10-digit numbers in search/KBA | Yes, normalised to `+91…` (as 02 OQ 4) |
 | 7 | Severity override UX | Checkbox reveals Severity + required Reason; the derived value can't be "overridden" to itself |
 | 8 | Page sizes | 20 on lists, 5 on the overview requests card |
+
+## 9. Errata
+
+### FE1 — Route param patterns per route (found building F2) · Status: **Proposed** (2026-11-28)
+**Problem.** The router's `ParamGate` (02 §2) checks every child route param against the global `ROUTE_PARAM_PATTERNS` by name,
+and `reference` there is the payment pattern `^PAY-\d{8}-\d{6,}$`. So `/inbound/customers/:customerId/cases/:reference` (`SR-…`)
+would always render `NotFoundPage`, and `:customerId` would not be checked before the page mounts.
+**Change (§2, F2).** `NavChild` gains `params?: Readonly<Record<string, RegExp>>`. `ParamGate` checks each param against the
+pattern the matched child (or a child it nests under) declares, falling back to the global `ROUTE_PARAM_PATTERNS` (02 routes unchanged).
+Inbound children declare `customerId: ^\d{1,18}$` (all workspace children) and `reference: ^SR-\d{8}-\d{6,}$` (`inbound-case`).
+A mismatch renders `NotFoundPage` with no API call, as §2 already requires. `useInboundParams()` still parses the validated values
+(number `customerId`, string `reference`) for the pages. F2 files: + `app/RouteElements.tsx`.
+Tests (deferred, §7): `PAY-…` on the inbound case route and `SR-…` on the payment status route → NotFound; `/inbound/customers/x` → NotFound.
