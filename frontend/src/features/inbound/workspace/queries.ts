@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { createContext, useContext } from 'react'
 import { api, apiClient } from '@/services/api/client'
 import { ApiError } from '@/services/api/errors'
@@ -12,6 +12,14 @@ export const WARN_AT_MINUTES = 5
 export function minutesLeft(validUntil: string, serverNow: () => number): number {
   const ms = Date.parse(validUntil) - serverNow()
   return Number.isFinite(ms) && ms > 0 ? Math.ceil(ms / 60_000) : 0
+}
+
+/**
+ * `keepPreviousData` only while verified (review H2): once verification is lost the protected queries are removed, and the
+ * previous page must not come back as placeholder data behind the re-verify dialog (§3.3, NFR-PRIV).
+ */
+export function keepWhileVerified(verified: boolean) {
+  return <T,>(previous: T | undefined): T | undefined => (verified ? previous : undefined)
 }
 
 /** Lists and views of a verified customer (03-inbound/frontend.md §5): 30 s. */
@@ -131,7 +139,7 @@ export function useAgentCasesQuery(customerId: number, query: AgentCasesQuery, e
       ),
     enabled,
     staleTime: INBOUND_STALE_TIME_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepWhileVerified(enabled),
   })
 }
 

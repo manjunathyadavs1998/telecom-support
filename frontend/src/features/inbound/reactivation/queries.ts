@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { OWN_FORBIDDEN_HANDLING } from '@/app/queryClient'
 import type { ListApiQuery } from '@/components/data/useListParams'
 import { api, apiClient } from '@/services/api/client'
@@ -12,7 +12,7 @@ import type {
   ReactivationStatus,
 } from '@/types/api'
 import { inboundKeys } from '../verificationState'
-import { INBOUND_STALE_TIME_MS, withVerification } from '../workspace/queries'
+import { INBOUND_STALE_TIME_MS, keepWhileVerified, withVerification } from '../workspace/queries'
 
 /** The id of a history row, so an "already open" notice can link to it (§3.9). */
 export const historyRowId = (reference: string) => `reactivation-${reference}`
@@ -64,7 +64,7 @@ export function useReactivationHistoryQuery(customerId: number, query: ListApiQu
       ),
     enabled,
     staleTime: INBOUND_STALE_TIME_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepWhileVerified(enabled),
     refetchOnWindowFocus: true,
     refetchInterval: (current) => (page === 0 && hasInFlight(current.state.data) ? HISTORY_POLL_MS : false),
   })
@@ -73,6 +73,9 @@ export function useReactivationHistoryQuery(customerId: number, query: ListApiQu
 /** Refetch eligibility and every history page of the customer (after a create, or when a pending row settles). */
 export function invalidateReactivation(queryClient: ReturnType<typeof useQueryClient>, customerId: number) {
   void queryClient.invalidateQueries({ queryKey: inboundKeys.eligibility(customerId) })
+  // Review L9: the header (I5 account status) and the lines (I6) change with a restoration.
+  void queryClient.invalidateQueries({ queryKey: inboundKeys.profile(customerId) })
+  void queryClient.invalidateQueries({ queryKey: inboundKeys.subscriptions(customerId) })
   void queryClient.invalidateQueries({
     queryKey: inboundKeys.customer(customerId),
     predicate: (query) => {

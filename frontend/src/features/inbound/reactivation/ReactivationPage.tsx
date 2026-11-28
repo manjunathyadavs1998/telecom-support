@@ -33,7 +33,9 @@ export function ReactivationPage() {
           <EligibilityPanel
             customerId={customerId}
             enabled={verified}
-            renderForm={(eligibility) => <ReactivationForm customerId={customerId} eligibility={eligibility} />}
+            renderForm={(eligibility, onNotice) => (
+              <ReactivationForm customerId={customerId} eligibility={eligibility} onNotice={onNotice} />
+            )}
           />
         </Can>
       </Section>

@@ -1,10 +1,10 @@
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ListApiQuery } from '@/components/data/useListParams'
 import { api, apiClient } from '@/services/api/client'
 import type { ApiError } from '@/services/api/errors'
 import type { PaymentPage } from '@/types/api'
 import { inboundKeys } from '../verificationState'
-import { INBOUND_STALE_TIME_MS, withVerification } from '../workspace/queries'
+import { INBOUND_STALE_TIME_MS, keepWhileVerified, withVerification } from '../workspace/queries'
 
 /**
  * I8 payments of a verified customer (03-inbound/frontend.md §3.5; INB-01.3, BR-05/06): 02 Payment history rules — no dates =
@@ -26,6 +26,6 @@ export function useAgentPaymentsQuery(customerId: number, query: ListApiQuery, e
       ),
     enabled,
     staleTime: INBOUND_STALE_TIME_MS,
-    placeholderData: keepPreviousData,
+    placeholderData: keepWhileVerified(enabled),
   })
 }

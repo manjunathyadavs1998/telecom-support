@@ -7,7 +7,7 @@
 | Tasks planned | ☑ B1–B20 confirmed 2026-11-26 | ☑ F1–F14 confirmed 2026-11-27 (tests deferred) |
 | Built | ☑ branch `slice/03-inbound-be` (B1–B20 + errata E1, E2) | ☑ branch `slice/03-inbound-fe` (F1–F14 + erratum FE1) |
 | Checks green | ☑ 611 tests green at 06ffed6; E1/E2 code-only (compile + ArchitectureTest pass; tests deferred by user) | ☐ |
-| Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☐ `review.md` |
+| Review clean (no open High) | ☑ `review.md`: no High/Medium open; C1/C2/C6 fixed in code (E1/E2; tests deferred by user); C3–C12 dispositioned | ☑ `review-frontend.md`: H1, H2, M3, M4 + L7/8/9/11 fixed; L5/6/10 open follow-ups |
 | PR | ☑ #13 | ☐ #… |
 | Merged (by user) | ☐ | ☐ |
 
@@ -80,4 +80,5 @@ Precondition: slice 02 FE is on `main` (PR #12); `slice/03-inbound-be` merged (o
 - F12: Raise request on behalf (I11 grouped categories, subcategory, line select / read-only, statement, internal agent notes, preferred contact with unverified email disabled, derived priority + override with reason; idempotency key on the concrete path, kept on 403 verification-required; confirmation with Copy reference). Browser check pending.
 - F13: Reactivation page (eligibility facts + plain-word reasons, prohibited = danger alert, open request links to its history row; approver-only via `Can service.reactivate`; history with honest status copy, needs-attention badge, date filter/paging, 15 s poll while page 1 in flight). Browser check pending.
 - F14: Reactivation form (hours/reason/approval ref, confirm dialog, I14 with idempotency key; every §3.9 outcome incl. 503 PENDING watch → eligibility re-renders), traceability slice 03 FE rows Built. `navConfig.test.ts` 3 failures = stale child-route expectations (02 only).
-- Next: user tests feature-wise on the dev JAR (SPA built in), then reviewer → PR.
+- Review (2026-11-28): 2 High, 2 Medium, 7 Low; all High/Medium fixed (forms survive verification loss, no placeholder PII, reactivation notice above eligibility, frame survives a failed I4 refetch).
+- Next: user tests feature-wise on a rebuilt dev JAR, then `merge-steward` PR.

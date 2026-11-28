@@ -27,7 +27,6 @@ import {
   reactivationCreatePath,
   reactivationProblem,
   useCreateReactivation,
-  useReactivationHistoryQuery,
 } from './queries'
 import {
   APPROVAL_MAX,
@@ -44,21 +43,24 @@ const VERIFY_FIRST = 'Verify the customer again, then submit. What you typed is 
 const VERIFIED_AGAIN = 'Verified again. Submit when ready.'
 const ALREADY_OPEN = 'A restoration is already open for this account.'
 const UNAVAILABLE = 'The provisioning system is unavailable. Nothing was restored. Try again later.'
-const FIRST_HISTORY_PAGE = { page: 0, size: 20 }
 
-type Outcome =
-  | { kind: 'success'; message: string }
-  | { kind: 'pending'; reference: string }
-  | { kind: 'root'; message: string; error: ApiError | null; reasons?: string[]; retry?: boolean; verify?: boolean }
+type Outcome = { kind: 'root'; message: string; error: ApiError | null; reasons?: string[]; retry?: boolean; verify?: boolean }
 
-type ReactivationFormProps = { customerId: number; eligibility: ReactivationEligibility }
+/** What the panel shows above the eligibility, so it survives the refetch that ends the form (review M3). */
+export type ReactivationNotice = { kind: 'success'; message: string } | { kind: 'pending'; reference: string }
+
+type ReactivationFormProps = {
+  customerId: number
+  eligibility: ReactivationEligibility
+  onNotice: (notice: ReactivationNotice) => void
+}
 
 /**
  * The restoration request (03-inbound/frontend.md §3.9, §6; INB-04.1–04.4/04.7, XC-07): hours, reason, approval reference →
  * confirm → I14 with an idempotency key on the concrete path. Every outcome in the §3.9 table is shown as the server reports it;
  * nothing claims success before a 201.
  */
-export function ReactivationForm({ customerId, eligibility }: ReactivationFormProps) {
+export function ReactivationForm({ customerId, eligibility, onNotice }: ReactivationFormProps) {
   const queryClient = useQueryClient()
   const { reverifiedCount, setDirty } = useVerifiedCustomer()
   const maxHours = eligibility.maxHours ?? 1
@@ -91,21 +93,6 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
     setSeenReverify(reverifiedCount)
     if (outcome?.kind === 'root' && outcome.verify) setOutcome({ kind: 'root', message: VERIFIED_AGAIN, error: null })
   }
-
-  // 503 PENDING (F5): watch page 1 of the history; when that reference leaves PENDING, eligibility decides the form again.
-  const pendingReference = outcome?.kind === 'pending' ? outcome.reference : null
-  const history = useReactivationHistoryQuery(customerId, FIRST_HISTORY_PAGE, pendingReference !== null)
-  const settled = pendingReference
-    ? history.data?.items.find((item) => item.reference === pendingReference && item.status !== 'PENDING')
-    : undefined
-  const [settledReference, setSettledReference] = useState<string | null>(null)
-  if (settled && pendingReference !== null && settledReference !== pendingReference) {
-    setSettledReference(pendingReference)
-    setOutcome(null)
-  }
-  useEffect(() => {
-    if (settledReference !== null) invalidateReactivation(queryClient, customerId)
-  }, [settledReference, queryClient, customerId])
 
   function show(next: Outcome) {
     setOutcome(next)
@@ -169,8 +156,9 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
       }
       case 503:
         if (problem.reference && problem.reactivationStatus === 'PENDING') {
+          onNotice({ kind: 'pending', reference: problem.reference })
           invalidateReactivation(queryClient, customerId)
-          return show({ kind: 'pending', reference: problem.reference })
+          return
         }
         return show({ kind: 'root', message: UNAVAILABLE, error, retry: true })
       default:
@@ -187,14 +175,14 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
         idempotency.succeeded()
         reset(reactivationDefaults(maxHours))
         setDirty(DIRTY_KEY, false)
-        invalidateReactivation(queryClient, customerId)
-        show({
+        onNotice({
           kind: 'success',
           message:
             created.status === 'ACTIVE' && created.expiresAt
               ? `Service restored until ${formatDateTime(created.expiresAt)} (${created.reference}). The customer will be notified by SMS.`
               : `Request ${created.reference} recorded.`,
         })
+        invalidateReactivation(queryClient, customerId)
       } catch (error) {
         // Kept on 403 verification-required, 409 and 5xx (a retry is safe); dropped on 400/404/422.
         idempotency.failed(error)
@@ -204,23 +192,11 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
 
   const onRequest = handleSubmit((body) => setPendingBody(body))
   const busy = guard.busy
-  const locked = outcome?.kind === 'pending'
   const hoursShown = Number(hoursText) || maxHours
 
   return (
     <Form {...form}>
       <form noValidate onSubmit={onRequest} aria-busy={busy} className="flex max-w-xl flex-col gap-4">
-        {outcome?.kind === 'success' ? (
-          <Alert ref={rootRef} tabIndex={-1} className="block border-success/30 bg-success/10">
-            <output className="block">{outcome.message}</output>
-          </Alert>
-        ) : null}
-        {outcome?.kind === 'pending' ? (
-          <Alert className="block border-warning/30 bg-warning/10" ref={rootRef} tabIndex={-1}>
-            No answer from the provisioning system yet. Request {outcome.reference} is pending and is checked automatically.
-            Don&apos;t submit again.
-          </Alert>
-        ) : null}
         {outcome?.kind === 'root' && outcome.message === VERIFIED_AGAIN ? (
           <Alert asChild>
             <output className="block">{VERIFIED_AGAIN}</output>
@@ -254,7 +230,7 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
             <FormItem>
               <FormLabel>Hours (1–{maxHours})</FormLabel>
               <FormControl>
-                <Input inputMode="numeric" className="sm:w-32" disabled={busy || locked} {...field} />
+                <Input inputMode="numeric" className="sm:w-32" disabled={busy} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -267,7 +243,7 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
             <FormItem>
               <FormLabel>Reason</FormLabel>
               <FormControl>
-                <Textarea rows={3} maxLength={REASON_MAX} disabled={busy || locked} {...field} />
+                <Textarea rows={3} maxLength={REASON_MAX} disabled={busy} {...field} />
               </FormControl>
               <p className="text-sm text-muted-foreground">Explain why. Don&apos;t include personal data.</p>
               <FormMessage />
@@ -281,14 +257,14 @@ export function ReactivationForm({ customerId, eligibility }: ReactivationFormPr
             <FormItem>
               <FormLabel>Approval reference (optional)</FormLabel>
               <FormControl>
-                <Input maxLength={APPROVAL_MAX} autoComplete="off" disabled={busy || locked} {...field} />
+                <Input maxLength={APPROVAL_MAX} autoComplete="off" disabled={busy} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={busy || locked}>
+          <Button type="submit" disabled={busy}>
             {busy ? 'Requesting…' : 'Request restoration'}
           </Button>
           {outcome?.kind === 'root' && outcome.retry ? (

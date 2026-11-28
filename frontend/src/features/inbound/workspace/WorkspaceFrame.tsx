@@ -102,7 +102,7 @@ function Frame({ customerId }: { customerId: number }) {
   let body
   if (checkQuery.isPending) {
     body = <LoadingState label="Checking verification" />
-  } else if (checkQuery.isError) {
+  } else if (checkQuery.isError && check === undefined) {
     body = <ErrorState title="We couldn't check the verification" error={checkQuery.error} onRetry={() => void checkQuery.refetch()} />
   } else if (!verified && !lost) {
     body = <VerifyPanel customerId={customerId} onVerified={focusHeading} />

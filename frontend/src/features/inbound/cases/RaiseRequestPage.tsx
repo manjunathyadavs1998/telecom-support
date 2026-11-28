@@ -62,7 +62,7 @@ type FormProps = {
 }
 
 function RaiseRequestForm({ customerId, profile, lines, categories, idempotency, onCreated, onLinesStale }: FormProps) {
-  const { reverifiedCount, setDirty } = useVerifiedCustomer()
+  const { verified, reverifiedCount, setDirty } = useVerifiedCustomer()
   const create = useCreateCaseOnBehalf(customerId)
   const guard = useSubmitGuard()
   const notesHintId = useId()
@@ -177,6 +177,7 @@ function RaiseRequestForm({ customerId, profile, lines, categories, idempotency,
         ) : (
           <FormRootError ref={rootRef} message={root?.message} error={root?.error ?? null} />
         )}
+        {verified ? (
         <dl className="grid gap-3 rounded-lg border bg-slate-50 p-4 sm:grid-cols-3">
           <div className="flex flex-col gap-0.5">
             <dt className="text-sm text-muted-foreground">Customer</dt>
@@ -191,6 +192,11 @@ function RaiseRequestForm({ customerId, profile, lines, categories, idempotency,
             <dd>{contactNumber}</dd>
           </div>
         </dl>
+        ) : (
+          <p className="rounded-lg border bg-slate-50 p-4 text-muted-foreground">
+            Customer details are hidden until the caller is verified again.
+          </p>
+        )}
 
         <FormField
           control={control}
@@ -390,11 +396,15 @@ function Confirmation({
 }) {
   const headingId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'' | 'Copied' | "Couldn't copy. Select the reference instead.">('')
   useEffect(() => headingRef.current?.focus(), [])
 
   const copy = () => {
-    void navigator.clipboard?.writeText(created.reference).then(() => setCopied(true))
+    const write = navigator.clipboard?.writeText(created.reference) ?? Promise.reject(new Error('no clipboard'))
+    write.then(
+      () => setCopied('Copied'),
+      () => setCopied("Couldn't copy. Select the reference instead."),
+    )
   }
 
   return (
@@ -410,7 +420,7 @@ function Confirmation({
           Copy reference
         </Button>
         <span aria-live="polite" className="text-sm text-muted-foreground">
-          {copied ? 'Copied' : ''}
+          {copied}
         </span>
       </div>
       <dl className="grid gap-3 sm:grid-cols-2">
@@ -461,6 +471,23 @@ export function RaiseRequestPage() {
   const [created, setCreated] = useState<AgentCaseCreated | null>(null)
   const [formKey, setFormKey] = useState(0)
 
+  // Review H1: when verification is lost the protected queries are removed (§3.3); the form keeps its last data in component
+  // memory so it stays mounted with the agent's input and its idempotency key, and resubmits after re-verification.
+  const live =
+    profile.data && subscriptions.data && categories.data
+      ? { profile: profile.data, subscriptions: subscriptions.data, categories: categories.data }
+      : null
+  const [snapshot, setSnapshot] = useState(live)
+  if (
+    live &&
+    (snapshot?.profile !== live.profile ||
+      snapshot.subscriptions !== live.subscriptions ||
+      snapshot.categories !== live.categories)
+  ) {
+    setSnapshot(live)
+  }
+  const data = live ?? snapshot
+
   if (created) {
     return (
       <Confirmation
@@ -475,8 +502,9 @@ export function RaiseRequestPage() {
     )
   }
 
+
   const failed = profile.error ?? subscriptions.error ?? categories.error
-  if (failed) {
+  if (failed && !data) {
     return (
       <SectionErrorState
         title="We couldn't load the request form"
@@ -489,16 +517,16 @@ export function RaiseRequestPage() {
       />
     )
   }
-  if (!profile.data || !subscriptions.data || !categories.data) return <LoadingState label="Loading the request form" />
+  if (!data) return <LoadingState label="Loading the request form" />
 
-  const lines = subscriptions.data.filter((line) => line.status !== 'TERMINATED')
+  const lines = data.subscriptions.filter((line) => line.status !== 'TERMINATED')
   return (
     <RaiseRequestForm
       key={formKey}
       customerId={customerId}
-      profile={profile.data}
+      profile={data.profile}
       lines={lines}
-      categories={categories.data}
+      categories={data.categories}
       idempotency={idempotency}
       onCreated={setCreated}
       onLinesStale={() => void subscriptions.refetch()}

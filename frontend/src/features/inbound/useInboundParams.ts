@@ -16,6 +16,8 @@ export type InboundParams = {
 export function useInboundParams(): InboundParams | null {
   const { customerId, reference } = useParams()
   if (customerId === undefined || !INBOUND_PARAM_PATTERNS.customerId.test(customerId)) return null
+  // Review L11: an id beyond 2^53 would silently become another number.
+  if (!Number.isSafeInteger(Number(customerId))) return null
   if (reference !== undefined && !INBOUND_PARAM_PATTERNS.reference.test(reference)) return null
   return { customerId: Number(customerId), reference }
 }
