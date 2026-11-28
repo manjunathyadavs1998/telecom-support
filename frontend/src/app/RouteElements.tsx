@@ -21,11 +21,20 @@ export function ComingSoonRoute({ item, label }: { item: NavItem; label: RouteLa
   return <ComingSoonPage item={{ ...item, label: typeof label === 'function' ? label(params) : label }} />
 }
 
-/** A route param that fails its §2 pattern (e.g. a malformed payment reference) → `NotFoundPage`; the page never mounts. */
-export function ParamGate({ children }: { children: ReactNode }) {
+/**
+ * A route param that fails its §2 pattern (e.g. a malformed payment reference) → `NotFoundPage`; the page never mounts.
+ * `patterns` are the nav item's (03-inbound/frontend.md §9 FE1: e.g. `SR-…` on the inbound case route), default the global ones.
+ */
+export function ParamGate({
+  children,
+  patterns = ROUTE_PARAM_PATTERNS,
+}: {
+  children: ReactNode
+  patterns?: Readonly<Record<string, RegExp>>
+}) {
   const params = useParams()
   const bad = Object.entries(params).some(([name, value]) => {
-    const pattern = ROUTE_PARAM_PATTERNS[name]
+    const pattern = patterns[name]
     return pattern !== undefined && (value === undefined || !pattern.test(value))
   })
   return <>{bad ? <NotFoundPage /> : children}</>

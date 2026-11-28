@@ -30,6 +30,16 @@ export type NavChild = {
   path: string
   label: RouteLabel
   requires?: readonly Permission[]
+  /**
+   * Layout route (03-inbound/frontend.md §2): id in `LAYOUT_REGISTRY` whose component wraps this child's page and every child
+   * nested under it (`<Outlet/>`), so it survives navigation between them. Without a registry entry the pages render bare.
+   */
+  layout?: string
+  /**
+   * Route param patterns (03-inbound/frontend.md §9 FE1). They apply across the whole nav item's tree and win over the global
+   * `ROUTE_PARAM_PATTERNS`, because a parent route's `useParams` also sees its children's params.
+   */
+  params?: Readonly<Record<string, RegExp>>
 }
 
 export type NavItem = {
@@ -65,6 +75,12 @@ export const SECTION_HEADINGS: Record<Section, string> = {
   operations: 'Operations',
   business: 'Business',
 }
+
+/** Inbound workspace params (03-inbound/frontend.md §2, §9 FE1); also parsed by `useInboundParams()`. */
+export const INBOUND_PARAM_PATTERNS = {
+  customerId: /^\d{1,18}$/,
+  reference: /^SR-\d{8}-\d{6,}$/,
+} as const satisfies Readonly<Record<string, RegExp>>
 
 /**
  * The one registry behind the sidebar and the protected routes (frontend.md §2, XC-01, NFR-MAINT), so a nav entry and its
@@ -103,7 +119,25 @@ export const NAV_ITEMS: readonly NavItem[] = [
       { id: 'customer-payment-receipt', path: '/customer/payments/:reference/receipt', label: 'Receipt' },
     ],
   },
-  { id: 'inbound-search', label: 'Customer search', icon: Search, path: '/inbound', section: 'inbound', requires: ['customer.lookup'], brd: 'INB-01..04', slice: '03' },
+  {
+    id: 'inbound-search',
+    label: 'Customer search',
+    icon: Search,
+    path: '/inbound',
+    section: 'inbound',
+    requires: ['customer.lookup'],
+    brd: 'INB-01..04',
+    slice: '03',
+    // 03-inbound/frontend.md §2: the workspace is a layout route; billing, cases and reactivation nest under it.
+    children: [
+      { id: 'inbound-customer', path: '/inbound/customers/:customerId', label: 'Customer', requires: ['customer.verify'], layout: 'inbound-workspace', params: { customerId: INBOUND_PARAM_PATTERNS.customerId } },
+      { id: 'inbound-billing', path: '/inbound/customers/:customerId/billing', label: 'Billing', requires: ['payment.read'] },
+      { id: 'inbound-cases', path: '/inbound/customers/:customerId/cases', label: 'Cases', requires: ['case.read'] },
+      { id: 'inbound-case-new', path: '/inbound/customers/:customerId/cases/new', label: 'New request', requires: ['case.create.onbehalf', 'customer.profile.read', 'plan.read'] },
+      { id: 'inbound-case', path: '/inbound/customers/:customerId/cases/:reference', label: (params) => params.reference ?? '', params: { reference: INBOUND_PARAM_PATTERNS.reference } },
+      { id: 'inbound-reactivation', path: '/inbound/customers/:customerId/reactivation', label: 'Reactivation', requires: ['customer.profile.read'] },
+    ],
+  },
   { id: 'outbound-queue', label: 'Case queue', icon: ListTodo, path: '/outbound', section: 'outbound', requires: ['case.read.queue'], brd: 'OUT-01..05', slice: '04' },
   { id: 'outbound-bookmarks', label: 'Bookmarks', icon: Bookmark, path: '/outbound/bookmarks', section: 'outbound', requires: ['case.bookmark'], brd: 'OUT-06', slice: '04' },
   {
@@ -126,6 +160,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
  */
 export const ROUTE_PARAM_PATTERNS: Readonly<Record<string, RegExp>> = {
   reference: /^PAY-\d{8}-\d{6,}$/,
+}
+
+/** The param patterns of `item`'s routes: the global ones overridden by what its children declare (§9 FE1). */
+export function paramPatternsOf(item: NavItem): Readonly<Record<string, RegExp>> {
+  return Object.assign({}, ROUTE_PARAM_PATTERNS, ...(item.children ?? []).map((child) => child.params ?? {}))
 }
 
 /** True if `me` may open `item` (UI gating only; the server enforces every API, BR-10). */
