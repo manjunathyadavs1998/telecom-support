@@ -91,9 +91,11 @@ export function QueueFilters({ params, setFilters, categories, agents, createdRe
   const base = current(params)
   if (params.status.length) chips.push({ key: 'status', label: `Status: ${params.status.map((s) => statusLabel({ kind: 'caseInternal', value: s })).join(', ')}`, remove: () => setFilters({ ...base, status: [] }) })
   if (params.severity.length) chips.push({ key: 'severity', label: `Severity: ${params.severity.map((s) => statusLabel({ kind: 'severity', value: s })).join(', ')}`, remove: () => setFilters({ ...base, severity: [] }) })
-  if (params.category) chips.push({ key: 'category', label: `Category: ${params.category}`, remove: () => setFilters({ ...base, category: undefined }) })
+  const categoryName = (code: string) =>
+    categories.flatMap((top) => [{ code: top.code, name: top.name }, ...top.children]).find((c) => c.code === code)?.name ?? code
+  if (params.category) chips.push({ key: 'category', label: `Category: ${categoryName(params.category)}`, remove: () => setFilters({ ...base, category: undefined }) })
   if (params.assignee) chips.push({ key: 'assignee', label: `Assigned to: ${params.assignee === 'me' ? 'Me' : params.assignee === 'unassigned' ? 'Unassigned' : agentName(params.assignee)}`, remove: () => setFilters({ ...base, assignee: undefined }) })
-  if (msisdn) chips.push({ key: 'msisdn', label: `Mobile ••••${msisdn.slice(-4)}`, remove: () => clearMsisdn() })
+  if (msisdn) chips.push({ key: 'msisdn', label: `Mobile ••••${msisdn.slice(-4)}`, remove: () => { clearMsisdn(); setFilters(base) } })
   if (params.ref) chips.push({ key: 'ref', label: `Case ID: ${params.ref}`, remove: () => setFilters({ ...base, ref: undefined }) })
   if (params.overdue) chips.push({ key: 'overdue', label: 'Overdue only', remove: () => setFilters({ ...base, overdue: false }) })
   if (params.ufrom && params.uto) chips.push({ key: 'updated', label: `Updated ${params.ufrom} – ${params.uto}`, remove: () => setFilters({ ...base, ufrom: undefined, uto: undefined }) })

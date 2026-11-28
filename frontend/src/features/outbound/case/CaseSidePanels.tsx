@@ -68,7 +68,9 @@ export function CaseSidePanels({ detail }: { detail: OutboundCaseDetail }) {
           {detail.overdue ? <span className="ml-2 font-medium text-destructive">Overdue</span> : null}
         </Row>
         <Row label="Owner">
-          {detail.assigneeName ? `${detail.assigneeName}${detail.teamName ? ` · ${detail.teamName}` : ''}` : detail.teamName ?? 'Unassigned'}
+          {detail.assigneeName
+            ? `${detail.assigneeName}${detail.teamName ? ` · ${detail.teamName}` : ''}`
+            : `Unassigned${detail.teamName ? ` · ${detail.teamName} queue` : ''}`}
         </Row>
         {detail.reopenCount && detail.reopenCount > 0 ? <Row label="Reopened">{`${detail.reopenCount} times`}</Row> : null}
       </Panel>

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { statusLabel } from '@/components/data/statusLabel'
@@ -32,13 +32,19 @@ const label = (value: string) => statusLabel({ kind: 'caseInternal', value: valu
  * Resolved, Closed and Reopened get a review step. The form stays mounted through refetches (L2); on 409 the dialog returns to
  * step 1 with the input kept.
  */
-export function StatusDialog({ detail }: { detail: OutboundCaseDetail }) {
+export function StatusDialog({ detail, allowed: actionAllowed }: { detail: OutboundCaseDetail; allowed: boolean }) {
   const queryClient = useQueryClient()
   const id = useId()
   const [open, setOpen] = useState(false)
   /** When the dialog opened: the verification-window hint is computed against it (not `Date.now()` during render). */
   const [openedAt, setOpenedAt] = useState(0)
   const [step, setStep] = useState<'edit' | 'review'>('edit')
+  /** Review M2: Confirm is armed shortly after the review step appears, so a double click can't skip the review. */
+  const [armed, setArmed] = useState(false)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (step === 'review') titleRef.current?.focus()
+  }, [step])
   const [root, setRoot] = useState<{ message: string; error: ApiError | null } | null>(null)
   const change = useChangeStatus(detail.reference)
   const guard = useSubmitGuard()
@@ -84,14 +90,22 @@ export function StatusDialog({ detail }: { detail: OutboundCaseDetail }) {
         } else {
           setRoot({ message: error instanceof ApiError ? error.message : GENERIC_ERROR_MESSAGE, error: error instanceof ApiError ? error : null })
         }
-        if (reason === 'stale_version' || reason === 'invalid_transition' || reason === 'unassigned' || reason === 'reopen_window_expired') {
+        if (reason === 'stale_version' || reason === 'invalid_transition' || reason === 'unassigned' || reason === 'reopen_window_expired'
+          || reason === 'case_closed' || (error instanceof ApiError && error.status === 403)) {
           void queryClient.invalidateQueries({ queryKey: outboundKeys.case(detail.reference) })
         }
       }
     }),
   )
 
-  const next = form.handleSubmit(() => setStep('review'))
+  const next = form.handleSubmit(() => {
+    setArmed(false)
+    setStep('review')
+    window.setTimeout(() => setArmed(true), 400)
+  })
+
+  // Review M3: while open the dialog stays mounted even if a refetch removed the action; only the trigger hides.
+  if (!actionAllowed && !open) return null
 
   return (
     <Dialog
@@ -102,18 +116,32 @@ export function StatusDialog({ detail }: { detail: OutboundCaseDetail }) {
         else setStep('edit')
       }}
     >
-      <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-          Change status
-        </Button>
-      </DialogTrigger>
+      {actionAllowed ? (
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline">
+            Change status
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{step === 'review' ? `Move ${detail.reference} to ${label(toStatus)}?` : 'Change status'}</DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1} className="focus-visible:outline-none">
+            {step === 'review' ? `Move ${detail.reference} to ${label(toStatus)}?` : 'Change status'}
+          </DialogTitle>
           <DialogDescription>Current status: {label(detail.status)}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form noValidate onSubmit={step === 'review' || !highRisk(toStatus) ? submit : next} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              if (step === 'review') {
+                if (armed) void submit(event)
+                else event.preventDefault()
+              } else if (highRisk(toStatus)) void next(event)
+              else void submit(event)
+            }}
+            className="flex flex-col gap-4"
+          >
             <FormRootError message={root?.message} error={root?.error ?? null} />
             {step === 'edit' ? (
               <>
@@ -198,9 +226,15 @@ export function StatusDialog({ detail }: { detail: OutboundCaseDetail }) {
                   Back
                 </Button>
               ) : null}
-              <Button type="submit" disabled={guard.busy || notAllowed}>
-                {guard.busy ? 'Saving…' : step === 'review' ? `Confirm ${label(toStatus)}` : highRisk(toStatus) ? 'Review' : 'Change status'}
-              </Button>
+              {step === 'review' ? (
+                <Button key="confirm" type="submit" disabled={guard.busy || !armed}>
+                  {guard.busy ? 'Saving…' : `Confirm ${label(toStatus)}`}
+                </Button>
+              ) : (
+                <Button key="edit" type="submit" disabled={guard.busy || notAllowed}>
+                  {guard.busy ? 'Saving…' : highRisk(toStatus) ? 'Review' : 'Change status'}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </Form>

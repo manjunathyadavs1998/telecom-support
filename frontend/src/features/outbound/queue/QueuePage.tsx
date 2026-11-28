@@ -1,5 +1,5 @@
 import { Inbox, RefreshCw } from 'lucide-react'
-import { useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
 import type { DateRangeFilterHandle } from '@/components/data/DateRangeFilter'
 import { Pagination } from '@/components/data/Pagination'
@@ -58,6 +58,21 @@ export function QueuePageView({ rowActions, notices }: QueuePageProps) {
   const data = query.isError ? (filterError ? lastGood : undefined) : query.data
 
   const { page: _page, ...filters } = params
+
+  // Review M4: drop a category / assignee id the server doesn't know, once O3 / O4 have loaded (§4).
+  useEffect(() => {
+    const codes = categories.data?.flatMap((top) => [top.code, ...top.children.map((c) => c.code)])
+    const badCategory = !!params.category && !!codes && !codes.includes(params.category)
+    const ids = agents.data?.map((a) => String(a.userId))
+    const badAssignee = !!params.assignee && /^\d+$/.test(params.assignee) && !!ids && !ids.includes(params.assignee)
+    if (badCategory || badAssignee) {
+      setFilters({
+        ...filters,
+        category: badCategory ? undefined : filters.category,
+        assignee: badAssignee ? undefined : filters.assignee,
+      })
+    }
+  }, [categories.data, agents.data, params.category, params.assignee, filters, setFilters])
   const anyFilter =
     params.status.length + params.severity.length > 0 || !!params.category || !!params.assignee || !!params.ref ||
     params.overdue || !!msisdn || !!(params.ufrom && params.uto) || !!(params.from && params.to)
@@ -110,6 +125,7 @@ export function QueuePageView({ rowActions, notices }: QueuePageProps) {
         <p className="text-sm text-muted-foreground">
           {data ? `${data.totalItems} matching ${data.totalItems === 1 ? 'case' : 'cases'}` : ' '}
           {created ? ` · Created ${formatDate(created.from)} – ${formatDate(created.to)}${params.from ? '' : ' (default)'}` : ''}
+          {data?.filters.updated ? ` · Updated ${formatDate(data.filters.updated.from)} – ${formatDate(data.filters.updated.to)}` : ''}
         </p>
         <div className="flex items-end gap-2">
           <div className="flex flex-col gap-1">

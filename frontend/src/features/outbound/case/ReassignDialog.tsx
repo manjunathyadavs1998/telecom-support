@@ -22,7 +22,7 @@ import { reassignSchema, type ReassignInput } from './reassignSchema'
  * Reassign (O7; 04-outbound/frontend.md §3.3; OUT-03.2/03.3): supervisors only (`allowedActions.reassign`). [Reassign] is the
  * confirmation (XC-06). Sends the case version as read at submit time; 409 keeps the dialog and its input open (L2).
  */
-export function ReassignDialog({ detail }: { detail: OutboundCaseDetail }) {
+export function ReassignDialog({ detail, allowed }: { detail: OutboundCaseDetail; allowed: boolean }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [root, setRoot] = useState<{ message: string; error: ApiError | null } | null>(null)
@@ -35,6 +35,9 @@ export function ReassignDialog({ detail }: { detail: OutboundCaseDetail }) {
     defaultValues: { assigneeUserId: '', reason: '' },
   })
   const targets = (agents.data ?? []).filter((a) => a.userId !== detail.assignedUserId)
+
+  // Review M3: while open the dialog stays mounted even if a refetch removed the action; only the trigger hides.
+  const hidden = !allowed && !open
 
   const submit = form.handleSubmit((values) =>
     guard.run(async () => {
@@ -69,13 +72,16 @@ export function ReassignDialog({ detail }: { detail: OutboundCaseDetail }) {
     }),
   )
 
+  if (hidden) return null
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-          Reassign
-        </Button>
-      </DialogTrigger>
+      {allowed ? (
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline">
+            Reassign
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Reassign {detail.reference}</DialogTitle>

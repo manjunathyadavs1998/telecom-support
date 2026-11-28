@@ -27,22 +27,13 @@ export function invalidateLists(queryClient: QueryClient) {
 }
 
 /**
- * O5 (R4): always fresh (`staleTime` 0). A 404 removes the cached case (L1: never show a case that left the actor's scope).
+ * O5 (R4): always fresh (`staleTime` 0). A 404 (the case left the actor's scope) is shown by the page as not found even when an
+ * older copy is cached, so the old details are never displayed (L1; review H1: the query must not remove its own entry).
  */
 export function useOutboundCase(reference: string) {
-  const queryClient = useQueryClient()
   return useQuery<OutboundCaseDetail, ApiError>({
     queryKey: outboundKeys.case(reference),
-    queryFn: async () => {
-      try {
-        return await api.call(apiClient.GET('/api/v1/outbound/cases/{reference}', { params: { path: { reference } } }))
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
-          queryClient.removeQueries({ queryKey: outboundKeys.case(reference), exact: true })
-        }
-        throw error
-      }
-    },
+    queryFn: () => api.call(apiClient.GET('/api/v1/outbound/cases/{reference}', { params: { path: { reference } } })),
     staleTime: 0,
   })
 }
@@ -124,6 +115,10 @@ export function useBookmarkToggle(reference: string) {
 
 /** O13 mark seen (R12): 404 (not bookmarked) is ignored. */
 export async function markSeen(queryClient: QueryClient, reference: string) {
-  const result = await apiClient.POST('/api/v1/outbound/bookmarks/{reference}/seen', { params: { path: { reference } } })
-  if (result.response.ok) void queryClient.invalidateQueries({ queryKey: outboundKeys.bookmarksAll })
+  try {
+    const result = await apiClient.POST('/api/v1/outbound/bookmarks/{reference}/seen', { params: { path: { reference } } })
+    if (result.response.ok) void queryClient.invalidateQueries({ queryKey: outboundKeys.bookmarksAll })
+  } catch {
+    // review L: a network failure only means the "Updated" marker stays until the next open
+  }
 }

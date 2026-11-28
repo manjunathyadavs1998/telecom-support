@@ -63,9 +63,9 @@ export function CaseDetailPage() {
     </Button>
   )
 
-  if (!detail) {
+  const notFound = query.isError && query.error instanceof ApiError && query.error.status === 404
+  if (!detail || notFound) {
     if (query.isError) {
-      const notFound = query.error instanceof ApiError && query.error.status === 404
       return (
         <PageContainer title={`Case ${reference}`} actions={backLink}>
           <ErrorState
@@ -109,12 +109,10 @@ export function CaseDetailPage() {
 
       <div className="flex flex-wrap gap-2">
         {actions.claim ? <ClaimButton reference={detail.reference} onNotice={setNotice} /> : null}
-        {actions.reassign ? (
-          <Can allOf={['case.assign.any']}>
-            <ReassignDialog detail={detail} />
-          </Can>
-        ) : null}
-        {actions.transitions.length > 0 ? <StatusDialog detail={detail} /> : null}
+        <Can allOf={['case.assign.any']}>
+          <ReassignDialog detail={detail} allowed={actions.reassign} />
+        </Can>
+        <StatusDialog detail={detail} allowed={actions.transitions.length > 0} />
       </div>
       {noActions && !actions.internalNote && !actions.publicComment ? (
         <p className="text-sm text-muted-foreground">
